@@ -1,2 +1,0 @@
-#! /usr/bin/bash
-ssh -o StrictHostKeyChecking=no $HOST_USER@172.17.0.1 -XYC $@

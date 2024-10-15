@@ -1,2 +1,0 @@
-Host上（コンテナの外）でだけ使われるコマンド群
-主にdocker imageのbuild 関係のコマンド
