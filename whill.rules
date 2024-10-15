@@ -6,14 +6,7 @@
 # lsusb : simple 
 # udevadm info -a -n ttyUSB0 : detailed
 
-KERNEL=="ttyUSB*",ATTRS{idVendor}=="0403",ATTRS{idProduct}=="6001",  MODE="666",SYMLINK+="ttyUSB-920MHz"
-# For RPLiDAR
-KERNEL=="ttyUSB*",ATTRS{idVendor}=="10c4",ATTRS{idProduct}=="ea60",  MODE="0777",SYMLINK+="ttyUSB-RPLiDAR"
-
-KERNEL=="ttyUSB*",ATTRS{idVendor}=="1a86",ATTRS{idProduct}=="7523",  MODE="666",SYMLINK+="ttyUSB-Arduino"
 KERNEL=="ttyUSB*",ATTRS{idVendor}=="056e",ATTRS{idProduct}=="5004",  MODE="666",SYMLINK+="ttyUSB-WhillCR"
-
-# KERNEL=="ttyACM*",ATTRS{idVendor}=="10c4",ATTRS{idProduct}=="ea60",  MODE="666",SYMLINK+="ttyUSB-LDS-02"
 
 # RTK-GNSS colcon build
 # Bus 004 Device 012: ID 1546:0502 U-Blox AG C099; ZED-F9P
