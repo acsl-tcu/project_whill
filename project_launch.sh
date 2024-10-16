@@ -1,5 +1,5 @@
 #! /usr/bin/bash +x
-dsource /homedir/.bashrc
+source /home/sekiguchi/.bashrc
 echo $PROJECT
 echo $ROS_DOMAIN_ID
 
