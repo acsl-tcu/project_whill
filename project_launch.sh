@@ -1,5 +1,5 @@
 #! /usr/bin/bash +x
-source homedir/.bashrc
+source ./.acsl/bashrc
 echo $PROJECT
 echo $ROS_DOMAIN_ID
 
