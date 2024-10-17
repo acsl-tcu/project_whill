@@ -16,13 +16,8 @@ __pycache__
 *Log/*
 #ros_packages/acs/acs/Log/*
 #ros_packages/localization_sys/localization_sys/Log/*
-ros_packages/mavlink_driver/mavlink_driver/Param/load.params
+*ros_packages/mavlink_driver/mavlink_driver/Param/load.params
 !*.gitkeep
-
-# 過去の遺物をアップしないように一応入れておくものそのうち決して良し(2023/12/16)
-ros2_ws
-catkin_ws
-vscode-server
 
 ############ python
 
