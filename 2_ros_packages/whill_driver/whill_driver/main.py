@@ -19,7 +19,7 @@ class whill_ope(ComWHILL):
     def __init__(self, ros):
     # def __init__(self, ros, port = '/dev/ttyUSB-WhillCR'):
         # Selecting whill model CR or model CR2
-        whillmodel = "CR2"#self.get_parameter('whmodel').get_parameter_value().string_value
+        whillmodel = self.get_parameter('whmodel').get_parameter_value().string_value
         if whillmodel == 'CR': 
             port = '/dev/ttyUSB-WhillCR'
         if whillmodel == 'CR2':
