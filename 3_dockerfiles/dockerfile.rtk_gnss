@@ -8,13 +8,13 @@ SHELL [ "/bin/bash","-c" ]
 
 # rtk-gnss
 # https://qiita.com/porizou1/items/87375394a6445952b9e9
+# add RTKLIB
+# https://qiita.com/kumemaru/items/dbaff478d7f14bd94e5f
 RUN mkdir -p ~/ros2_ws/src \
   && cd ~/ros2_ws/src \
   && git clone -b ros2 https://github.com/KumarRobotics/ublox.git \
   && apt update && apt install -y ros-${ROS_DISTRO}-ublox \
-# add RTKLIB
-# https://qiita.com/kumemaru/items/dbaff478d7f14bd94e5f
-RUN cd \
+  && cd \
   && git clone https://github.com/tomojitakasu/RTKLIB.git \
   && cd RTKLIB/app \
   && chmod 755 makeall.sh \
