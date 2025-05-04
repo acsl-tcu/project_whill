@@ -16,9 +16,10 @@ RUN mkdir -p ~/ros2_ws/src \
   && apt update && apt install -y ros-${ROS_DISTRO}-ublox \
   && cd \
   && git clone https://github.com/tomojitakasu/RTKLIB.git \
-  && cd RTKLIB/app \
-  && chmod 755 makeall.sh \
-  && ./makeall.sh
+  && mkdir -p ~/rtklib 
+# && cd RTKLIB/app \
+# && chmod 755 makeall.sh \
+# && ./makeall.sh
 # 
 # git clone https://github.com/ros-drivers/nmea_navsat_driver -b ros2 \ 
 
