@@ -13,13 +13,13 @@ SHELL [ "/bin/bash","-c" ]
 RUN mkdir -p ~/ros2_ws/src \
   && cd ~/ros2_ws/src \
   && git clone -b ros2 https://github.com/KumarRobotics/ublox.git \
-  && apt update && apt install -y ros-${ROS_DISTRO}-ublox
-# && cd \
-# && git clone https://github.com/tomojitakasu/RTKLIB.git \
-# && mkdir -p ~/rtklib 
-# && cd RTKLIB/app \
-# && chmod 755 makeall.sh \
-# && ./makeall.sh
+  && apt update && apt install -y ros-${ROS_DISTRO}-ublox \  
+  && cd \
+  && mkdir -p ~/rtk \
+  && git clone https://github.com/tomojitakasu/RTKLIB.git \   
+  && apt update && cd RTKLIB/app \
+  && chmod 755 makeall.sh \
+  && ./makeall.sh
 # 
 # git clone https://github.com/ros-drivers/nmea_navsat_driver -b ros2 \ 
 
