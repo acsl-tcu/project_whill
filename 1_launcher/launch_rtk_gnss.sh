@@ -9,5 +9,5 @@ cp /common/ros_launcher/launch_rtk_gnss/zed_f9p.yaml /root/ros2_ws/src/ublox/ubl
 sed -i 's/c94_m8p_rover/zed_f9p/' /root/ros2_ws/src/ublox/ublox_gps/launch/ublox_gps_node-launch.py
 $(echo "exec ros2 launch ublox_gps ublox_gps_node-launch.py")
 # RTKLIB
-/root/RTKLIB/app/str2str/gcc/str2str -in tcpcli://133.78.211.29:4000 -out serial://ttyUSB-ublox:23400
+# /root/RTKLIB/app/str2str/gcc/str2str -in tcpcli://133.78.211.29:4000 -out serial://ttyUSB-ublox:23400
 
