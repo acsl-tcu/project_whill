@@ -3,11 +3,15 @@
 # nmea_navsat_driver
 # cp /common/ros_launcher/launch_rtk_gnss/nmea_serial_driver.yaml /root/ros2_ws/install/nmea_navsat_driver/share/nmea_navsat_driver/config/
 # $(echo "exec ros2 launch nmea_navsat_driver nmea_serial_driver.launch.py")
-
+case $1 in
+"ublox_launch")
 # ublox
 cp /common/ros_launcher/launch_rtk_gnss/zed_f9p.yaml /root/ros2_ws/src/ublox/ublox_gps/config/
 sed -i 's/c94_m8p_rover/zed_f9p/' /root/ros2_ws/src/ublox/ublox_gps/launch/ublox_gps_node-launch.py
 $(echo "exec ros2 launch ublox_gps ublox_gps_node-launch.py")
+;;
+"run")
 # RTKLIB
-/root/ros2_ws/src/RTKLIB/app/str2str/gcc/str2str -in tcpcli://133.78.211.29:4000 -out serial://ttyUSB-ublox:23400
-
+$(echo "exec /root/ros2_ws/src/RTKLIB/app/str2str/gcc/str2str -in tcpcli://133.78.211.29:4000 -out serial://ttyUSB-ublox:23400")
+;;
+esac
