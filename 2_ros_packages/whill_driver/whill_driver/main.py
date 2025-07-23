@@ -38,7 +38,7 @@ class whill_ope(ComWHILL):
         self.request_speed_profile()
 
         # モードの設定
-        speedmode = 3
+        self.desired_speedmode = 4
         """
         0 : mode1
         1 : mode2
@@ -47,10 +47,23 @@ class whill_ope(ComWHILL):
         4 : 外部入力
         5 : スマホ入力
         """
-        self.set_speed_profile_via_dict(
-            speedmode, self.speed_profile[speedmode])
+        # Config for output max speed
+        pf = self.speed_profile[self.desired_speedmode]
+        self.set_speed_profile(self.desired_speedmode,
+                          forward_speed_max=60, # pf["forward_speed"],
+                          forward_accel=90, # pf["forward_acceleration"],
+                          forward_decel=pf["forward_deceleration"],
+                          reverse_speed_max=pf["reverse_speed"],
+                          reverse_accel=pf["reverse_acceleration"],
+                          reverse_decel=pf["reverse_deceleration"],
+                          turn_speed_max=pf["turn_speed"],
+                          turn_accel=pf["turn_acceleration"],
+                          turn_decel=pf["turn_deceleration"])
+        #self.set_speed_profile_via_dict(
+        #    self.desired_speedmode, self.speed_profile[self.desired_speedmode])
 
         self.send_joystick(int(0), int(0))  # TODO ジョイスティックコマンド
+       # self.send_velocity(int(0), int(0))
 
     def callback0(self):  # コールバック関数0のモードプロファイル
         # print(self.speed_profile[self.speed_mode_indicator])
@@ -93,6 +106,7 @@ class whill_ope(ComWHILL):
         """whillのイグニッションを管理するための関数"""
         if io:
             self.send_power_on()
+           # self.set_battery_voltage_output_mode(True)  # Model CR
         else:
             self.send_power_off()
 
@@ -108,7 +122,8 @@ class whill_ope(ComWHILL):
     def velocity2joy(self, v, w):
         """速度・角速度入力をジョイスティック入力に変換する関数"""
         d = 0.5  # ホイール間距離
-        pf = self.speed_profile[self.speed_mode_indicator]
+        pf = self.speed_profile[self.desired_speedmode]
+        self.ros.get_logger().info(f"Speed PF:{pf}")
         if 0.0 <= v:
             # 前進と後進で変換が違う為分岐
             front_joy = min(100.0 * v / (pf["forward_speed"] / 36), 100)
@@ -119,6 +134,15 @@ class whill_ope(ComWHILL):
                        (pf["turn_speed"] / 36)), -100)
         # print(front_joy , side_joy)
         return front_joy, side_joy
+
+    def velocity2cmd(self, v, w):
+        """速度・角速度入力を実機入力に変換する関数"""
+        d = 0.5 # ホイール間距離
+        unit = 0.004 # 最小単位 km/h
+        front = min(max(v*3.6/unit,-500),1500)
+        side = min(max(w*d*3.6/unit,-750),750)
+        return front, side
+
 
 
 class node(Node):
@@ -176,13 +200,45 @@ class node(Node):
         """
         if time() < 1.0 + self.sub_vel_t:
             joy_x, joy_y = self.whill.velocity2joy(self.v, self.w)
+            # Remote control only
             self.whill.send_joystick(int(joy_x), int(joy_y))
+            # Accept Manual control
+            #command_bytes = [self.whill.CommandID.SET_JOYSTICK,
+            #                 self.whill.UserControl.ENABLE,
+            #                 int(joy_x), int(joy_y)]
+            #self.whill.send_command(command_bytes)
+            self.get_logger().info(f"V:{self.v}, W:{self.w}")
+            self.get_logger().info(f"for:{joy_x}, back:{joy_y}")
         else:
             joy_x = 0
             joy_y = 0
             self.whill.send_joystick(int(0), int(0))
             command_bytes = [self.whill.CommandID.SET_JOYSTICK,
                              self.whill.UserControl.ENABLE, 0, 0]
+            self.whill.send_command(command_bytes)
+        self.whill.refresh()
+
+    def mainloop2(self):
+        """メインの実行関数\n
+        コンストラクタで設定した制御周期で速度コマンドを送信する．
+        """
+        if time() < 1.0 + self.sub_vel_t:
+            a, b = self.whill.velocity2cmd(self.v, self.w)
+            self.whill.send_velocity(front=int(a), side=int(b))
+            self.get_logger().info(f"V:{self.v}, W:{self.w}")
+            self.get_logger().info(f"CmdV:{a}, CmdW:{b}")
+        else:
+            front = 0
+            side = 0
+            self.whill.send_velocity(int(0), int(0))
+            front_up = (front & 0xFF00) >> 8
+            front_low = (front & 0x00FF)
+            side_up = (side & 0xFF00) >> 8
+            side_low = (side & 0x00FF)
+            command_bytes = [self.whill.CommandID.SET_VELOCITY,
+                             self.whill.UserControl.ENABLE,
+                             front_up, front_low,
+                             side_up, side_low]
             self.whill.send_command(command_bytes)
         self.whill.refresh()
 
@@ -200,6 +256,7 @@ def main(args=None):
 
     # システムが終了するときには必ず．ジョイスティックコマンドが[0,0]を出力
     ros.whill.send_joystick(int(0), int(0))
+    #ros.whill.send_velocity(int(0), int(0))
     sleep(1)
     ros.whill.send_power_on_com(0)  # 電源OFF
 
