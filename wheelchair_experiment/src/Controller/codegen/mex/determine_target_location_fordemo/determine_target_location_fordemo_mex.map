@@ -1,0 +1,17 @@
+MEX {
+	global:
+		mexFunction;
+		mexfilerequiredapiversion;
+		emlrtMexFcnProperties;
+		determine_target_location_fordemo;
+		determine_target_location_fordemo_initialize;
+		determine_target_location_fordemo_terminate;
+		determine_target_location_fordemo_atexit;
+		emxFreeStruct_struct0_T;
+		emxFree_real_T;
+		emxInitStruct_struct0_T;
+		emxInit_real_T;
+		emxEnsureCapacity_real_T;
+	local:
+		*;
+};

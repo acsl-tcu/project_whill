@@ -1,0 +1,13 @@
+MEX {
+	global:
+		mexFunction;
+		mexfilerequiredapiversion;
+		emlrtMexFcnProperties;
+		pcfitellipse_init;
+		pcfitellipse_init_initialize;
+		pcfitellipse_init_terminate;
+		pcfitellipse_init_atexit;
+		div_nde_s32_floor;
+	local:
+		*;
+};

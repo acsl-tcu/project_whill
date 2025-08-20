@@ -1,0 +1,6 @@
+clear; clc;
+load("calc_observation_formex.mat")
+pose.X = Plant.X; pose.Y = Plant.Y; pose.yaw = Plant.yaw;
+[isObserved,model1] = calc_observation(RANSAC, ...
+            numAssignments,assignment,Xhbar_observed_ellipse,Pbar_observed_ellipse,ObsptClouds,doRANSAC, ...
+            R,Xhbar_observed,trans,pose);

@@ -1,0 +1,126 @@
+# CompilerName=msvc170
+# Mode=optim
+ninja_required_version = 1.3
+
+# Basic folders
+root = .
+builddir = $root\build\win64
+matlabdir = C:\Program Files\MATLAB\R2023a
+startdir = C:\Users\masan\OneDrive - 東京都市大学 Tokyo City University (1)\graduation\IMMEst_okugai_v4\src\Estimator
+
+# Toolchain information
+cc = cl
+cxx = cl
+linker = link
+linkerxx = link
+
+cflags =  /c /Zc:__cplusplus /Zp8 /GR /W3 /EHs /nologo /MD /D_CRT_SECURE_NO_DEPRECATE /D_SCL_SECURE_NO_DEPRECATE /D_SECURE_SCL=0   /DMATLAB_MEX_FILE  /DMATLAB_MEX_FILE /O2 /Oy- /DNDEBUG /fp:strict /utf-8 /I "$root" /I "$startdir" /I "$root\interface" /I "$matlabdir\extern\include" /I "." -DHAVE_LAPACK_CONFIG_H -DLAPACK_COMPLEX_STRUCTURE -DMW_HAVE_LAPACK_DECLS -DMODEL=pcfitellipse_mex  
+
+cxxflags =   /c /Zc:__cplusplus /Zp8 /GR /W3 /EHs /nologo /MD /D_CRT_SECURE_NO_DEPRECATE /D_SCL_SECURE_NO_DEPRECATE /D_SECURE_SCL=0   /DMATLAB_MEX_FILE  /DMATLAB_MEX_FILE /O2 /Oy- /DNDEBUG /fp:strict /utf-8 /I "$root" /I "$startdir" /I "$root\interface" /I "$matlabdir\extern\include" /I "." -DHAVE_LAPACK_CONFIG_H -DLAPACK_COMPLEX_STRUCTURE -DMW_HAVE_LAPACK_DECLS -DMODEL=pcfitellipse_mex  
+
+ldflags =  /nologo /manifest   /DLL /LIBPATH:"$matlabdir\extern\lib\win64\microsoft" libmx.lib libmex.lib libmat.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib  /out:"pcfitellipse_mex.mexw64" /LIBPATH:"$matlabdir\extern\lib\win64\microsoft" libmwlapack.lib libmwblas.lib libemlrt.lib libcovrt.lib libut.lib libmwmathutil.lib  /export:mexFunction /export:mexfilerequiredapiversion /export:emlrtMexFcnProperties /export:pcfitellipse /export:pcfitellipse_initialize /export:pcfitellipse_terminate /export:pcfitellipse_atexit /export:emlrt_marshallOut /export:div_nde_s32_floor
+
+linkobjs = 
+
+# Build Rules
+rule cc
+    command = $cc $cflags $in /Fo$out
+
+rule cxx
+    command = $cxx $cxxflags $in /Fo$out
+
+rule link
+    command = $linker @$out.rsp $linkobjs $ldflags
+    rspfile = $out.rsp
+    rspfile_content = $in
+
+rule linkxx
+    command = $linkerxx $in $linkobjs $ldflags
+
+# Build
+build $builddir\pcfitellipse_data.obj : cc $root\pcfitellipse_data.c
+build $builddir\rt_nonfinite.obj : cc $root\rt_nonfinite.c
+build $builddir\pcfitellipse_initialize.obj : cc $root\pcfitellipse_initialize.c
+build $builddir\pcfitellipse_terminate.obj : cc $root\pcfitellipse_terminate.c
+build $builddir\pcfitellipse.obj : cc $root\pcfitellipse.c
+build $builddir\mean.obj : cc $root\mean.c
+build $builddir\sumMatrixIncludeNaN.obj : cc $root\sumMatrixIncludeNaN.c
+build $builddir\ransac.obj : cc $root\ransac.c
+build $builddir\msac.obj : cc $root\msac.c
+build $builddir\rand.obj : cc $root\rand.c
+build $builddir\mod.obj : cc $root\mod.c
+build $builddir\checkLinearInputs.obj : cc $root\checkLinearInputs.c
+build $builddir\ixamax.obj : cc $root\ixamax.c
+build $builddir\computeDualFeasError.obj : cc $root\computeDualFeasError.c
+build $builddir\isDeltaXTooSmall.obj : cc $root\isDeltaXTooSmall.c
+build $builddir\xdot.obj : cc $root\xdot.c
+build $builddir\xnrm2.obj : cc $root\xnrm2.c
+build $builddir\xasum.obj : cc $root\xasum.c
+build $builddir\warning.obj : cc $root\warning.c
+build $builddir\combineVectorElements.obj : cc $root\combineVectorElements.c
+build $builddir\_coder_pcfitellipse_api.obj : cc $root\interface\_coder_pcfitellipse_api.c
+build $builddir\_coder_pcfitellipse_mex.obj : cc $root\interface\_coder_pcfitellipse_mex.c
+build $builddir\eml_int_forloop_overflow_check.obj : cc $root\eml_int_forloop_overflow_check.c
+build $builddir\computeConstrViolationIneq_.obj : cc $root\computeConstrViolationIneq_.c
+build $builddir\computePrimalFeasError.obj : cc $root\computePrimalFeasError.c
+build $builddir\computeComplError.obj : cc $root\computeComplError.c
+build $builddir\computeObjective_.obj : cc $root\computeObjective_.c
+build $builddir\setProblemType.obj : cc $root\setProblemType.c
+build $builddir\modifyOverheadPhaseOne_.obj : cc $root\modifyOverheadPhaseOne_.c
+build $builddir\xcopy.obj : cc $root\xcopy.c
+build $builddir\test_exit.obj : cc $root\test_exit.c
+build $builddir\xgeqp3.obj : cc $root\xgeqp3.c
+build $builddir\computeQ_.obj : cc $root\computeQ_.c
+build $builddir\sortLambdaQP.obj : cc $root\sortLambdaQP.c
+build $builddir\step.obj : cc $root\step.c
+build $builddir\driver.obj : cc $root\driver.c
+build $builddir\PresolveWorkingSet.obj : cc $root\PresolveWorkingSet.c
+build $builddir\countsort.obj : cc $root\countsort.c
+build $builddir\moveConstraint_.obj : cc $root\moveConstraint_.c
+build $builddir\RemoveDependentIneq_.obj : cc $root\RemoveDependentIneq_.c
+build $builddir\feasibleX0ForWorkingSet.obj : cc $root\feasibleX0ForWorkingSet.c
+build $builddir\xgeqrf.obj : cc $root\xgeqrf.c
+build $builddir\maxConstraintViolation.obj : cc $root\maxConstraintViolation.c
+build $builddir\removeAllIneqConstr.obj : cc $root\removeAllIneqConstr.c
+build $builddir\computeFval.obj : cc $root\computeFval.c
+build $builddir\linearForm_.obj : cc $root\linearForm_.c
+build $builddir\iterate.obj : cc $root\iterate.c
+build $builddir\computeGrad_StoreHx.obj : cc $root\computeGrad_StoreHx.c
+build $builddir\xgemv.obj : cc $root\xgemv.c
+build $builddir\computeFval_ReuseHx.obj : cc $root\computeFval_ReuseHx.c
+build $builddir\squareQ_appendCol.obj : cc $root\squareQ_appendCol.c
+build $builddir\deleteColMoveEnd.obj : cc $root\deleteColMoveEnd.c
+build $builddir\compute_deltax.obj : cc $root\compute_deltax.c
+build $builddir\factor.obj : cc $root\factor.c
+build $builddir\factor1.obj : cc $root\factor1.c
+build $builddir\solve.obj : cc $root\solve.c
+build $builddir\solve1.obj : cc $root\solve1.c
+build $builddir\compute_lambda.obj : cc $root\compute_lambda.c
+build $builddir\addAineqConstr.obj : cc $root\addAineqConstr.c
+build $builddir\addBoundToActiveSetMatrix_.obj : cc $root\addBoundToActiveSetMatrix_.c
+build $builddir\relaxed.obj : cc $root\relaxed.c
+build $builddir\soc.obj : cc $root\soc.c
+build $builddir\BFGSUpdate.obj : cc $root\BFGSUpdate.c
+build $builddir\mrdivide_helper.obj : cc $root\mrdivide_helper.c
+build $builddir\computeConstraints_.obj : cc $root\computeConstraints_.c
+build $builddir\computeForwardDifferences.obj : cc $root\computeForwardDifferences.c
+build $builddir\updateWorkingSetForNewQP.obj : cc $root\updateWorkingSetForNewQP.c
+build $builddir\initActiveSet.obj : cc $root\initActiveSet.c
+build $builddir\driver1.obj : cc $root\driver1.c
+build $builddir\saveJacobian.obj : cc $root\saveJacobian.c
+build $builddir\computeLinearResiduals.obj : cc $root\computeLinearResiduals.c
+build $builddir\computeDeltaLag.obj : cc $root\computeDeltaLag.c
+build $builddir\computeGradLag.obj : cc $root\computeGradLag.c
+build $builddir\factorQR.obj : cc $root\factorQR.c
+build $builddir\feasibleratiotest.obj : cc $root\feasibleratiotest.c
+build $builddir\xgemm.obj : cc $root\xgemm.c
+build $builddir\xpotrf.obj : cc $root\xpotrf.c
+build $builddir\xtrsv.obj : cc $root\xtrsv.c
+build $builddir\fullColLDL2_.obj : cc $root\fullColLDL2_.c
+build $builddir\unsafeSxfun.obj : cc $root\unsafeSxfun.c
+build $builddir\pcfitellipse_mexutil.obj : cc $root\pcfitellipse_mexutil.c
+build $builddir\_coder_pcfitellipse_info.obj : cc $root\interface\_coder_pcfitellipse_info.c
+build $builddir\c_mexapi_version.obj : cc $matlabdir\extern\version\c_mexapi_version.c
+
+# Link
+build $root\pcfitellipse_mex.mexw64 : link $builddir\pcfitellipse_data.obj $builddir\rt_nonfinite.obj $builddir\pcfitellipse_initialize.obj $builddir\pcfitellipse_terminate.obj $builddir\pcfitellipse.obj $builddir\mean.obj $builddir\sumMatrixIncludeNaN.obj $builddir\ransac.obj $builddir\msac.obj $builddir\rand.obj $builddir\mod.obj $builddir\checkLinearInputs.obj $builddir\ixamax.obj $builddir\computeDualFeasError.obj $builddir\isDeltaXTooSmall.obj $builddir\xdot.obj $builddir\xnrm2.obj $builddir\xasum.obj $builddir\warning.obj $builddir\combineVectorElements.obj $builddir\_coder_pcfitellipse_api.obj $builddir\_coder_pcfitellipse_mex.obj $builddir\eml_int_forloop_overflow_check.obj $builddir\computeConstrViolationIneq_.obj $builddir\computePrimalFeasError.obj $builddir\computeComplError.obj $builddir\computeObjective_.obj $builddir\setProblemType.obj $builddir\modifyOverheadPhaseOne_.obj $builddir\xcopy.obj $builddir\test_exit.obj $builddir\xgeqp3.obj $builddir\computeQ_.obj $builddir\sortLambdaQP.obj $builddir\step.obj $builddir\driver.obj $builddir\PresolveWorkingSet.obj $builddir\countsort.obj $builddir\moveConstraint_.obj $builddir\RemoveDependentIneq_.obj $builddir\feasibleX0ForWorkingSet.obj $builddir\xgeqrf.obj $builddir\maxConstraintViolation.obj $builddir\removeAllIneqConstr.obj $builddir\computeFval.obj $builddir\linearForm_.obj $builddir\iterate.obj $builddir\computeGrad_StoreHx.obj $builddir\xgemv.obj $builddir\computeFval_ReuseHx.obj $builddir\squareQ_appendCol.obj $builddir\deleteColMoveEnd.obj $builddir\compute_deltax.obj $builddir\factor.obj $builddir\factor1.obj $builddir\solve.obj $builddir\solve1.obj $builddir\compute_lambda.obj $builddir\addAineqConstr.obj $builddir\addBoundToActiveSetMatrix_.obj $builddir\relaxed.obj $builddir\soc.obj $builddir\BFGSUpdate.obj $builddir\mrdivide_helper.obj $builddir\computeConstraints_.obj $builddir\computeForwardDifferences.obj $builddir\updateWorkingSetForNewQP.obj $builddir\initActiveSet.obj $builddir\driver1.obj $builddir\saveJacobian.obj $builddir\computeLinearResiduals.obj $builddir\computeDeltaLag.obj $builddir\computeGradLag.obj $builddir\factorQR.obj $builddir\feasibleratiotest.obj $builddir\xgemm.obj $builddir\xpotrf.obj $builddir\xtrsv.obj $builddir\fullColLDL2_.obj $builddir\unsafeSxfun.obj $builddir\pcfitellipse_mexutil.obj $builddir\_coder_pcfitellipse_info.obj $builddir\c_mexapi_version.obj 

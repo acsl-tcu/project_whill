@@ -1,0 +1,63 @@
+# CompilerName=msvc160
+# Mode=optim
+ninja_required_version = 1.3
+
+# Basic folders
+root = .
+builddir = $root\build\win64
+matlabdir = C:\Program Files\MATLAB\R2023a
+startdir = C:\Users\student\OneDrive - 東京都市大学 Tokyo City University\graduation\noPrimeEst_ubuntu\src\Estimator
+
+# Toolchain information
+cc = cl
+cxx = cl
+linker = link
+linkerxx = link
+
+cflags =  /c /Zc:__cplusplus /Zp8 /GR /W3 /EHs /nologo /MD /D_CRT_SECURE_NO_DEPRECATE /D_SCL_SECURE_NO_DEPRECATE /D_SECURE_SCL=0   /DMATLAB_MEX_FILE  /DMATLAB_MEX_FILE /O2 /Oy- /DNDEBUG /fp:strict /utf-8 /I "$root" /I "$startdir" /I "$root\interface" /I "$matlabdir\extern\include" /I "." -DHAVE_LAPACK_CONFIG_H -DLAPACK_COMPLEX_STRUCTURE -DMW_HAVE_LAPACK_DECLS -DMODEL=removePlane_ransac_mex  
+
+cxxflags =   /c /Zc:__cplusplus /Zp8 /GR /W3 /EHs /nologo /MD /D_CRT_SECURE_NO_DEPRECATE /D_SCL_SECURE_NO_DEPRECATE /D_SECURE_SCL=0   /DMATLAB_MEX_FILE  /DMATLAB_MEX_FILE /O2 /Oy- /DNDEBUG /fp:strict /utf-8 /I "$root" /I "$startdir" /I "$root\interface" /I "$matlabdir\extern\include" /I "." -DHAVE_LAPACK_CONFIG_H -DLAPACK_COMPLEX_STRUCTURE -DMW_HAVE_LAPACK_DECLS -DMODEL=removePlane_ransac_mex  
+
+ldflags =  /nologo /manifest   /DLL /LIBPATH:"$matlabdir\extern\lib\win64\microsoft" libmx.lib libmex.lib libmat.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib  /out:"removePlane_ransac_mex.mexw64" /LIBPATH:"$matlabdir\extern\lib\win64\microsoft" libmwlapack.lib libmwblas.lib libemlrt.lib libcovrt.lib libut.lib libmwmathutil.lib  /export:mexFunction /export:mexfilerequiredapiversion /export:emlrtMexFcnProperties /export:removePlane_ransac /export:removePlane_ransac_initialize /export:removePlane_ransac_terminate /export:removePlane_ransac_atexit /export:emxEnsureCapacity_int32_T /export:emxFree_int32_T /export:emxInit_int32_T /export:emxEnsureCapacity_boolean_T /export:emxFree_real_T /export:emxFree_boolean_T /export:emxInit_real_T /export:emxInit_boolean_T /export:emxEnsureCapacity_real_T
+
+linkobjs = 
+
+# Build Rules
+rule cc
+    command = $cc $cflags $in /Fo$out
+
+rule cxx
+    command = $cxx $cxxflags $in /Fo$out
+
+rule link
+    command = $linker @$out.rsp $linkobjs $ldflags
+    rspfile = $out.rsp
+    rspfile_content = $in
+
+rule linkxx
+    command = $linkerxx $in $linkobjs $ldflags
+
+# Build
+build $builddir\removePlane_ransac_data.obj : cc $root\removePlane_ransac_data.c
+build $builddir\rt_nonfinite.obj : cc $root\rt_nonfinite.c
+build $builddir\removePlane_ransac_initialize.obj : cc $root\removePlane_ransac_initialize.c
+build $builddir\removePlane_ransac_terminate.obj : cc $root\removePlane_ransac_terminate.c
+build $builddir\removePlane_ransac.obj : cc $root\removePlane_ransac.c
+build $builddir\msac.obj : cc $root\msac.c
+build $builddir\rand.obj : cc $root\rand.c
+build $builddir\mod.obj : cc $root\mod.c
+build $builddir\polyfit.obj : cc $root\polyfit.c
+build $builddir\warning.obj : cc $root\warning.c
+build $builddir\combineVectorElements.obj : cc $root\combineVectorElements.c
+build $builddir\_coder_removePlane_ransac_api.obj : cc $root\interface\_coder_removePlane_ransac_api.c
+build $builddir\_coder_removePlane_ransac_mex.obj : cc $root\interface\_coder_removePlane_ransac_mex.c
+build $builddir\sumMatrixIncludeNaN.obj : cc $root\sumMatrixIncludeNaN.c
+build $builddir\eml_int_forloop_overflow_check.obj : cc $root\eml_int_forloop_overflow_check.c
+build $builddir\unsafeSxfun.obj : cc $root\unsafeSxfun.c
+build $builddir\polyval.obj : cc $root\polyval.c
+build $builddir\removePlane_ransac_emxutil.obj : cc $root\removePlane_ransac_emxutil.c
+build $builddir\_coder_removePlane_ransac_info.obj : cc $root\interface\_coder_removePlane_ransac_info.c
+build $builddir\c_mexapi_version.obj : cc $matlabdir\extern\version\c_mexapi_version.c
+
+# Link
+build $root\removePlane_ransac_mex.mexw64 : link $builddir\removePlane_ransac_data.obj $builddir\rt_nonfinite.obj $builddir\removePlane_ransac_initialize.obj $builddir\removePlane_ransac_terminate.obj $builddir\removePlane_ransac.obj $builddir\msac.obj $builddir\rand.obj $builddir\mod.obj $builddir\polyfit.obj $builddir\warning.obj $builddir\combineVectorElements.obj $builddir\_coder_removePlane_ransac_api.obj $builddir\_coder_removePlane_ransac_mex.obj $builddir\sumMatrixIncludeNaN.obj $builddir\eml_int_forloop_overflow_check.obj $builddir\unsafeSxfun.obj $builddir\polyval.obj $builddir\removePlane_ransac_emxutil.obj $builddir\_coder_removePlane_ransac_info.obj $builddir\c_mexapi_version.obj 

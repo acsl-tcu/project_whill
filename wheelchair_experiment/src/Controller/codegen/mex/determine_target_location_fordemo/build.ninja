@@ -1,0 +1,51 @@
+# CompilerName=gcc
+# Mode=optim
+ninja_required_version = 1.3
+
+# Basic folders
+root = .
+builddir = $root/build/glnxa64
+matlabdir = /usr/local/MATLAB/R2023b
+startdir = /home/student/ドキュメント/TMaehara/kakuritu/src/Controller
+
+# Toolchain information
+cc = /usr/bin/gcc
+cxx = g++
+linker = /usr/bin/gcc
+linkerxx = g++
+
+cflags =  -fexceptions -fPIC -fno-omit-frame-pointer -pthread -fwrapv -D_GNU_SOURCE -DMATLAB_MEX_FILE  -O2 -DNDEBUG -std=c99 -I "$root" -I "$startdir" -I "$root/interface" -I "$matlabdir/extern/include" -I "." -DMODEL=determine_target_location_fordemo_mex -msse2 -c 
+
+cxxflags =  -fexceptions -fPIC -fno-omit-frame-pointer -pthread -fwrapv -D_GNU_SOURCE -DMATLAB_MEX_FILE  -O2 -DNDEBUG -std=c++11 -I "$root" -I "$startdir" -I "$root/interface" -I "$matlabdir/extern/include" -I "." -DMODEL=determine_target_location_fordemo_mex -msse2 -c 
+
+ldflags =  -pthread -Wl,--no-undefined -Wl,-rpath-link,$matlabdir/bin/glnxa64 -shared  -L"$matlabdir/bin/glnxa64" -lmx -lmex -lmat -lm -lstdc++  -Wl,-Bsymbolic -o determine_target_location_fordemo_mex.mexa64 -lemlrt -lcovrt -lut -lmwmathutil  -Wl,--version-script,determine_target_location_fordemo_mex.map
+
+linkobjs = 
+
+# Build Rules
+rule cc
+    command = $cc $cflags $in -o $out
+
+rule cxx
+    command = $cxx $cxxflags $in -o $out
+
+rule link
+    command = $linker $in $linkobjs $ldflags
+
+rule linkxx
+    command = $linkerxx $in $linkobjs $ldflags
+
+# Build
+build $builddir/determine_target_location_fordemo_data.o : cc $root/determine_target_location_fordemo_data.c
+build $builddir/rt_nonfinite.o : cc $root/rt_nonfinite.c
+build $builddir/determine_target_location_fordemo_initialize.o : cc $root/determine_target_location_fordemo_initialize.c
+build $builddir/determine_target_location_fordemo_terminate.o : cc $root/determine_target_location_fordemo_terminate.c
+build $builddir/determine_target_location_fordemo.o : cc $root/determine_target_location_fordemo.c
+build $builddir/_coder_determine_target_location_fordemo_api.o : cc $root/interface/_coder_determine_target_location_fordemo_api.c
+build $builddir/_coder_determine_target_location_fordemo_mex.o : cc $root/interface/_coder_determine_target_location_fordemo_mex.c
+build $builddir/determine_target_location_fordemo_emxutil.o : cc $root/determine_target_location_fordemo_emxutil.c
+build $builddir/_coder_determine_target_location_fordemo_info.o : cc $root/interface/_coder_determine_target_location_fordemo_info.c
+build $builddir/c_mexapi_version.o : cc $matlabdir/extern/version/c_mexapi_version.c
+
+# Link
+build $root/determine_target_location_fordemo_mex.mexa64 : link $builddir/determine_target_location_fordemo_data.o $builddir/rt_nonfinite.o $builddir/determine_target_location_fordemo_initialize.o $builddir/determine_target_location_fordemo_terminate.o $builddir/determine_target_location_fordemo.o $builddir/_coder_determine_target_location_fordemo_api.o $builddir/_coder_determine_target_location_fordemo_mex.o $builddir/determine_target_location_fordemo_emxutil.o $builddir/_coder_determine_target_location_fordemo_info.o $builddir/c_mexapi_version.o 

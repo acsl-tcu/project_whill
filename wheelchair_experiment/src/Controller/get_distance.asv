@@ -1,0 +1,40 @@
+% function distance = get_distance(A, B, P)
+%     % 2点A, Bを通る直線と点Pとの距離を計算
+%     % 点Aから点Bへのベクトル
+%     AB = B - A;
+%     % 点Aから点Pへのベクトル
+%     AP = P - A;
+%     % 面積の公式から距離を計算する ---
+%     % d = |AP x AB| / |AB|
+%     % 外積の大きさ |AP(1)*AB(2) - AP(2)*AB(1)|
+%     cross_product_magnitude = abs(AP(1,1,:,:) .* AB(1,2,:,:) - AP(1,2,:,:) .* AB(1,1,:,:));
+%     % ベクトルABの大きさ
+%     norm_AB = vecnorm(AB);
+%     % 距離
+%     distance = cross_product_magnitude ./ norm_AB;
+% end
+
+
+function distance = get_distance(A, B, C)
+
+% 配列サイズの取得
+[~, ~, num_pages] = size(A);
+
+% 3次元配列を2次元に変形 (3×N)
+A_reshaped = reshape(A, 3, num_pages);
+B_reshaped = reshape(B, 3, num_pages);
+C_reshaped = reshape(C, 3, num_pages);
+
+% ベクトル計算（全ページ同時処理）
+AB = B_reshaped - A_reshaped;  % 3×N
+AC = C_reshaped - A_reshaped;  % 3×N
+
+% 外積計算（ベクトル化）
+cross_prod = cross(AB, AC, 1);  % 3×N
+
+% ノルム計算（ベクトル化）
+cross_norms = vecnorm(cross_prod, 2, 1);  % 1×N
+AB_norms = vecnorm(AB, 2, 1);             % 1×N
+
+% 距離計算（全要素同時）
+distance = cross_norms ./ AB_norms;

@@ -1,0 +1,132 @@
+# CompilerName=gcc
+# Mode=optim
+ninja_required_version = 1.3
+
+# Basic folders
+root = .
+builddir = $root/build/glnxa64
+matlabdir = /usr/local/MATLAB/R2020b
+startdir = /home/ekawaguchi/デスクトップ/0307program/src
+
+# Toolchain information
+cc = gcc
+cxx = /usr/bin/g++
+linker = gcc
+linkerxx = /usr/bin/g++
+
+cflags =  -fexceptions -fPIC -fno-omit-frame-pointer -pthread -D_GNU_SOURCE -DMATLAB_MEX_FILE  -O2 -fwrapv -DNDEBUG -fvisibility=hidden -std=c99 -I "$root" -I "$startdir" -I "$matlabdir/extern/include" -I "$matlabdir/toolbox/vision/builtins/src/vision/include" -I "$matlabdir/toolbox/vision/builtins/src/vision/export/include/vision" -I "$root/interface" -I "." -DHAVE_LAPACK_CONFIG_H -DLAPACK_COMPLEX_STRUCTURE -DMW_HAVE_LAPACK_DECLS -DMODEL=mexLidarTracker_mex -DMW_NEEDS_VERSION_H -c 
+
+cxxflags =  -fexceptions -fPIC -fno-omit-frame-pointer -pthread -std=c++11 -D_GNU_SOURCE -DMATLAB_MEX_FILE  -O2 -fwrapv -DNDEBUG -fvisibility=hidden -std=c++11 -I "$root" -I "$startdir" -I "$matlabdir/extern/include" -I "$matlabdir/toolbox/vision/builtins/src/vision/include" -I "$matlabdir/toolbox/vision/builtins/src/vision/export/include/vision" -I "$root/interface" -I "." -DHAVE_LAPACK_CONFIG_H -DLAPACK_COMPLEX_STRUCTURE -DMW_HAVE_LAPACK_DECLS -DMODEL=mexLidarTracker_mex -DMW_NEEDS_VERSION_H -c 
+
+ldflags =  -pthread -Wl,--no-undefined  -shared -Wl,--as-needed -Wl,-rpath-link,$matlabdir/bin/glnxa64 -L"$matlabdir/bin/glnxa64" -Wl,-rpath-link,$matlabdir/extern/bin/glnxa64 -L"$matlabdir/extern/bin/glnxa64" -lMatlabDataArray -lmx -lmex -lmat -lm -lstdc++  -o mexLidarTracker_mex.mexa64 -L"$matlabdir/bin/glnxa64" -lmwblas -lmwlapack -lemlrt -lcovrt -lut -lmwmathutil  "$matlabdir/bin/glnxa64/libmwkdtree.so" "$matlabdir/bin/glnxa64/libmwComputeMetric.so"
+
+# Build Rules
+rule cc
+    command = $cc $cflags $in -o $out
+
+rule cxx
+    command = $cxx $cxxflags $in -o $out
+
+rule link
+    command = $linker $in $ldflags
+
+rule linkxx
+    command = $linkerxx $in $ldflags
+
+# Build
+build $builddir/PCANormalCore.o : cxx $matlabdir/toolbox/vision/builtins/src/vision/PCANormalCore.cpp
+build $builddir/mexLidarTracker_data.o : cxx $root/mexLidarTracker_data.cpp
+build $builddir/rt_nonfinite.o : cxx $root/rt_nonfinite.cpp
+build $builddir/mexLidarTracker_initialize.o : cxx $root/mexLidarTracker_initialize.cpp
+build $builddir/mexLidarTracker_terminate.o : cxx $root/mexLidarTracker_terminate.cpp
+build $builddir/mexLidarTracker.o : cxx $root/mexLidarTracker.cpp
+build $builddir/svd.o : cxx $root/svd.cpp
+build $builddir/vAllOrAny.o : cxx $root/vAllOrAny.cpp
+build $builddir/eml_int_forloop_overflow_check.o : cxx $root/eml_int_forloop_overflow_check.cpp
+build $builddir/xzsvdc.o : cxx $root/xzsvdc.cpp
+build $builddir/xnrm2.o : cxx $root/xnrm2.cpp
+build $builddir/xdotc.o : cxx $root/xdotc.cpp
+build $builddir/det.o : cxx $root/det.cpp
+build $builddir/pctransform.o : cxx $root/pctransform.cpp
+build $builddir/find.o : cxx $root/find.cpp
+build $builddir/indexShapeCheck.o : cxx $root/indexShapeCheck.cpp
+build $builddir/pcfitplane.o : cxx $root/pcfitplane.cpp
+build $builddir/validateAndParseRansacInputs.o : cxx $root/validateAndParseRansacInputs.cpp
+build $builddir/randperm.o : cxx $root/randperm.cpp
+build $builddir/rand.o : cxx $root/rand.cpp
+build $builddir/all.o : cxx $root/all.cpp
+build $builddir/combineVectorElements.o : cxx $root/combineVectorElements.cpp
+build $builddir/warning.o : cxx $root/warning.cpp
+build $builddir/repmat.o : cxx $root/repmat.cpp
+build $builddir/assertValidSizeArg.o : cxx $root/assertValidSizeArg.cpp
+build $builddir/msac.o : cxx $root/msac.cpp
+build $builddir/dot.o : cxx $root/dot.cpp
+build $builddir/pcsegdist.o : cxx $root/pcsegdist.cpp
+build $builddir/unique.o : cxx $root/unique.cpp
+build $builddir/mode.o : cxx $root/mode.cpp
+build $builddir/mean.o : cxx $root/mean.cpp
+build $builddir/homogeneous.o : cxx $root/homogeneous.cpp
+build $builddir/isSymmetricPositiveSemiDefinite.o : cxx $root/isSymmetricPositiveSemiDefinite.cpp
+build $builddir/eig.o : cxx $root/eig.cpp
+build $builddir/eigHermitianStandard.o : cxx $root/eigHermitianStandard.cpp
+build $builddir/xzlartg.o : cxx $root/xzlartg.cpp
+build $builddir/xzhgeqz.o : cxx $root/xzhgeqz.cpp
+build $builddir/xzlanhs.o : cxx $root/xzlanhs.cpp
+build $builddir/initializeEKF.o : cxx $root/initializeEKF.cpp
+build $builddir/cholPSD.o : cxx $root/cholPSD.cpp
+build $builddir/svdPSD.o : cxx $root/svdPSD.cpp
+build $builddir/cvmeas.o : cxx $root/cvmeas.cpp
+build $builddir/cvmeasjac.o : cxx $root/cvmeasjac.cpp
+build $builddir/mrdivide_helper.o : cxx $root/mrdivide_helper.cpp
+build $builddir/jpdaEvents.o : cxx $root/jpdaEvents.cpp
+build $builddir/sum.o : cxx $root/sum.cpp
+build $builddir/prod.o : cxx $root/prod.cpp
+build $builddir/power.o : cxx $root/power.cpp
+build $builddir/scalexpAlloc.o : cxx $root/scalexpAlloc.cpp
+build $builddir/validateInputSizeAndType.o : cxx $root/validateInputSizeAndType.cpp
+build $builddir/hypot.o : cxx $root/hypot.cpp
+build $builddir/atan2.o : cxx $root/atan2.cpp
+build $builddir/_coder_mexLidarTracker_api.o : cxx $root/interface/_coder_mexLidarTracker_api.cpp
+build $builddir/_coder_mexLidarTracker_mex.o : cxx $root/interface/_coder_mexLidarTracker_mex.cpp
+build $builddir/xscal.o : cxx $root/xscal.cpp
+build $builddir/xaxpy.o : cxx $root/xaxpy.cpp
+build $builddir/sort.o : cxx $root/sort.cpp
+build $builddir/sortIdx.o : cxx $root/sortIdx.cpp
+build $builddir/sqrt.o : cxx $root/sqrt.cpp
+build $builddir/xzlarf.o : cxx $root/xzlarf.cpp
+build $builddir/xhseqr.o : cxx $root/xhseqr.cpp
+build $builddir/xzlarfg.o : cxx $root/xzlarfg.cpp
+build $builddir/xdlanv2.o : cxx $root/xdlanv2.cpp
+build $builddir/xrot.o : cxx $root/xrot.cpp
+build $builddir/xzggbal.o : cxx $root/xzggbal.cpp
+build $builddir/xdhseqr.o : cxx $root/xdhseqr.cpp
+build $builddir/chol.o : cxx $root/chol.cpp
+build $builddir/xswap.o : cxx $root/xswap.cpp
+build $builddir/factorial.o : cxx $root/factorial.cpp
+build $builddir/constvel.o : cxx $root/constvel.cpp
+build $builddir/qrFactor.o : cxx $root/qrFactor.cpp
+build $builddir/xgemv.o : cxx $root/xgemv.cpp
+build $builddir/xgerc.o : cxx $root/xgerc.cpp
+build $builddir/nullAssignment.o : cxx $root/nullAssignment.cpp
+build $builddir/HelperBoundingBoxDetector.o : cxx $root/HelperBoundingBoxDetector.cpp
+build $builddir/trackHistoryLogic.o : cxx $root/trackHistoryLogic.cpp
+build $builddir/trackingEKF.o : cxx $root/trackingEKF.cpp
+build $builddir/ObjectTrack.o : cxx $root/ObjectTrack.cpp
+build $builddir/pointCloud.o : cxx $root/pointCloud.cpp
+build $builddir/objectDetection.o : cxx $root/objectDetection.cpp
+build $builddir/AssignmentCostCalculator.o : cxx $root/AssignmentCostCalculator.cpp
+build $builddir/trackerJPDA.o : cxx $root/trackerJPDA.cpp
+build $builddir/affine3d.o : cxx $root/affine3d.cpp
+build $builddir/rigid3d.o : cxx $root/rigid3d.cpp
+build $builddir/planeModel.o : cxx $root/planeModel.cpp
+build $builddir/EKFPredictorNonAdditive.o : cxx $root/EKFPredictorNonAdditive.cpp
+build $builddir/EKFCorrectorAdditive.o : cxx $root/EKFCorrectorAdditive.cpp
+build $builddir/ProcessConstructorArguments.o : cxx $root/ProcessConstructorArguments.cpp
+build $builddir/SystemProp.o : cxx $root/SystemProp.cpp
+build $builddir/SystemCore.o : cxx $root/SystemCore.cpp
+build $builddir/EKFCorrector.o : cxx $root/EKFCorrector.cpp
+build $builddir/_coder_mexLidarTracker_info.o : cxx $root/interface/_coder_mexLidarTracker_info.cpp
+build $builddir/cpp_mexapi_version.o : cxx $matlabdir/extern/version/cpp_mexapi_version.cpp
+
+# Link
+build $root/mexLidarTracker_mex.mexa64 : linkxx $builddir/PCANormalCore.o $builddir/mexLidarTracker_data.o $builddir/rt_nonfinite.o $builddir/mexLidarTracker_initialize.o $builddir/mexLidarTracker_terminate.o $builddir/mexLidarTracker.o $builddir/svd.o $builddir/vAllOrAny.o $builddir/eml_int_forloop_overflow_check.o $builddir/xzsvdc.o $builddir/xnrm2.o $builddir/xdotc.o $builddir/det.o $builddir/pctransform.o $builddir/find.o $builddir/indexShapeCheck.o $builddir/pcfitplane.o $builddir/validateAndParseRansacInputs.o $builddir/randperm.o $builddir/rand.o $builddir/all.o $builddir/combineVectorElements.o $builddir/warning.o $builddir/repmat.o $builddir/assertValidSizeArg.o $builddir/msac.o $builddir/dot.o $builddir/pcsegdist.o $builddir/unique.o $builddir/mode.o $builddir/mean.o $builddir/homogeneous.o $builddir/isSymmetricPositiveSemiDefinite.o $builddir/eig.o $builddir/eigHermitianStandard.o $builddir/xzlartg.o $builddir/xzhgeqz.o $builddir/xzlanhs.o $builddir/initializeEKF.o $builddir/cholPSD.o $builddir/svdPSD.o $builddir/cvmeas.o $builddir/cvmeasjac.o $builddir/mrdivide_helper.o $builddir/jpdaEvents.o $builddir/sum.o $builddir/prod.o $builddir/power.o $builddir/scalexpAlloc.o $builddir/validateInputSizeAndType.o $builddir/hypot.o $builddir/atan2.o $builddir/_coder_mexLidarTracker_api.o $builddir/_coder_mexLidarTracker_mex.o $builddir/xscal.o $builddir/xaxpy.o $builddir/sort.o $builddir/sortIdx.o $builddir/sqrt.o $builddir/xzlarf.o $builddir/xhseqr.o $builddir/xzlarfg.o $builddir/xdlanv2.o $builddir/xrot.o $builddir/xzggbal.o $builddir/xdhseqr.o $builddir/chol.o $builddir/xswap.o $builddir/factorial.o $builddir/constvel.o $builddir/qrFactor.o $builddir/xgemv.o $builddir/xgerc.o $builddir/nullAssignment.o $builddir/HelperBoundingBoxDetector.o $builddir/trackHistoryLogic.o $builddir/trackingEKF.o $builddir/ObjectTrack.o $builddir/pointCloud.o $builddir/objectDetection.o $builddir/AssignmentCostCalculator.o $builddir/trackerJPDA.o $builddir/affine3d.o $builddir/rigid3d.o $builddir/planeModel.o $builddir/EKFPredictorNonAdditive.o $builddir/EKFCorrectorAdditive.o $builddir/ProcessConstructorArguments.o $builddir/SystemProp.o $builddir/SystemCore.o $builddir/EKFCorrector.o $builddir/_coder_mexLidarTracker_info.o $builddir/cpp_mexapi_version.o 

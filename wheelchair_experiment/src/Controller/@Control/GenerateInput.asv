@@ -1,0 +1,60 @@
+function [pu] = GenerateInput(obj)
+%GENERATEINPUT この関数の概要をここに記述
+%入力列の生成
+    mu = obj.mu;
+    mu_v = obj.mu_v;
+	if obj.Inputmode == "allrand"
+		n = normrnd(zeros(obj.K,obj.NP),obj.sigma);
+		mu = reshape(mu,[size(n)]);
+		omega = n + mu;
+		n_v = normrnd(zeros(1,obj.NP),obj.sigma_v(1,:));
+		v_0 = n_v + mu_v(1,:);
+		v = repmat(v_0,obj.K,1);
+		if obj.count == 2 || obj.reset_flag == 1
+			omega = normrnd(zeros(obj.K,obj.NP),0.5*ones(obj.K,obj.NP));
+			v = normrnd(mu_v,obj.sigma_v);
+			v = repmat(v,obj.K,1);
+            obj.reset_flag = 0;
+		end
+	elseif obj.Inputmode == "switch"
+		n = normrnd(zeros(2,obj.NP),obj.sigma(1:2,:));
+		n = [repmat(n(1,:),obj.K - obj.SwitchingPoint,1);repmat(n(2,:),obj.SwitchingPoint,1)];
+		mu = reshape(mu,[size(n)]);
+		omega = n + mu;
+		n_v = normrnd(zeros(1,obj.NP),obj.sigma_v(1,:));
+		v_0 = n_v + mu_v(1,:);
+		v = repmat(v_0,obj.K,1);
+		if obj.count == 2 || obj.reset_flag == 1
+			omega = normrnd(zeros(2,obj.NP),0.3*ones(2,obj.NP));
+			omega = [repmat(omega(1,:),obj.K-obj.SwitchingPoint,1);
+			repmat(omega(2,:),obj.SwitchingPoint,1)];
+			v = normrnd(mu_v(1,:),obj.sigma_v);
+			v = repmat(v,obj.K,1);
+            obj.reset_flag = 0;
+        end
+    elseif obj.Inputmode == "switch2"
+        n = normrnd(zeros(2,obj.NP),obj.sigma(1:2,:));
+		n = [repmat(n(1,:),obj.K - obj.SwitchingPoint,1);repmat(n(2,:),obj.SwitchingPoint,1)];
+		mu = reshape(mu,[size(n)]);
+		omega = n + mu;
+		n_v = normrnd(zeros(1,obj.NP),obj.sigma_v(1,:));
+		v_0 = n_v + mu_v(1,:);
+		v = repmat(v_0,obj.K,1);
+		if obj.count == 2 || obj.reset_flag == 1
+			omega = normrnd(zeros(2,obj.NP),0.3*ones(2,obj.NP));
+			omega = [repmat(omega(1,:),obj.K-obj.SwitchingPoint,1);
+			repmat(omega(2,:),obj.SwitchingPoint,1)];
+			v = normrnd(mu_v(1,:),obj.sigma_v);
+			v = repmat(v,obj.K,1);
+            obj.reset_flag = 0;
+        end
+        omega_const = repmat(-0.25:0.05:0.25,21,11);
+        v_const = repelem(-0.5:0.1:0.5,21,11);
+        omega(:,length(omega) - length(omega_const)+1:end) = omega_const;
+        v(:,length(omega) - length(omega_const)+1:end) = v_const;
+	end
+	v2 = reshape(v,[1,size(v)]);
+    w2 = reshape(omega,[1,size(omega)]);
+    pu = [v2;w2];
+end
+

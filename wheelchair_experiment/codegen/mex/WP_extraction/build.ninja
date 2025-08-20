@@ -1,0 +1,53 @@
+# CompilerName=msvcpp150
+# Mode=optim
+ninja_required_version = 1.3
+
+# Basic folders
+root = .
+builddir = $root\build\win64
+matlabdir = C:\Program Files\MATLAB\R2021b
+startdir = C:\Users\kwgc1\OneDrive - tcu.ac.jp\jikki0914\program
+
+# Toolchain information
+cc = cl
+cxx = cl
+linker = link
+linkerxx = link
+
+cflags =  /c /Zp8 /GR /W3 /EHs /nologo /MD /D_CRT_SECURE_NO_DEPRECATE /D_SCL_SECURE_NO_DEPRECATE /D_SECURE_SCL=0   /DMATLAB_MEX_FILE  /DMATLAB_MEX_FILE /O2 /Oy- /DNDEBUG /fp:strict /source-charset:utf-8 /I "$root" /I "$startdir" /I "$root\interface" /I "$matlabdir\extern\include" /I "." -DMODEL=WP_extraction_mex -DMW_NEEDS_VERSION_H /wd4251 
+
+cxxflags =   /c /Zp8 /GR /W3 /EHs /nologo /MD /D_CRT_SECURE_NO_DEPRECATE /D_SCL_SECURE_NO_DEPRECATE /D_SECURE_SCL=0   /DMATLAB_MEX_FILE  /DMATLAB_MEX_FILE /O2 /Oy- /DNDEBUG /fp:strict /source-charset:utf-8 /I "$root" /I "$startdir" /I "$root\interface" /I "$matlabdir\extern\include" /I "." -DMODEL=WP_extraction_mex -DMW_NEEDS_VERSION_H /wd4251 
+
+ldflags =  /nologo /manifest   /DLL /LIBPATH:"$matlabdir\extern\lib\win64\microsoft" libmx.lib libmex.lib libmat.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib libMatlabDataArray.lib libMatlabEngine.lib  /out:"WP_extraction_mex.mexw64" libemlrt.lib libcovrt.lib libut.lib libmwmathutil.lib 
+
+# Build Rules
+rule cc
+    command = $cc $cflags $in /Fo$out
+
+rule cxx
+    command = $cxx $cxxflags $in /Fo$out
+
+rule link
+    command = $linker @$out.rsp $ldflags
+    rspfile = $out.rsp
+    rspfile_content = $in
+
+rule linkxx
+    command = $linkerxx $in $ldflags
+
+# Build
+build $builddir\WP_extraction_data.obj : cxx $root\WP_extraction_data.cpp
+build $builddir\rt_nonfinite.obj : cxx $root\rt_nonfinite.cpp
+build $builddir\WP_extraction_initialize.obj : cxx $root\WP_extraction_initialize.cpp
+build $builddir\WP_extraction_terminate.obj : cxx $root\WP_extraction_terminate.cpp
+build $builddir\WP_extraction.obj : cxx $root\WP_extraction.cpp
+build $builddir\inpolygon.obj : cxx $root\inpolygon.cpp
+build $builddir\warning.obj : cxx $root\warning.cpp
+build $builddir\_coder_WP_extraction_api.obj : cxx $root\interface\_coder_WP_extraction_api.cpp
+build $builddir\_coder_WP_extraction_mex.obj : cxx $root\interface\_coder_WP_extraction_mex.cpp
+build $builddir\eml_int_forloop_overflow_check.obj : cxx $root\eml_int_forloop_overflow_check.cpp
+build $builddir\_coder_WP_extraction_info.obj : cxx $root\interface\_coder_WP_extraction_info.cpp
+build $builddir\cpp_mexapi_version.obj : cxx $matlabdir\extern\version\cpp_mexapi_version.cpp
+
+# Link
+build $root\WP_extraction_mex.mexw64 : linkxx $builddir\WP_extraction_data.obj $builddir\rt_nonfinite.obj $builddir\WP_extraction_initialize.obj $builddir\WP_extraction_terminate.obj $builddir\WP_extraction.obj $builddir\inpolygon.obj $builddir\warning.obj $builddir\_coder_WP_extraction_api.obj $builddir\_coder_WP_extraction_mex.obj $builddir\eml_int_forloop_overflow_check.obj $builddir\_coder_WP_extraction_info.obj $builddir\cpp_mexapi_version.obj 

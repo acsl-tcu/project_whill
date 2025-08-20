@@ -1,0 +1,152 @@
+# CompilerName=gcc
+# Mode=optim
+ninja_required_version = 1.3
+
+# Basic folders
+root = .
+builddir = $root/build/glnxa64
+matlabdir = /usr/local/MATLAB/R2024b
+startdir = /home/student/Document/HaziqTest/10号館4階通路走行_2025_08_08/capsuele_v5.3_複数歩行者/src/Estimator
+
+# Toolchain information
+cc = /usr/bin/gcc
+cxx = /usr/bin/g++
+linker = /usr/bin/gcc
+linkerxx = /usr/bin/g++
+
+cflags =  -fexceptions -fPIC -fno-omit-frame-pointer -pthread -fwrapv -D_GNU_SOURCE -DMATLAB_MEX_FILE  -O2 -DNDEBUG -fno-predictive-commoning -std=c99 -I "$root" -I "$startdir" -I "$matlabdir/extern/include" -I "$root/interface" -I "." -DHAVE_LAPACK_CONFIG_H -DLAPACK_COMPLEX_STRUCTURE -DMW_HAVE_LAPACK_DECLS -DMODEL=calc_observation_mex -msse2 -fno-predictive-commoning -Wno-stringop-overflow -Wno-maybe-uninitialized -c -fopenmp -DOMPLIBNAME="$matlabdir/sys/os/glnxa64/libiomp5.so" 
+
+cxxflags =  -fexceptions -fPIC -fno-omit-frame-pointer -pthread -fwrapv -D_GNU_SOURCE -DMATLAB_MEX_FILE  -O2 -DNDEBUG -fno-predictive-commoning -std=c++11 -I "$root" -I "$startdir" -I "$matlabdir/extern/include" -I "$root/interface" -I "." -DHAVE_LAPACK_CONFIG_H -DLAPACK_COMPLEX_STRUCTURE -DMW_HAVE_LAPACK_DECLS -DMODEL=calc_observation_mex -msse2 -fno-predictive-commoning -Wno-stringop-overflow -Wno-maybe-uninitialized -c -fopenmp -DOMPLIBNAME="$matlabdir/sys/os/glnxa64/libiomp5.so" 
+
+ldflags =  -pthread -Wl,--no-undefined -Wl,-rpath-link,$matlabdir/bin/glnxa64 -shared  -L"$matlabdir/bin/glnxa64" -lmx -lmex -lmat -lm -lstdc++  -Wl,-Bsymbolic -o calc_observation_mex.mexa64 -L"$matlabdir/bin/glnxa64" -lmwblas -lmwlapack -lemlrt -lcovrt -lut -lmwmathutil -fPIC -L"$matlabdir/sys/os/glnxa64" -liomp5 -Wl,--version-script,calc_observation.map
+
+ldxxflags =  -pthread -Wl,--no-undefined  -shared -lstdc++ -Wl,--as-needed -Wl,-rpath-link,$matlabdir/bin/glnxa64 -L"$matlabdir/bin/glnxa64" -Wl,-rpath-link,$matlabdir/extern/bin/glnxa64 -L"$matlabdir/extern/bin/glnxa64" -lMatlabDataArray -lmx -lmex -lm -lmat  -Wl,-Bsymbolic -o calc_observation_mex.mexa64 -L"$matlabdir/bin/glnxa64" -lmwblas -lmwlapack -lemlrt -lcovrt -lut -lmwmathutil -fPIC -L"$matlabdir/sys/os/glnxa64" -liomp5 -Wl,--version-script,calc_observation.map
+
+linkobjs =  "$matlabdir/bin/glnxa64/libmwkdtree.so"
+
+# Build Rules
+rule cc
+    command = $cc $cflags $in -o $out
+
+rule cxx
+    command = $cxx $cxxflags $in -o $out
+
+rule link
+    command = $linker $in $linkobjs $ldflags
+
+rule linkxx
+    command = $linkerxx $in $linkobjs $ldxxflags
+
+# Build
+build $builddir/calc_observation_data.o : cc $root/calc_observation_data.c
+build $builddir/rt_nonfinite.o : cc $root/rt_nonfinite.c
+build $builddir/calc_observation_initialize.o : cc $root/calc_observation_initialize.c
+build $builddir/calc_observation_terminate.o : cc $root/calc_observation_terminate.c
+build $builddir/calc_observation.o : cc $root/calc_observation.c
+build $builddir/repmat.o : cc $root/repmat.c
+build $builddir/pointCloud.o : cc $root/pointCloud.c
+build $builddir/mean.o : cc $root/mean.c
+build $builddir/sumMatrixIncludeNaN.o : cc $root/sumMatrixIncludeNaN.c
+build $builddir/norm.o : cc $root/norm.c
+build $builddir/xzsvdc.o : cc $root/xzsvdc.c
+build $builddir/xzlangeM.o : cc $root/xzlangeM.c
+build $builddir/xnrm2.o : cc $root/xnrm2.c
+build $builddir/xdotc.o : cc $root/xdotc.c
+build $builddir/hypot.o : cc $root/hypot.c
+build $builddir/pcfitellipse.o : cc $root/pcfitellipse.c
+build $builddir/combineVectorElements.o : cc $root/combineVectorElements.c
+build $builddir/ransac.o : cc $root/ransac.c
+build $builddir/msac.o : cc $root/msac.c
+build $builddir/rand.o : cc $root/rand.c
+build $builddir/eml_rand.o : cc $root/eml_rand.c
+build $builddir/eml_rand_mt19937ar_stateful.o : cc $root/eml_rand_mt19937ar_stateful.c
+build $builddir/eml_rand_mt19937ar.o : cc $root/eml_rand_mt19937ar.c
+build $builddir/mod.o : cc $root/mod.c
+build $builddir/checkLinearInputs.o : cc $root/checkLinearInputs.c
+build $builddir/ixamax.o : cc $root/ixamax.c
+build $builddir/computeDualFeasError.o : cc $root/computeDualFeasError.c
+build $builddir/isDeltaXTooSmall.o : cc $root/isDeltaXTooSmall.c
+build $builddir/rank.o : cc $root/rank.c
+build $builddir/xdot.o : cc $root/xdot.c
+build $builddir/find_neg_lambda.o : cc $root/find_neg_lambda.c
+build $builddir/xasum.o : cc $root/xasum.c
+build $builddir/warning.o : cc $root/warning.c
+build $builddir/pcfitptCOG.o : cc $root/pcfitptCOG.c
+build $builddir/handle.o : cc $root/handle.c
+build $builddir/eml_rand_mcg16807_stateful.o : cc $root/eml_rand_mcg16807_stateful.c
+build $builddir/eml_rand_shr3cong_stateful.o : cc $root/eml_rand_shr3cong_stateful.c
+build $builddir/_coder_calc_observation_api.o : cc $root/interface/_coder_calc_observation_api.c
+build $builddir/_coder_calc_observation_mex.o : cc $root/interface/_coder_calc_observation_mex.c
+build $builddir/eml_int_forloop_overflow_check.o : cc $root/eml_int_forloop_overflow_check.c
+build $builddir/computeConstrViolationIneq_.o : cc $root/computeConstrViolationIneq_.c
+build $builddir/computePrimalFeasError.o : cc $root/computePrimalFeasError.c
+build $builddir/computeComplError.o : cc $root/computeComplError.c
+build $builddir/xaxpy.o : cc $root/xaxpy.c
+build $builddir/xzlascl.o : cc $root/xzlascl.c
+build $builddir/computeObjective_.o : cc $root/computeObjective_.c
+build $builddir/finDiffEvalAndChkErr.o : cc $root/finDiffEvalAndChkErr.c
+build $builddir/setProblemType.o : cc $root/setProblemType.c
+build $builddir/modifyOverheadPhaseOne_.o : cc $root/modifyOverheadPhaseOne_.c
+build $builddir/test_exit.o : cc $root/test_exit.c
+build $builddir/xcopy.o : cc $root/xcopy.c
+build $builddir/xgeqp3.o : cc $root/xgeqp3.c
+build $builddir/computeQ_.o : cc $root/computeQ_.c
+build $builddir/sortLambdaQP.o : cc $root/sortLambdaQP.c
+build $builddir/step.o : cc $root/step.c
+build $builddir/driver.o : cc $root/driver.c
+build $builddir/PresolveWorkingSet.o : cc $root/PresolveWorkingSet.c
+build $builddir/RemoveDependentEq_.o : cc $root/RemoveDependentEq_.c
+build $builddir/removeConstr.o : cc $root/removeConstr.c
+build $builddir/countsort.o : cc $root/countsort.c
+build $builddir/feasibleX0ForWorkingSet.o : cc $root/feasibleX0ForWorkingSet.c
+build $builddir/maxConstraintViolation.o : cc $root/maxConstraintViolation.c
+build $builddir/maxConstraintViolation_AMats_regularized_.o : cc $root/maxConstraintViolation_AMats_regularized_.c
+build $builddir/maxConstraintViolation_AMats_nonregularized_.o : cc $root/maxConstraintViolation_AMats_nonregularized_.c
+build $builddir/removeAllIneqConstr.o : cc $root/removeAllIneqConstr.c
+build $builddir/phaseone.o : cc $root/phaseone.c
+build $builddir/computeGrad_StoreHx.o : cc $root/computeGrad_StoreHx.c
+build $builddir/xgemv.o : cc $root/xgemv.c
+build $builddir/computeFval_ReuseHx.o : cc $root/computeFval_ReuseHx.c
+build $builddir/squareQ_appendCol.o : cc $root/squareQ_appendCol.c
+build $builddir/deleteColMoveEnd.o : cc $root/deleteColMoveEnd.c
+build $builddir/compute_deltax.o : cc $root/compute_deltax.c
+build $builddir/factor.o : cc $root/factor.c
+build $builddir/factor1.o : cc $root/factor1.c
+build $builddir/solve.o : cc $root/solve.c
+build $builddir/solve1.o : cc $root/solve1.c
+build $builddir/compute_lambda.o : cc $root/compute_lambda.c
+build $builddir/addAineqConstr.o : cc $root/addAineqConstr.c
+build $builddir/addBoundToActiveSetMatrix_.o : cc $root/addBoundToActiveSetMatrix_.c
+build $builddir/computeFval.o : cc $root/computeFval.c
+build $builddir/linearForm_.o : cc $root/linearForm_.c
+build $builddir/iterate.o : cc $root/iterate.c
+build $builddir/relaxed.o : cc $root/relaxed.c
+build $builddir/soc.o : cc $root/soc.c
+build $builddir/BFGSUpdate.o : cc $root/BFGSUpdate.c
+build $builddir/mrdivide_helper.o : cc $root/mrdivide_helper.c
+build $builddir/computeConstraints_.o : cc $root/computeConstraints_.c
+build $builddir/computeFiniteDifferences.o : cc $root/computeFiniteDifferences.c
+build $builddir/updateWorkingSetForNewQP.o : cc $root/updateWorkingSetForNewQP.c
+build $builddir/initActiveSet.o : cc $root/initActiveSet.c
+build $builddir/driver1.o : cc $root/driver1.c
+build $builddir/saveJacobian.o : cc $root/saveJacobian.c
+build $builddir/computeLinearResiduals.o : cc $root/computeLinearResiduals.c
+build $builddir/computeDeltaLag.o : cc $root/computeDeltaLag.c
+build $builddir/computeGradLag.o : cc $root/computeGradLag.c
+build $builddir/xgemm.o : cc $root/xgemm.c
+build $builddir/xtrsm.o : cc $root/xtrsm.c
+build $builddir/factorQRE.o : cc $root/factorQRE.c
+build $builddir/feasibleratiotest.o : cc $root/feasibleratiotest.c
+build $builddir/factorQR.o : cc $root/factorQR.c
+build $builddir/xpotrf.o : cc $root/xpotrf.c
+build $builddir/xtrsv.o : cc $root/xtrsv.c
+build $builddir/fullColLDL2_.o : cc $root/fullColLDL2_.c
+build $builddir/sumprod.o : cc $root/sumprod.c
+build $builddir/unsafeSxfun.o : cc $root/unsafeSxfun.c
+build $builddir/calc_observation_emxutil.o : cc $root/calc_observation_emxutil.c
+build $builddir/calc_observation_mexutil.o : cc $root/calc_observation_mexutil.c
+build $builddir/_coder_calc_observation_info.o : cc $root/interface/_coder_calc_observation_info.c
+build $builddir/c_mexapi_version.o : cc $matlabdir/extern/version/c_mexapi_version.c
+
+# Link
+build $root/calc_observation_mex.mexa64 : link $builddir/calc_observation_data.o $builddir/rt_nonfinite.o $builddir/calc_observation_initialize.o $builddir/calc_observation_terminate.o $builddir/calc_observation.o $builddir/repmat.o $builddir/pointCloud.o $builddir/mean.o $builddir/sumMatrixIncludeNaN.o $builddir/norm.o $builddir/xzsvdc.o $builddir/xzlangeM.o $builddir/xnrm2.o $builddir/xdotc.o $builddir/hypot.o $builddir/pcfitellipse.o $builddir/combineVectorElements.o $builddir/ransac.o $builddir/msac.o $builddir/rand.o $builddir/eml_rand.o $builddir/eml_rand_mt19937ar_stateful.o $builddir/eml_rand_mt19937ar.o $builddir/mod.o $builddir/checkLinearInputs.o $builddir/ixamax.o $builddir/computeDualFeasError.o $builddir/isDeltaXTooSmall.o $builddir/rank.o $builddir/xdot.o $builddir/find_neg_lambda.o $builddir/xasum.o $builddir/warning.o $builddir/pcfitptCOG.o $builddir/handle.o $builddir/eml_rand_mcg16807_stateful.o $builddir/eml_rand_shr3cong_stateful.o $builddir/_coder_calc_observation_api.o $builddir/_coder_calc_observation_mex.o $builddir/eml_int_forloop_overflow_check.o $builddir/computeConstrViolationIneq_.o $builddir/computePrimalFeasError.o $builddir/computeComplError.o $builddir/xaxpy.o $builddir/xzlascl.o $builddir/computeObjective_.o $builddir/finDiffEvalAndChkErr.o $builddir/setProblemType.o $builddir/modifyOverheadPhaseOne_.o $builddir/test_exit.o $builddir/xcopy.o $builddir/xgeqp3.o $builddir/computeQ_.o $builddir/sortLambdaQP.o $builddir/step.o $builddir/driver.o $builddir/PresolveWorkingSet.o $builddir/RemoveDependentEq_.o $builddir/removeConstr.o $builddir/countsort.o $builddir/feasibleX0ForWorkingSet.o $builddir/maxConstraintViolation.o $builddir/maxConstraintViolation_AMats_regularized_.o $builddir/maxConstraintViolation_AMats_nonregularized_.o $builddir/removeAllIneqConstr.o $builddir/phaseone.o $builddir/computeGrad_StoreHx.o $builddir/xgemv.o $builddir/computeFval_ReuseHx.o $builddir/squareQ_appendCol.o $builddir/deleteColMoveEnd.o $builddir/compute_deltax.o $builddir/factor.o $builddir/factor1.o $builddir/solve.o $builddir/solve1.o $builddir/compute_lambda.o $builddir/addAineqConstr.o $builddir/addBoundToActiveSetMatrix_.o $builddir/computeFval.o $builddir/linearForm_.o $builddir/iterate.o $builddir/relaxed.o $builddir/soc.o $builddir/BFGSUpdate.o $builddir/mrdivide_helper.o $builddir/computeConstraints_.o $builddir/computeFiniteDifferences.o $builddir/updateWorkingSetForNewQP.o $builddir/initActiveSet.o $builddir/driver1.o $builddir/saveJacobian.o $builddir/computeLinearResiduals.o $builddir/computeDeltaLag.o $builddir/computeGradLag.o $builddir/xgemm.o $builddir/xtrsm.o $builddir/factorQRE.o $builddir/feasibleratiotest.o $builddir/factorQR.o $builddir/xpotrf.o $builddir/xtrsv.o $builddir/fullColLDL2_.o $builddir/sumprod.o $builddir/unsafeSxfun.o $builddir/calc_observation_emxutil.o $builddir/calc_observation_mexutil.o $builddir/_coder_calc_observation_info.o $builddir/c_mexapi_version.o 

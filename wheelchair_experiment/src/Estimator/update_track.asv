@@ -1,0 +1,38 @@
+function [xhat,P,trackStorage, model,inlierpoints] = update_track(RANSAC,DimSta,assignment,trackStorage,assignedStatesIdx,ObsptClouds, ...
+    doRANSAC,R,Xhbar_observed,trans,Plant)
+    numAssignments = size(assignment,1);
+    model = cell(numAssignments,1);
+    inlierpoints = cell(numAssignments,1);
+    % cuboid_param = zeros(numAssignments,9);
+    if all([~isempty(assignment) ,~isnan(sum(assignment,'all'))])
+        %% 観測値の計算
+        assignedTracks = trackStorage.tracker(assignedStatesIdx,1);
+        Xhbar_observed_ellipse = cell2mat(cellfun(@(x) x.State', assignedTracks, 'UniformOutput', false))';
+        Pbar_observed_ellipse = cellfun(@(x) x.StateCovariance, assignedTracks, 'UniformOutput', false);
+        pose.X = Plant.X;
+        pose.Y = Plant.Y;
+        pose.yaw = Plant.yaw;
+        [isObserved,model1] = calc_observation(RANSAC, ...
+            numAssignments,assignment,Xhbar_observed_ellipse,Pbar_observed_ellipse,ObsptClouds,doRANSAC, ...
+            R,Xhbar_observed,trans,pose);
+        % [isObserved,model1] = calc_observation(RANSAC, ...
+        %     numAssignments,assignment,Xhbar_observed_ellipse,Pbar_observed_ellipse,ObsptClouds,doRANSAC, ...
+        %     R,Xhbar_observed,trans,pose);
+        %% フィルタリング
+        xhat = zeros(DimSta,size(assignment,1));
+        P = cell(size(assignment,1),1);
+        for i = 1:size(assignment,1)
+            trackIdx = assignedStatesIdx(i);
+            model{i,1} = rmmissing(model1(i).model);
+            inlierpoints{i} = nonzeros(model1(i).inlierpoints);
+            % 観測次元の切替
+            [~,trackStorage.tracker{trackIdx,1}] = convertMeasModel('ellipse',trackStorage.tracker{trackIdx,1},isObserved(i,1),R);
+            %% フィルタリング--------------------------------------------------------
+            [xhat(:,i), P{i,1}] = correct(trackStorage.tracker{trackIdx,1}, model{i,1}, isObserved(i,1));
+            trackStorage.States(:, trackIdx) = xhat(:,i); % 状態更新
+            trackStorage.P{trackIdx,1} = P{i,1}; % 共分散更新
+            %---------------------------------------------------------------------------
+        end
+    end
+
+end

@@ -1,0 +1,3 @@
+Obs_Setting:ROSで障害物を出す際に使用する
+ROS_Setting:ROSを使用する際に購読者や受信者の設定を行う
+ObsReference:障害物の経路の設定に使用する

@@ -1,0 +1,76 @@
+# CompilerName=msvc170
+# Mode=optim
+ninja_required_version = 1.3
+
+# Basic folders
+root = .
+builddir = $root\build\win64
+matlabdir = C:\Program Files\MATLAB\R2023a
+startdir = C:\Users\masan\OneDrive - 東京都市大学 Tokyo City University\graduation\noPrimeEst_ubuntu\src\Estimator
+
+# Toolchain information
+cc = cl
+cxx = cl
+linker = link
+linkerxx = link
+
+cflags =  /c /Zc:__cplusplus /Zp8 /GR /W3 /EHs /nologo /MD /D_CRT_SECURE_NO_DEPRECATE /D_SCL_SECURE_NO_DEPRECATE /D_SECURE_SCL=0   /DMATLAB_MEX_FILE  /DMATLAB_MEX_FILE /O2 /Oy- /DNDEBUG /fp:strict /utf-8 /I "$root" /I "$startdir" /I "$matlabdir\toolbox\vision\builtins\src\vision\include" /I "$matlabdir\toolbox\vision\builtins\src\vision\export\include\vision" /I "$matlabdir\extern\include" /I "$root\interface" /I "." -DMODEL=removePlane_clustering_mex  
+
+cxxflags =   /c /Zc:__cplusplus /Zp8 /GR /W3 /EHs /nologo /MD /D_CRT_SECURE_NO_DEPRECATE /D_SCL_SECURE_NO_DEPRECATE /D_SECURE_SCL=0   /DMATLAB_MEX_FILE  /DMATLAB_MEX_FILE /O2 /Oy- /DNDEBUG /fp:strict /utf-8 /I "$root" /I "$startdir" /I "$matlabdir\toolbox\vision\builtins\src\vision\include" /I "$matlabdir\toolbox\vision\builtins\src\vision\export\include\vision" /I "$matlabdir\extern\include" /I "$root\interface" /I "." -DMODEL=removePlane_clustering_mex  
+
+ldflags =  /nologo /manifest   /DLL /LIBPATH:"$matlabdir\extern\lib\win64\microsoft" libmx.lib libmex.lib libmat.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib  /out:"removePlane_clustering_mex.mexw64" libemlrt.lib libcovrt.lib libut.lib libmwmathutil.lib  /export:mexFunction /export:mexfilerequiredapiversion /export:emlrtMexFcnProperties /export:removePlane_clustering /export:removePlane_clustering_initialize /export:removePlane_clustering_terminate /export:removePlane_clustering_atexit /export:emxEnsureCapacity_uint8_T /export:emxEnsureCapacity_int32_T /export:emxEnsureCapacity_boolean_T /export:emxEnsureCapacity_uint32_T /export:emxFree_boolean_T /export:emxFree_int32_T /export:emxInit_boolean_T /export:emxInit_int32_T /export:emxFreeStruct_pointCloud /export:emxFree_uint8_T /export:c_emxFree_pointclouds_internal_ /export:emxInitStruct_pointCloud1 /export:emxInitStruct_pointCloud /export:emxInit_uint8_T /export:c_emxInit_pointclouds_internal_ /export:emxFree_real_T /export:emxFree_uint32_T /export:emxInit_uint32_T /export:emxInit_real_T /export:emxEnsureCapacity_real_T
+
+linkobjs =  "$matlabdir\extern\lib\win64\microsoft\libmwkdtree.lib" "$matlabdir\extern\lib\win64\microsoft\libmwComputeMetric.lib"
+
+# Build Rules
+rule cc
+    command = $cc $cflags $in /Fo$out
+
+rule cxx
+    command = $cxx $cxxflags $in /Fo$out
+
+rule link
+    command = $linker @$out.rsp $linkobjs $ldflags
+    rspfile = $out.rsp
+    rspfile_content = $in
+
+rule linkxx
+    command = $linkerxx $in $linkobjs $ldflags
+
+# Build
+build $builddir\labelRangeDataGroundRemovalUtilsCore.obj : cxx $matlabdir\toolbox\vision\builtins\src\vision\labelRangeDataGroundRemovalUtilsCore.cpp
+build $builddir\removePlane_clustering_data.obj : cc $root\removePlane_clustering_data.c
+build $builddir\rt_nonfinite.obj : cc $root\rt_nonfinite.c
+build $builddir\removePlane_clustering_initialize.obj : cc $root\removePlane_clustering_initialize.c
+build $builddir\removePlane_clustering_terminate.obj : cc $root\removePlane_clustering_terminate.c
+build $builddir\removePlane_clustering.obj : cc $root\removePlane_clustering.c
+build $builddir\pointCloudBase.obj : cc $root\pointCloudBase.c
+build $builddir\assertValidSizeArg.obj : cc $root\assertValidSizeArg.c
+build $builddir\find.obj : cc $root\find.c
+build $builddir\indexShapeCheck.obj : cc $root\indexShapeCheck.c
+build $builddir\pointCloud.obj : cc $root\pointCloud.c
+build $builddir\lidarParameters.obj : cc $root\lidarParameters.c
+build $builddir\combineVectorElements.obj : cc $root\combineVectorElements.c
+build $builddir\ixfun.obj : cc $root\ixfun.c
+build $builddir\atan2d.obj : cc $root\atan2d.c
+build $builddir\convertFromCartesianToSphericalCoordinate.obj : cc $root\convertFromCartesianToSphericalCoordinate.c
+build $builddir\warning.obj : cc $root\warning.c
+build $builddir\reshapeSizeChecks.obj : cc $root\reshapeSizeChecks.c
+build $builddir\repmat.obj : cc $root\repmat.c
+build $builddir\pcsegdist.obj : cc $root\pcsegdist.c
+build $builddir\unique.obj : cc $root\unique.c
+build $builddir\handle.obj : cc $root\handle.c
+build $builddir\_coder_removePlane_clustering_api.obj : cc $root\interface\_coder_removePlane_clustering_api.c
+build $builddir\_coder_removePlane_clustering_mex.obj : cc $root\interface\_coder_removePlane_clustering_mex.c
+build $builddir\eml_int_forloop_overflow_check.obj : cc $root\eml_int_forloop_overflow_check.c
+build $builddir\pcorganize.obj : cc $root\pcorganize.c
+build $builddir\sumMatrixIncludeNaN.obj : cc $root\sumMatrixIncludeNaN.c
+build $builddir\sqrt.obj : cc $root\sqrt.c
+build $builddir\histcounts.obj : cc $root\histcounts.c
+build $builddir\div.obj : cc $root\div.c
+build $builddir\removePlane_clustering_emxutil.obj : cc $root\removePlane_clustering_emxutil.c
+build $builddir\_coder_removePlane_clustering_info.obj : cc $root\interface\_coder_removePlane_clustering_info.c
+build $builddir\c_mexapi_version.obj : cc $matlabdir\extern\version\c_mexapi_version.c
+
+# Link
+build $root\removePlane_clustering_mex.mexw64 : linkxx $builddir\labelRangeDataGroundRemovalUtilsCore.obj $builddir\removePlane_clustering_data.obj $builddir\rt_nonfinite.obj $builddir\removePlane_clustering_initialize.obj $builddir\removePlane_clustering_terminate.obj $builddir\removePlane_clustering.obj $builddir\pointCloudBase.obj $builddir\assertValidSizeArg.obj $builddir\find.obj $builddir\indexShapeCheck.obj $builddir\pointCloud.obj $builddir\lidarParameters.obj $builddir\combineVectorElements.obj $builddir\ixfun.obj $builddir\atan2d.obj $builddir\convertFromCartesianToSphericalCoordinate.obj $builddir\warning.obj $builddir\reshapeSizeChecks.obj $builddir\repmat.obj $builddir\pcsegdist.obj $builddir\unique.obj $builddir\handle.obj $builddir\_coder_removePlane_clustering_api.obj $builddir\_coder_removePlane_clustering_mex.obj $builddir\eml_int_forloop_overflow_check.obj $builddir\pcorganize.obj $builddir\sumMatrixIncludeNaN.obj $builddir\sqrt.obj $builddir\histcounts.obj $builddir\div.obj $builddir\removePlane_clustering_emxutil.obj $builddir\_coder_removePlane_clustering_info.obj $builddir\c_mexapi_version.obj 
