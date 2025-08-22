@@ -16,4 +16,4 @@ if [ "$1" == "full" ]; then
   cat id_*.pub >>authorized_keys
 fi
 
-#build_project
+build_project
