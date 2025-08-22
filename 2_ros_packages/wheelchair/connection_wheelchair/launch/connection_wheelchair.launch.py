@@ -25,16 +25,29 @@ def generate_launch_description():
         'controller.yaml'
     )
 
-    model_path = f'{electric_wc_dir}/models/electric_wheelchair'
-    gazebo_env = SetEnvironmentVariable(
+
+    # モデルパスを通す（既存値に追記）
+    model_path = os.path.join(pkg_electric_wheelchair, 'models', 'electric_wheelchair')
+    gazebo_model_env = SetEnvironmentVariable(
         name='GAZEBO_MODEL_PATH',
-        value=f'{model_path}:$GAZEBO_MODEL_PATH'
+        value=[TextSubstitution(text=model_path + ':'), EnvironmentVariable('GAZEBO_MODEL_PATH', default_value='')]
+    )
+    # プラグインパスも通す（factory/init などを確実に見せる）
+    gazebo_plugin_env = SetEnvironmentVariable(
+        name='GAZEBO_PLUGIN_PATH',
+        value=[TextSubstitution(text='/opt/ros/humble/lib:'), EnvironmentVariable('GAZEBO_PLUGIN_PATH', default_value='')]
     )
 
-    SetEnvironmentVariable(
-    name='GAZEBO_PLUGIN_PATH',
-    value='/opt/ros/humble/lib:$GAZEBO_PLUGIN_PATH'
-    )
+    # model_path = f'{electric_wc_dir}/models/electric_wheelchair'
+    # gazebo_env = SetEnvironmentVariable(
+    #     name='GAZEBO_MODEL_PATH',
+    #     value=f'{model_path}:$GAZEBO_MODEL_PATH'
+    # )
+
+    # SetEnvironmentVariable(
+    # name='GAZEBO_PLUGIN_PATH',
+    # value='/opt/ros/humble/lib:$GAZEBO_PLUGIN_PATH'
+    # )
 
     # Conditional rosbag recording
     rosbag_record = ExecuteProcess(
@@ -63,6 +76,8 @@ def generate_launch_description():
         host_ip_arg,
         logging_arg,
         experiment_arg,
+        gazebo_model_env,
+        gazebo_plugin_env,
         rosbag_record,
         gazebo_launch,
         gazebo_bridge_node,
