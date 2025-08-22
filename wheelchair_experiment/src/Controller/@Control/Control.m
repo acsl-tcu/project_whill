@@ -457,8 +457,24 @@ classdef Control < handle
                 BestCost = [];
                 BestCostId = [];
                 uOpt = {};
+                
+            elseif strcmp(obj.sharedControlMode.getMode(), 'ndt_pose_detection')
+                % NDT Pose Detection Mode - Manual control only
+                fprintf('[CONTROL] NDT Pose Detection mode: Autonomous control disabled - manual control active\n');
+                
+                % Set zero velocity for autonomous control (manual control takes over)
+                U = [0; 0]; % Let manual joystick/controls handle movement
+                
+                % Fill empty variables for result.local
+                pu = {};
+                px = {};
+                pw = {};
+                BestCost = [];
+                BestCostId = [];
+                uOpt = {};
                 fval = [];
                 removed = [];
+                elevator_result = [];
 
                 % Check if elevator entry is completed
                 if isfield(elevator_result, 'completed') && elevator_result.completed
@@ -586,6 +602,15 @@ classdef Control < handle
                 end
                 fprintf('Control: V=%.3f m/s, Ω=%.3f rad/s\n', U(1), U(2));
                 fprintf('Elevator Center: [27.0, 12.0]\n');
+                
+            elseif strcmp(obj.sharedControlMode.getMode(), 'ndt_pose_detection')
+                % NDT Pose Detection mode status
+                fprintf('=== NDT POSE DETECTION MODE ===\n');
+                fprintf('** MANUAL CONTROL ACTIVE **\n');
+                fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
+                fprintf('Autonomous Control: DISABLED\n');
+                fprintf('Use your manual controls to move the wheelchair\n');
+                fprintf('Pose is being continuously broadcast in Estimate.m\n');
                 fprintf('===========================\n');
 
             else

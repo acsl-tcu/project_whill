@@ -398,6 +398,11 @@ classdef Estimate < handle
                         obj.sharedControlMode.setMode('door_detection');
                         fprintf('[ESTIMATE] User set mode to DOOR_DETECTION - debug mode activated\n');
                         
+                    case 'ndt_pose_detection'
+                        obj.sharedControlMode.setMode('ndt_pose_detection');
+                        fprintf('[ESTIMATE] User set mode to NDT_POSE_DETECTION - manual control with pose broadcasting\n');
+                        fprintf('[ESTIMATE] Use manual controls to move wheelchair - pose will be continuously displayed\n');
+                        
                     otherwise
                         fprintf('[ESTIMATE] Unknown user mode request: %s\n', user_request.new_phase);
                 end
@@ -439,6 +444,23 @@ classdef Estimate < handle
                 % fprintf('[ESTIMATE] MODE CHANGE: Leaving elevator area, switching back to FLOOR_CHANGE\n');
             end
             
+            %% NDT Pose Detection Mode - Continuous pose broadcasting
+            if strcmp(obj.sharedControlMode.getMode(), 'ndt_pose_detection')
+                % Convert yaw from radians to degrees for better readability
+                yaw_degrees = Plant.yaw * 180 / pi;
+                
+                % Broadcast current pose continuously (every iteration)
+                fprintf('[NDT_POSE] X: %8.3f m | Y: %8.3f m | Z: %8.3f m | Yaw: %7.2f° | Time: %.2f s\n', ...
+                    Plant.X, Plant.Y, Plant.Z, yaw_degrees, Plant.T);
+                
+                % Skip all heavy processing (LiDAR, tracking, etc.) in this mode
+                % Just focus on pose broadcasting
+                fprintf('[NDT_POSE] Manual control mode - skipping autonomous navigation processing\n');
+                
+                % Skip to the end of processing
+                obj.control_phase = 'ndt_pose_detection';
+            end
+            
             % Debug info for position tracking
             if mod(obj.cnt, 50) == 0 % Print every 50 iterations to avoid spam
                 if in_elevator_area
@@ -463,10 +485,14 @@ classdef Estimate < handle
             ptCloud = pctransform(ptCloud, tform);
             xyz = ptCloud.Location;
 
-            % Skip heavy processing during elevator entry phase (only odometry needed)
-            if strcmp(obj.control_phase, 'elevator_entry')
-                % Minimal processing for elevator entry phase
-                fprintf('[ESTIMATE] Elevator entry mode: Skipping heavy LiDAR processing\n');
+            % Skip heavy processing during elevator entry phase or NDT pose detection mode (only odometry needed)
+            if strcmp(obj.control_phase, 'elevator_entry') || strcmp(obj.control_phase, 'ndt_pose_detection')
+                % Minimal processing for elevator entry phase or NDT pose detection mode
+                if strcmp(obj.control_phase, 'elevator_entry')
+                    fprintf('[ESTIMATE] Elevator entry mode: Skipping heavy LiDAR processing\n');
+                else
+                    fprintf('[ESTIMATE] NDT pose detection mode: Skipping heavy LiDAR processing for manual control\n');
+                end
                 
                 % Set empty values for variables that won't be computed
                 detections2 = [];
@@ -542,9 +568,13 @@ classdef Estimate < handle
             else
                 result.local.door_detection_mode = false;
             end
-            if strcmp(obj.control_phase, 'elevator_entry')
-                % Skip tracking during elevator entry phase
-                fprintf('[ESTIMATE] Skipping object tracking during elevator entry\n');
+            if strcmp(obj.control_phase, 'elevator_entry') || strcmp(obj.control_phase, 'ndt_pose_detection')
+                % Skip tracking during elevator entry phase or NDT pose detection mode
+                if strcmp(obj.control_phase, 'elevator_entry')
+                    fprintf('[ESTIMATE] Skipping object tracking during elevator entry\n');
+                else
+                    fprintf('[ESTIMATE] Skipping object tracking during NDT pose detection mode\n');
+                end
                 obj.Allxhat = [];
                 AllP = {};
                 model = [];

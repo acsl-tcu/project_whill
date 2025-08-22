@@ -47,19 +47,20 @@ function [exit_requested, mode_change] = wheelchairModeMenu()
     fprintf('Choose an option:\n');
     fprintf('1. Set Floor Change Mode (allows elevator entry)\n');
     fprintf('2. Door Detection Debug Mode (bypass to Phase 1.5)\n');
-    fprintf('3. Exit Simulation\n');
+    fprintf('3. NDT Pose Detection Mode (manual control + continuous pose broadcast)\n');
+    fprintf('4. Exit Simulation\n');
     fprintf('================================\n');
     
     % Get user input with validation
     valid_input = false;
     while ~valid_input
-        choice_str = input('Enter your choice (1-3): ', 's'); % Get as string first
+        choice_str = input('Enter your choice (1-4): ', 's'); % Get as string first
         choice = str2double(choice_str); % Convert to number
         
-        if ~isnan(choice) && isscalar(choice) && ismember(choice, [1, 2, 3])
+        if ~isnan(choice) && isscalar(choice) && ismember(choice, [1, 2, 3, 4])
             valid_input = true;
         else
-            fprintf('Invalid input. Please enter 1, 2, or 3.\n');
+            fprintf('Invalid input. Please enter 1, 2, 3, or 4.\n');
         end
     end
     
@@ -81,6 +82,15 @@ function [exit_requested, mode_change] = wheelchairModeMenu()
             mode_change.door_detection_mode = true;
             
         case 3
+            % NDT Pose Detection Mode
+            fprintf('\n[MENU] Setting wheelchair to NDT_POSE_DETECTION mode\n');
+            fprintf('This will enable manual control with continuous pose broadcasting.\n');
+            fprintf('Use your manual controls to move the wheelchair - pose will be displayed continuously.\n');
+            mode_change.requested = true;
+            mode_change.new_phase = 'ndt_pose_detection';
+            mode_change.door_detection_mode = false;
+            
+        case 4
             % Exit simulation
             fprintf('\n[MENU] Exiting simulation...\n');
             exit_requested = true;
