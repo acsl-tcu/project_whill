@@ -18,7 +18,7 @@ ros-${ROS_DISTRO}-gazebo-ros2-control -y
 # &&  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH  \
 
 RUN git clone --depth 1 https://github.com/ros-drivers/velodyne.git \
-&& git clone -b hamble-devel --depth 1 https://bitbucket.org/DataspeedInc/velodyne_simulator.git \
+&& git clone -b ${ROS_DISTRO}-devel --depth 1 https://bitbucket.org/DataspeedInc/velodyne_simulator.git \
 && . /opt/ros/${ROS_DISTRO}/setup.sh \
 && source /usr/share/gazebo/setup.bash \
 && cd /root/ros2_ws/ \
