@@ -1,0 +1,77 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+	<world name="default">
+		<plugin name="gazebo_ros_init" filename="libgazebo_ros_init.so"/>
+        <plugin name="gazebo_ros_factory" filename="libgazebo_ros_factory.so"/>
+        <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+			<ros>
+              <namespace>wheelchair</namespace>
+            </ros> 
+		</plugin>
+		<!-- <plugin name="gazebo_ros2_state" filename="libgazebo_ros2_state.so"/> -->
+		<scene>
+			<ambient>1 1 1 1</ambient>
+			<background>1 1 1 1</background>
+		</scene>
+
+		<include>
+			<uri>model://sun</uri>
+		</include>
+
+		<!-- <include>
+			<uri>model://ground_plane</uri>
+			<pose>85 7 0 0 0 0</pose>
+		</include> -->
+
+		<include>
+			<uri>model://ground_plane</uri>
+			<pose>-15 7 0 0 0 0</pose>
+		</include>
+
+		<include>
+			<!-- <uri>model://3rd_floor</uri> -->
+			<uri>model://town</uri>
+			<pose>-15 -17.3 0 0 0 0</pose>
+		</include>
+
+		<actor name="actor1">
+			<pose>-1 2 1.25 0 0 0</pose>
+			<skin>
+				<filename>walk-red.dae</filename>
+				<scale>1.0</scale>
+			</skin>
+			<animation name="walking">
+				<filename>walk-red.dae</filename>
+				<scale>1.000000</scale>
+				<interpolate_x>true</interpolate_x>
+			</animation>
+
+			<plugin name="actor1_plugin" filename="libPedestrianSFMPlugin.so">
+				<velocity>0.9</velocity>
+				<radius>0.4</radius>
+				<animation_factor>5.1</animation_factor>
+				<animation_name>walking</animation_name>
+				<people_distance>6.0</people_distance>
+				<!-- weights -->
+				<goal_weight>2.0</goal_weight>
+				<obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+				<social_weight>15</social_weight> <!--2.1-->
+				<group_gaze_weight>3.0</group_gaze_weight>
+				<group_coh_weight>2.0</group_coh_weight>
+				<group_rep_weight>1.0</group_rep_weight>
+				<ignore_obstacles>
+					<model>town</model>
+					<model>ground_plane</model>
+				</ignore_obstacles>
+				<trajectory>
+					<cyclic>true</cyclic>
+					<waypoint>-1 1.5 1.25</waypoint>
+					<waypoint>10 1.5 1.25</waypoint>
+					<waypoint>10 -1.5 1.25</waypoint>
+					<waypoint>-1 -1.5 1.25</waypoint>
+				</trajectory>
+			</plugin>
+		</actor>
+
+	</world>
+</sdf>
