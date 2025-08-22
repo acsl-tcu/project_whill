@@ -14,11 +14,12 @@ RUN cd ~/ \
   && git clone --depth 1 https://github.com/robotics-upo/lightsfm.git\
  && cd lightsfm \
 && make \
-&& sudo make install \
-&& sudo apt install ros-humble-diagnostic-updater \
-&& sudo apt update \
-&& sudo apt install libpcap-dev -y \
-  && cd ~/ros2_ws/ \
+&& make install \
+&& apt install ros-humble-diagnostic-updater \
+&& apt update \
+&& apt install libpcap-dev -y 
+
+RUN cd ~/ros2_ws/ \
   && . /opt/ros/${ROS_DISTRO}/setup.sh \
   && colcon build --symlink-install --packages-select rplidar_ros\
   && source install/setup.bash
