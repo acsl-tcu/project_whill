@@ -15,6 +15,7 @@ RUN cd ~/ \
 && echo  "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:$(ros2 pkg prefix gazebo_sfm_plugin)/share/gazebo_sfm_plugin/media/models" >> ~/.bashrc
 
 RUN cd ~/ros2_ws/src \
+&& source /opt/ros/${ROS_DISTRO}/setup.bash \
 && git clone --depth 1 -b galactic https://github.com/robotics-upo/gazebo_sfm_plugin.git \
 && cd ~/ros2_ws \
 && colcon build --packages-select gazebo_sfm_plugin \
