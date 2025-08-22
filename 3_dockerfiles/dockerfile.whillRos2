@@ -43,16 +43,16 @@ RUN cd ~/ \
 # \
 #&& echo 'source ~/ros2_ws/install/setup.bash' >> ~/.bashrc 
 
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
-&& colcon build \
-&& source /root/ros2_ws/install/setup.bash
+# RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
+# && colcon build \
+# && source /root/ros2_ws/install/setup.bash
 
-RUN source /usr/share/gazebo/setup.bash \
-&& source /root/ros2_ws/install/setup.bash \
-&& echo "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:\
-$(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models:\
-$(ros2 pkg prefix create_world)/share/create_world/models:\
-$(ros2 pkg prefix gazebo_sfm_plugin)/share/gazebo_sfm_plugin/media/models" >> ~/.bashrc \
-&&  echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> ~/.bashrc \
-&& echo "export FASTDDS_BUILTIN_TRANSPORTS=UDPv4" >> ~/.bashrc 
+# RUN source /usr/share/gazebo/setup.bash \
+# && source /root/ros2_ws/install/setup.bash \
+# && echo "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:\
+# $(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models:\
+# $(ros2 pkg prefix create_world)/share/create_world/models:\
+# $(ros2 pkg prefix gazebo_sfm_plugin)/share/gazebo_sfm_plugin/media/models" >> ~/.bashrc \
+# &&  echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> ~/.bashrc \
+# && echo "export FASTDDS_BUILTIN_TRANSPORTS=UDPv4" >> ~/.bashrc 
 
