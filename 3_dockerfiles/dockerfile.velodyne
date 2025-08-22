@@ -4,9 +4,7 @@ FROM ${BASE_IMAGE} as base
 
 SHELL [ "/bin/bash","-c" ]
 
-RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
-&&  cd ~/ros2_ws/ \
-&&  apt update\
+RUN apt update\
 &&  apt install gazebo libgazebo-dev \
 ros-${ROS_DISTRO}-gazebo-ros-pkgs \
 ros-${ROS_DISTRO}-controller-manager \
@@ -17,11 +15,14 @@ ros-${ROS_DISTRO}-gazebo-ros2-control -y
 # &&  dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake
 # &&  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH  \
 
-RUN git clone --depth 1 https://github.com/ros-drivers/velodyne.git \
+RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
+&& mkdir -p ~/ros2_ws/src\
+&&  cd ~/ros2_ws/src \
+&& git clone --depth 1 https://github.com/ros-drivers/velodyne.git \
 && git clone -b ${ROS_DISTRO}-devel --depth 1 https://bitbucket.org/DataspeedInc/velodyne_simulator.git \
 && . /opt/ros/${ROS_DISTRO}/setup.sh \
 && source /usr/share/gazebo/setup.bash \
-&& cd /root/ros2_ws/ \
+&& cd ~/ros2_ws/ \
 && colcon build --packages-select velodyne_description \
 && colcon build --packages-select velodyne_gazebo_plugins
 
