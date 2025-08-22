@@ -384,13 +384,11 @@ classdef Control < handle
             else
                 obj.boundingBoxes = {};
             end
-            % Check for door detection mode from Estimate.m
+            % Check for door detection mode from SharedControlMode
             door_detection_mode = false;
-            if isfield(Plant, 'local') && isfield(Plant.local, 'door_detection_mode')
-                door_detection_mode = Plant.local.door_detection_mode;
-                if door_detection_mode
-                    fprintf('[CONTROL] Door detection debug mode activated - will bypass to Phase 1.5\n');
-                end
+            if strcmp(obj.sharedControlMode.getMode(), 'door_detection')
+                door_detection_mode = true;
+                fprintf('[CONTROL] Door detection debug mode activated - will bypass to Phase 1.5\n');
             end
             
             % Extract both local and global xyz data for door detection
@@ -456,7 +454,7 @@ classdef Control < handle
                 [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = obj.pathFollowingControl(Position, preobs);
                 elevator_result = [];  % No elevator result in path following mode
 
-            elseif strcmp(obj.sharedControlMode.getMode(), 'elevator_entry')
+            elseif any(strcmp(obj.sharedControlMode.getMode(), {'elevator_entry', 'door_detection'}))
                 % Elevator entry control
                 elevator_result = obj.executeElevatorEntry(current_position, Position.yaw, lidar_data, door_detection_mode);
                 U = elevator_result.V;
@@ -604,7 +602,7 @@ classdef Control < handle
                 fprintf('Target Waypoint: %d/%d\n', obj.target_n(1,1), size(obj.waypoint,1));
                 fprintf('==========================\n');
 
-            elseif strcmp(obj.sharedControlMode.getMode(), 'elevator_entry')
+            elseif any(strcmp(obj.sharedControlMode.getMode(), {'elevator_entry', 'door_detection'}))
                 % Elevator entry mode status
                 fprintf('=== ELEVATOR ENTRY MODE ===\n');
                 fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
