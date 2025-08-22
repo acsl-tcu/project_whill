@@ -5,3 +5,7 @@
 	path = 2_ros_packages/gazebo_sfm_plugin
 	url = https://github.com/robotics-upo/gazebo_sfm_plugin.git
 	branch = galactic
+[submodule "2_ros_packages/velodyne_simulator"]
+	path = 2_ros_packages/velodyne_simulator
+	url = https://bitbucket.org/DataspeedInc/velodyne_simulator.git
+	branch = humble-devel
