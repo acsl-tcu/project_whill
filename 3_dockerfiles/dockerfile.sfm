@@ -14,3 +14,5 @@ RUN cd ~/ \
 && apt install libpcap-dev -y\
 && echo  "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:$(ros2 pkg prefix gazebo_sfm_plugin)/share/gazebo_sfm_plugin/media/models" >> ~/.bashrc
 
+RUN cd ~/ros2_ws/src \
+&& git clone --depth 1 -b galactic https://github.com/robotics-upo/gazebo_sfm_plugin.git
