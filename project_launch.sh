@@ -5,5 +5,5 @@ echo $ROS_DOMAIN_ID
 
 cd $ACSL_ROS2_DIR/0_host_commands/scripts/
 dup rtk_gnss
-dup whill
+RMW=cyclonedds dup whill
 dup velodyne run
