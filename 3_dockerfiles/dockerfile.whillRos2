@@ -36,13 +36,13 @@ ros-${ROS_DISTRO}-gazebo-ros2-control -y
 # &&  dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake
 # &&  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH  \
 
-RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
 && source /usr/share/gazebo/setup.bash \
 && cd /root/ros2_ws/ \
 && colcon build --packages-select velodyne_description
 # && colcon build --packages-select velodyne_gazebo_plugins
 
-RUN source /root/ros2_ws/install/setup.bash \
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
 && colcon build \
 && source /root/ros2_ws/install/setup.bash
 
