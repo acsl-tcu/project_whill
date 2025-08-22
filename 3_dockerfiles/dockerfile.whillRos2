@@ -14,9 +14,6 @@ ENV NVIDIA_DRIVER_CAPABILITIES=all
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 && source ~/ros2_ws/install/setup.bash \
 && echo "source /usr/share/gazebo/setup.bash" >> ~/.bashrc \
-&& echo "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:\
-$(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models:\
-$(ros2 pkg prefix create_world)/share/create_world/models" >> ~/.bashrc \
 && echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> ~/.bashrc \
 && echo "export FASTDDS_BUILTIN_TRANSPORTS=UDPv4" >> ~/.bashrc 
 
