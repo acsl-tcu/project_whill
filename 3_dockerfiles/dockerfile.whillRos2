@@ -15,18 +15,26 @@ RUN cd ~/ \
  && cd lightsfm \
 && make \
 && make install \
-&& apt install ros-humble-diagnostic-updater \
+&& apt install ros-${ROS_DISTRO}-diagnostic-updater \
 && apt update \
 && apt install libpcap-dev -y 
 
+
+
 #colcon build
-RUN . /root/ros2_ws/install/setup.sh \ 
-&& . /opt/ros/humble/setup.sh \
+RUN . /root/ros2_ws/install/setup.bash \ 
+&& . /opt/ros/${ROS_DISTRO}/setup.bash \
 && cd ~/ros2_ws/ \
-&& colcon build --packages-select velodyne_description \
-&& . /root/ros2_ws/install/setup.sh \
+&& apt update\
+  && apt install gazebo libgazebo-dev ros-${ROS_DISTRO}-gazebo-ros-pkgs -y \
+  && export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH \ 
+  && dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake \
+  && rm -fr build install log\ 
+  && colcon build --symlink-install --packages-select velodyne_description \
+  && colcon build --symlink-install --packages-select velodyne_gazebo_plugins \
+&& . /root/ros2_ws/install/setup.bash \
 && colcon build --symlink-install \
-&& . /root/ros2_ws/install/setup.sh \
+&& . /root/ros2_ws/install/setup.bash \
 && echo 'export GAZEBO_PLUGIN_PATH=$HOME/gazebo_paths_ws/install/lib:$GAZEBO_PLUGIN_PATH' >> ~/.bashrc \
 && echo 'export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:\
 $(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models:\
