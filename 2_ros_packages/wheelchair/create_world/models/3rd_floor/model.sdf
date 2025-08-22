@@ -1,0 +1,38 @@
+<?xml version='1.0'?>
+<sdf version='1.6'>
+  <model name='3rd_floor'>
+		<!-- <pose>0 0 0 0 0 0</pose> -->
+		<static>true</static>
+		<!-- <link name="link"> -->
+ 		<link name="floor">
+			<collision name="my_collision">
+				<pose>0 0 0 0 0 0</pose>
+				<geometry>
+					<mesh>
+						<!-- <uri>model://3rd_floor/../../dae/3F.dae</uri> -->
+						<uri>model://3rd_floor/meshes/3F.dae</uri>
+						<!-- <uri>file:///root/ros2_ws/install/create_world/share/create_world/models/3rd_floor/meshes/3F.dae</uri> -->
+					</mesh>
+				</geometry>
+			</collision>
+
+			<visual name="my_visual">
+				<!-- <material name="Grey"> -->
+					<!-- <color rgba="0.6 0.6 0.6 1"/>    -->
+					<!-- ← α を 1.0 に -->
+				<!-- </material> -->
+				<material>
+					<ambient>0.5 0.5 0.5 0.5</ambient>
+				</material>
+				<pose>0 0 0 0 0 0</pose>
+				<geometry>
+					<mesh>
+						<!-- <uri>model://3rd_floor/../../dae/3F.dae</uri> -->
+						<uri>model://3rd_floor/meshes/3F.dae</uri>
+						<!-- <uri>file:///root/ros2_ws/src/wheelchair/create_world/models/3rd_floor/meshes/3F.dae</uri>  -->
+					</mesh>
+				</geometry>
+			</visual>
+		</link>
+  </model>
+</sdf>

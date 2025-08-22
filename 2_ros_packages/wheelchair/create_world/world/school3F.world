@@ -1,0 +1,957 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+	<world name="default">
+		<plugin name="gazebo_ros_init" filename="libgazebo_ros_init.so"/>
+        <plugin name="gazebo_ros_factory" filename="libgazebo_ros_factory.so"/>
+        <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+			<ros>
+              <namespace>wheelchair</namespace>
+            </ros> 
+		</plugin>
+  <physics name="custom_physics" type="ode">
+    <max_step_size>0.002</max_step_size>  <!-- 2msステップ -->
+    <real_time_update_rate>500</real_time_update_rate> <!-- 500Hzに緩和 -->
+  </physics>
+		<!-- <plugin name="gazebo_ros2_state" filename="libgazebo_ros2_state.so"/> -->
+		<scene>
+			<ambient>1 1 1 1</ambient>
+			<background>1 1 1 1</background>
+		</scene>
+
+		<include>
+			<uri>model://sun</uri>
+		</include>
+
+		<!-- <include>
+			<uri>model://ground_plane</uri>
+			<pose>85 7 0 0 0 0</pose>
+		</include> -->
+
+		<!-- <include>
+			<uri>model://ground_plane</uri>
+			<pose>-15 7 0 0 0 0</pose>
+		</include> -->
+
+		<include>
+			<!-- <uri>model://3rd_floor</uri> -->
+			<uri>model://town</uri>
+			<pose>-15 -17.3 0 0 0 0</pose>
+		</include>
+
+		<!-- <actor name="actor1">
+			<pose>-1 2 1.25 0 0 0</pose>
+			<skin>
+				<filename>walk-red.dae</filename>
+				<scale>1.0</scale>
+			</skin>
+			<animation name="walking">
+				<filename>walk-red.dae</filename>
+				<scale>1.000000</scale>
+				<interpolate_x>true</interpolate_x>
+			</animation>
+
+			<plugin name="actor1_plugin" filename="libPedestrianSFMPlugin.so">
+				<velocity>0.9</velocity>
+				<radius>0.4</radius>
+				<animation_factor>5.1</animation_factor>
+				<animation_name>walking</animation_name>
+				<people_distance>6.0</people_distance>
+				<!- - weights - ->
+				<goal_weight>2.0</goal_weight>
+				<obstacle_weight>80.0</obstacle_weight> <!- -10.0- ->
+				<social_weight>15</social_weight> <!- -2.1- ->
+				<group_gaze_weight>3.0</group_gaze_weight>
+				<group_coh_weight>2.0</group_coh_weight>
+				<group_rep_weight>1.0</group_rep_weight>
+				<ignore_obstacles>
+					<model>town</model>
+					<model>ground_plane</model>
+				</ignore_obstacles>
+				<trajectory>
+					<cyclic>true</cyclic>
+					<waypoint>-1 1.5 1.25</waypoint>
+					<waypoint>10 1.5 1.25</waypoint>
+					<waypoint>10 -1.5 1.25</waypoint>
+					<waypoint>-1 -1.5 1.25</waypoint>
+				</trajectory>
+			</plugin>
+		</actor> -->
+	<!-- slow:red  midium:green  fast:blue -->
+
+    <actor name="actor13">
+      <pose>-6.5 0 0 0 0 0</pose>
+      <skin>
+        <filename>walk-red.dae</filename>
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-red.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor13_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>0.9</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <!-- weights -->
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-5 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>5 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>15 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>25 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>25 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>15 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>5 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+    <actor name="actor14">
+      <pose>-7 0 0 0 0 0</pose>
+      <skin>
+        <filename>walk-red.dae</filename>
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-red.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor14_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>0.9</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <!-- weights -->
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-5 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>5 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>15 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>25 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>25 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>15 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>5 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+    <actor name="actor15">
+      <pose>-7.5 0 0 0 0 0</pose>
+      <skin>
+        <filename>walk-green.dae</filename>
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-green.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor15_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>1.2</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <!-- weights -->
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-5 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>5 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>15 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>25 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>25 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>15 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>5 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+    <actor name="actor16">
+      <pose>-8 0 0 0 0 0</pose>
+      <skin>
+        <filename>walk-green.dae</filename>
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-green.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor16_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>1.2</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <!-- weights -->
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-5 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>5 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>15 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>25 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>25 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>15 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>5 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+    <actor name="actor17">
+      <pose>-8.5 0 0 0 0 0</pose>
+      <skin>
+        <filename>walk-blue.dae</filename>
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-blue.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor17_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>1.5</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <!-- weights -->
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-5 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>5 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>15 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>25 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>25 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>15 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>5 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+    <actor name="actor18">
+      <pose>-9 0 0 0 0 0</pose>
+      <skin>
+        <filename>walk-blue.dae</filename>
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-blue.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor18_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>1.5</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <!-- weights -->
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-5 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>5 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>15 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>25 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>25 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>15 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>5 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+    <actor name="actor19">
+      <pose>-9.5 0 0 0 0 0</pose>
+      <skin>
+        <filename>walk-red.dae</filename>
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-red.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor19_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>0.9</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <!-- weights -->
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-5 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>5 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>15 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>25 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>25 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>15 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>5 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+    <actor name="actor20">
+      <pose>-10 0 0 0 0 0</pose>
+      <skin>
+        <filename>walk-red.dae</filename>
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-red.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor20_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>0.9</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <!-- weights -->
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-5 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>5 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>15 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>25 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>25 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>15 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>5 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+
+	<!-- gr3 -->
+
+    <actor name="actor21">
+      <pose>-22 -6 0 0 0 0</pose>
+      <skin>
+        <filename>walk-green.dae</filename>
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-green.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor21_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>1.2</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <!-- weights -->
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-22 -6 0</waypoint>
+          <waypoint>-22 1.5 0</waypoint>
+          <waypoint>-10 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>38 1.5 0</waypoint>
+          <waypoint>38 10 0</waypoint>
+          <waypoint>38 -1.5 0</waypoint>
+          <waypoint>30 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+          <waypoint>-10 -1.5 0</waypoint>
+          <waypoint>-22 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+    <actor name="actor22">
+      <pose>-22.5 -6 0 0 0 0</pose>
+      <skin>
+        <filename>walk-green.dae</filename> <!--run.dae-->
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-green.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor22_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>1.2</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>3rd_floor</model>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-22 -6 0</waypoint>
+          <waypoint>-22 1.5 0</waypoint>
+          <waypoint>-10 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>38 1.5 0</waypoint>
+          <waypoint>38 10 0</waypoint>
+          <waypoint>38 -1.5 0</waypoint>
+          <waypoint>30 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+          <waypoint>-10 -1.5 0</waypoint>
+          <waypoint>-22 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+
+    <actor name="actor23">
+      <pose>-21.5 -6 0 0 0 0</pose>
+      <skin>
+        <filename>walk-blue.dae</filename> 
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-blue.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor23_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>1.5</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>3rd_floor</model>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-22 -6 0</waypoint>
+          <waypoint>-22 1.5 0</waypoint>
+          <waypoint>-10 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>38 1.5 0</waypoint>
+          <waypoint>38 10 0</waypoint>
+          <waypoint>38 -1.5 0</waypoint>
+          <waypoint>30 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+          <waypoint>-10 -1.5 0</waypoint>
+          <waypoint>-22 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+    
+    <actor name="actor24">
+      <pose>-21 -6 0 0 0 0</pose>
+      <skin>
+        <filename>walk-blue.dae</filename> 
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-blue.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor24_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>1.5</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>3rd_floor</model>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-22 -6 0</waypoint>
+          <waypoint>-22 1.5 0</waypoint>
+          <waypoint>-10 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>38 1.5 0</waypoint>
+          <waypoint>38 10 0</waypoint>
+          <waypoint>38 -1.5 0</waypoint>
+          <waypoint>30 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+          <waypoint>-10 -1.5 0</waypoint>
+          <waypoint>-22 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+
+
+    <actor name="actor25">
+      <pose>-20.5 -6 0 0 0 0</pose>
+      <skin>
+        <filename>walk-red.dae</filename> 
+        <scale>1.2</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-red.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor25_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>0.9</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>3rd_floor</model>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>-22 -6 0</waypoint>
+          <waypoint>-22 1.5 0</waypoint>
+          <waypoint>-10 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>38 1.5 0</waypoint>
+          <waypoint>38 10 0</waypoint>
+          <waypoint>38 -1.5 0</waypoint>
+          <waypoint>30 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+          <waypoint>-10 -1.5 0</waypoint>
+          <waypoint>-22 -1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+    <actor name="actor26">
+      <pose>38 10 0 0 0 0</pose>
+      <skin>
+        <filename>walk-red.dae</filename> 
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-red.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor26_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>0.9</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>3rd_floor</model>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>38 10 0</waypoint>
+          <waypoint>38 -1.5 0</waypoint>
+          <waypoint>30 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+          <waypoint>-10 -1.5 0</waypoint>
+          <waypoint>-22 -1.5 0</waypoint>
+          <waypoint>-22 -6 0</waypoint>
+          <waypoint>-22 1.5 0</waypoint>
+          <waypoint>-10 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>38 1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+    <actor name="actor27">
+      <pose>38 10.5 0 0 0 0</pose>
+      <skin>
+        <filename>walk-green.dae</filename> 
+        <scale>1.2</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-green.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor27_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>1.2</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>3rd_floor</model>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>38 10 0</waypoint>
+          <waypoint>38 -1.5 0</waypoint>
+          <waypoint>30 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+          <waypoint>-10 -1.5 0</waypoint>
+          <waypoint>-22 -1.5 0</waypoint>
+          <waypoint>-22 -6 0</waypoint>
+          <waypoint>-22 1.5 0</waypoint>
+          <waypoint>-10 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>38 1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+    <actor name="actor28">
+      <pose>38 9.5 0 0 0 0</pose>
+      <skin>
+        <filename>walk-green.dae</filename> 
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-green.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor8_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>1.2</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>3rd_floor</model>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>38 10 0</waypoint>
+          <waypoint>38 -1.5 0</waypoint>
+          <waypoint>30 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+          <waypoint>-10 -1.5 0</waypoint>
+          <waypoint>-22 -1.5 0</waypoint>
+          <waypoint>-22 -6 0</waypoint>
+          <waypoint>-22 1.5 0</waypoint>
+          <waypoint>-10 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>38 1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+
+    <actor name="actor29">
+      <pose>38.5 10 0 0 0 0</pose>
+      <skin>
+        <filename>walk-blue.dae</filename> 
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-blue.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor9_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>1.5</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>3rd_floor</model>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>38 10 0</waypoint>
+          <waypoint>38 -1.5 0</waypoint>
+          <waypoint>30 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+          <waypoint>-10 -1.5 0</waypoint>
+          <waypoint>-22 -1.5 0</waypoint>
+          <waypoint>-22 -6 0</waypoint>
+          <waypoint>-22 1.5 0</waypoint>
+          <waypoint>-10 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>38 1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+
+    <actor name="actor30">
+      <pose>37.5 10 0 0 0 0</pose>
+      <skin>
+        <filename>walk-blue.dae</filename> 
+        <scale>1.0</scale>
+      </skin>
+      <animation name="walking">
+        <filename>walk-blue.dae</filename>
+        <scale>1.000000</scale>
+        <interpolate_x>true</interpolate_x>
+      </animation>
+
+      <plugin name="actor30_plugin" filename="libPedestrianSFMPlugin.so">
+        <velocity>1.5</velocity>
+        <radius>0.3</radius>
+        <animation_factor>5.1</animation_factor>
+        <people_distance>6.0</people_distance>
+        <goal_weight>1.0</goal_weight>
+        <obstacle_weight>80.0</obstacle_weight> <!--10.0-->
+        <social_weight>10.0</social_weight> <!--2.1-->
+        <group_gaze_weight>8.0</group_gaze_weight>
+        <group_coh_weight>8.0</group_coh_weight>
+        <group_rep_weight>1.0</group_rep_weight>
+        <ignore_obstacles>
+          <model>3rd_floor</model>
+          <model>ground_plane</model>
+        </ignore_obstacles>
+        <trajectory>
+          <cyclic>true</cyclic>
+          <waypoint>38 10 0</waypoint>
+          <waypoint>38 -1.5 0</waypoint>
+          <waypoint>30 -1.5 0</waypoint>
+          <waypoint>20 -1.5 0</waypoint>
+          <waypoint>10 -1.5 0</waypoint>
+          <waypoint>0 -1.5 0</waypoint>
+          <waypoint>-10 -1.5 0</waypoint>
+          <waypoint>-22 -1.5 0</waypoint>
+          <waypoint>-22 -6 0</waypoint>
+          <waypoint>-22 1.5 0</waypoint>
+          <waypoint>-10 1.5 0</waypoint>
+          <waypoint>0 1.5 0</waypoint>
+          <waypoint>10 1.5 0</waypoint>
+          <waypoint>20 1.5 0</waypoint>
+          <waypoint>30 1.5 0</waypoint>
+          <waypoint>38 1.5 0</waypoint>
+        </trajectory>
+      </plugin>
+    </actor>
+
+	</world>
+</sdf>

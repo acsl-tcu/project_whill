@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="obstacle">
+  <xacro:arg name="gpu" default="false"/>
+  <xacro:property name="gpu" value="$(arg gpu)" />
+
+
+  <link name="base_link">
+
+    <visual>
+      <material name="Grey">
+				<color rgba="0.6 0.6 0.6 1"/>   <!-- ← α を 1.0 に -->
+			</material>
+      <geometry>
+        <mesh filename="package://electric_wheelchair/mesh/standing.dae"/>  
+       <!--  <cylinder radius="0.25" length="1.5"/>  -->
+      </geometry>
+      <origin xyz="0 0 -0.75" rpy="0 0 -1.5"/>
+    </visual>
+
+    <collision>
+
+      <geometry>
+        <cylinder radius="0.25" length="1.5"/>
+	      <!-- <box size="0.40 0.40 1.6"/>  -->
+      </geometry>
+    </collision>
+
+   <inertial>
+      <origin xyz="0 0 0"/>
+      <mass value="50"/>
+      <inertia ixx="0.20833333" ixy="0" ixz="0" iyy="0.70833333" iyz="0" izz="0.83333333"/>
+   </inertial>
+  </link>
+
+
+<!-- =============== Gazebo =============== -->
+
+<gazebo>
+  <plugin name="gazebo_ros2_control" filename="libgazebo_ros2_control.so">
+    <robot_namespace>obstacle</robot_namespace>
+  </plugin>
+</gazebo>
+
+ <gazebo reference="base_link">
+    <material>Gazebo/Red</material>
+    <selfCollide>true</selfCollide>
+    <mu1 value="0.5" />
+    <mu2 value="0.5" />
+ </gazebo>
+
+
+
+</robot>

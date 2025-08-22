@@ -1,0 +1,43 @@
+ARG BASE_IMAGE
+ARG ROS_DISTRO
+FROM ${BASE_IMAGE}
+
+
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+# ARG DEBIAN_FRONTEND=noninteractive
+# RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
+
+#Install Dependent Packages
+RUN cd ~/ \
+  && git clone --depth 1 https://github.com/robotics-upo/lightsfm.git\
+ && cd lightsfm \
+&& make \
+&& sudo make install \
+&& sudo apt install ros-humble-diagnostic-updater \
+&& sudo apt update \
+&& sudo apt install libpcap-dev -y \
+  && cd ~/ros2_ws/ \
+  && . /opt/ros/${ROS_DISTRO}/setup.sh \
+  && colcon build --symlink-install --packages-select rplidar_ros\
+  && source install/setup.bash
+# rplidar_ros は colcon build でwarningでるが問題ないのでwarning抑制の記述を追加
+
+#colcon build
+RUN . /root/ros2_ws/install/setup.sh \ 
+&& . /opt/ros/humble/setup.sh \
+&& cd ~/ros2_ws/ \
+&& colcon build --packages-select velodyne_description \
+&& . /root/ros2_ws/install/setup.sh \
+&& colcon build --symlink-install \
+&& echo 'export GAZEBO_PLUGIN_PATH=$HOME/gazebo_paths_ws/install/lib:$GAZEBO_PLUGIN_PATH' >> ~/.bashrc \
+&& echo 'export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:\
+$(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models:\
+$(ros2 pkg prefix create_world)/share/create_world/models:\
+$(ros2 pkg prefix gazebo_sfm_plugin)/share/gazebo_sfm_plugin/media/models' >> ~/.bashrc \
+&& echo 'export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH' >> ~/.bashrc \
+&& echo 'export ROS_DOMAIN_ID=0' >> ~/.bashrc \
+&& echo 'export FASTDDS_BUILTIN_TRANSPORTS=UDPv4' >> ~/.bashrc \
+&& echo 'export ROS_LOCALHOST_ONLY=0' >> ~/.bashrc \
+&& echo 'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> ~/.bashrc
