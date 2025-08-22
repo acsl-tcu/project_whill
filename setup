@@ -8,9 +8,9 @@ if [ "$1" == "full" ]; then
   dpull $ROS_DISTRO$x86
   dtag $ROS_DISTRO$x86 image_${PROJECT}${TARGET}${x86}
 
-  dbuild image_${PROJECT}${TARGET}${x86} velodyne velodyne
-  dbuild velodyne sfm sfm
-  dbuild sfm image_${PROJECT}${TARGET}${x86} whillRos2
+  dbuild image_${PROJECT}${TARGET}${x86} velodyne${x86} velodyne
+  dbuild velodyne${x86} sfm${x86} sfm
+  dbuild sfm${x86} image_${PROJECT}${TARGET}${x86} whillRos2
 
   cd ~/.ssh/
   cat id_*.pub >>authorized_keys
