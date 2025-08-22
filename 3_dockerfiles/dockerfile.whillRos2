@@ -18,11 +18,12 @@ RUN cd ~/ \
 && make install \
 && apt install ros-${ROS_DISTRO}-diagnostic-updater \
 && apt update \
-&& apt install libpcap-dev -y \
-&& echo 'source ~/ros2_ws/install/setup.bash' >> ~/.bashrc 
+&& apt install libpcap-dev -y
+# \
+#&& echo 'source ~/ros2_ws/install/setup.bash' >> ~/.bashrc 
 
 #colcon build
-RUN . /opt/ros/${ROS_DISTRO}/setup.bash \
+RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 &&  cd ~/ros2_ws/ \
 &&  apt update\
 &&  apt install gazebo libgazebo-dev \
@@ -40,10 +41,13 @@ RUN source /opt/${ROS_DISTRO}/setup.bash \
 && cd   ~/ros2_ws/ \
 && rm -fr install build log \
 && colcon build --packages-select velodyne_description \
-&&  colcon build --packages-select velodyne_gazebo_plugins \
-&&  source /root/ros2_ws/install/setup.bash \
-&&  colcon build \
-&&  . /root/ros2_ws/install/setup.bash \
+&& colcon build --packages-select velodyne_gazebo_plugins \
+
+
+RUN source /opt/${ROS_DISTRO}/setup.bash \
+&& source /root/ros2_ws/install/setup.bash \
+&& colcon build \
+&& source /root/ros2_ws/install/setup.bash \
 
 RUN source /usr/share/gazebo/setup.bash \
 && source /root/ros2_ws/install/setup.bash \
