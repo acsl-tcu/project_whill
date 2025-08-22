@@ -12,11 +12,6 @@ $(echo "exec ros2 launch ublox_gps ublox_gps_node-launch.py")
 ;;
 "run")
 # RTKLIB
-if [-f "/common/ros_launcher/launch_rtk_gnss/run_rtklib.sh"]; then
-  # chmod +x ./launch_rtk_gnss/run_rtklib.sh
-  /common/ros_launcher/launch_rtk_gnss/run_rtklib.sh
-else
-  echo "Not found such a file run_rtklib.sh"
-fi
+/common/ros_launcher/launch_rtk_gnss/run_rtklib.sh
 ;;
 esac
