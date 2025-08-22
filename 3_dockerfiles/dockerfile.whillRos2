@@ -40,11 +40,10 @@ cd   ~/ros2_ws/ \
 &&  colcon build --symlink-install --packages-select velodyne_gazebo_plugins \
 &&  . /root/ros2_ws/install/setup.bash \
 &&  colcon build --symlink-install \
-&&  . /root/ros2_ws/install/setup.bash
-
-RUN echo "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:\
+&&  . /root/ros2_ws/install/setup.bash \
+&& echo "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:\
 $(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models:\
 $(ros2 pkg prefix create_world)/share/create_world/models:\
-$(ros2 pkg prefix gazebo_sfm_plugin)/share/gazebo_sfm_plugin/media/models" >> ~/.bashrc 
-RUN  echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> ~/.bashrc 
-RUN  echo "export FASTDDS_BUILTIN_TRANSPORTS=UDPv4" >> ~/.bashrc 
+$(ros2 pkg prefix gazebo_sfm_plugin)/share/gazebo_sfm_plugin/media/models" >> ~/.bashrc \
+&&  echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> ~/.bashrc \
+&& echo "export FASTDDS_BUILTIN_TRANSPORTS=UDPv4" >> ~/.bashrc 
