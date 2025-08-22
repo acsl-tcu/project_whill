@@ -11,7 +11,7 @@ sed -i 's/c94_m8p_rover/zed_f9p/' /root/ros2_ws/src/ublox/ublox_gps/launch/ublox
 $(echo "exec ros2 launch ublox_gps ublox_gps_node-launch.py")
 ;;
 "run")
-# RTKLIB
-/common/ros_launcher/launch_rtk_gnss/run_rtklib.sh
+#RTKLIB: communication between base and mobile station
+$(echo "exec /root/ros2_ws/src/RTKLIB/app/str2str/gcc/str2str -in tcpcli://133.78.211.29:4000 -out serial://ttyUSB-ublox:23400")
 ;;
 esac
