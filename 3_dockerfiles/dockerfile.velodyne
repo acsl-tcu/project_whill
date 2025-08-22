@@ -26,8 +26,8 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 && colcon build --packages-select velodyne_description \
 && colcon build --packages-select velodyne_gazebo_plugins
 
-
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
+&& cd ~/ros2_ws/ \
 && source /root/ros2_ws/install/setup.bash \
 && colcon build \
 && source /root/ros2_ws/install/setup.bash
