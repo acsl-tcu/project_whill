@@ -22,8 +22,7 @@ RUN cd ~/ \
 
 
 #colcon build
-RUN . /root/ros2_ws/install/setup.bash \ 
-&& . /opt/ros/${ROS_DISTRO}/setup.bash \
+RUN . /opt/ros/${ROS_DISTRO}/setup.bash \
 && cd ~/ros2_ws/ \
 && apt update\
   && apt install gazebo libgazebo-dev ros-${ROS_DISTRO}-gazebo-ros-pkgs -y \
