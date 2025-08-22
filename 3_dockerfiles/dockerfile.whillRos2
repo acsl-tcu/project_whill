@@ -20,7 +20,7 @@ RUN cd ~/ \
 && apt install libpcap-dev -y 
 
 RUN cd ~/ros2_ws/ \
-  && . /opt/ros/${ROS_DISTRO}/setup.sh \
+  && . /opt/ros/${ROS_DISTRO}/setup.bash \
   && colcon build --symlink-install --packages-select rplidar_ros\
   && source install/setup.bash
 # rplidar_ros は colcon build でwarningでるが問題ないのでwarning抑制の記述を追加
