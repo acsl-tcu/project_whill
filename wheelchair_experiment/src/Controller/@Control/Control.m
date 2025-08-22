@@ -1,5 +1,7 @@
 classdef Control < handle
     properties (Access = public)
+        Gazebo = false; % Flag to indicate if running in Gazebo simulation
+        elevator_odom_mode = true; % Flag to use odometry mode (local coordinates) vs map mode (global coordinates)
         TLeng
         NCnt
         Cnt
@@ -216,7 +218,8 @@ classdef Control < handle
         %         obsrd          = 0.5;        %Target radius of obstacle
         %
         %         Stationary_obstacles = 3;    %dynamic obstacles douteki1konotoki1nisuru
-        %         Dynamic_obstacles    = 10;    %Stationary obstacles
+        %         Dynami
+        c_obstacles    = 10;    %Stationary obstacles
         %
         %         InitialPosition = [5,0.5;10.0, -0.6; 15.0, 0.6 ; 42.3 ,4.3];
         %
@@ -242,16 +245,33 @@ classdef Control < handle
         ZoneNum
         V_ref
         th_target_w
-        control_mode       % String: 'path_following', 'elevator_entry', 'door_waiting', etc.
+        sharedControlMode  % Shared control mode handle object
     end
 
 
     methods
         %         function obj = Control(dt, Mode, FolderPath,sensor,autoware)
-        function obj = Control(~, dt, mode ,rgtNum, FolderPath,sensor,autoware)
+        function obj = Control(~, dt, mode ,rgtNum, FolderPath,sensor,autoware,sharedControlMode)
             % obj.wall = repmat([-0.5 8 -3 3],[size(obj.waypoint,1),1]);
-            initial_position = [16.8,6.2]; %set custom initial and goal positions if needed but if you want the default leave it as []
+            initial_position = [28.9,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
             goal_position =[];
+            try
+                available_topics = rostopic('list');  
+                fprintf('=== ROS INITIALIZATION CHECK ===\n');
+                gazebo_topics = available_topics(contains(available_topics, 'gazebo'));
+                if ~isempty(gazebo_topics)
+                    obj.Gazebo = true;
+                    fprintf('Gazebo topics detected: %d - Setting obj.Gazebo = true\n', length(gazebo_topics));
+                else
+                    obj.Gazebo = false;
+                    fprintf('No Gazebo topics found - Setting obj.Gazebo = false (real system)\n');
+                end
+                fprintf('=================================\n');
+            catch ME
+                obj.Gazebo = false; % Default to real system if detection fails
+                fprintf('ROS topic detection failed: %s - Defaulting to real system\n', ME.message);
+            end
+            
             % Try A* pathfinding first, fallback to original if it fails
             try
                 % Calculate robot dimensions from wheel parameters
@@ -268,7 +288,8 @@ classdef Control < handle
             %初期化
             obj.v_old = 0.5;
             obj.t_old = 0.2;
-            obj.control_mode = 'path_following';  % Start in normal path following mode
+            obj.sharedControlMode = sharedControlMode;  % Store shared control mode object
+            obj.sharedControlMode.setMode('path_following');  % Initialize shared control mode
 
             obj.Vinit = rand();
             NamedConst = findAttrValue(obj,'Constant');
@@ -346,12 +367,37 @@ classdef Control < handle
         end
         function result = main(obj, Plant)
             tic
-            % Extract bounding boxes from estimator data
+            % Extract data from estimator
             if isfield(Plant, 'local') && isfield(Plant.local, 'boundingBoxes')
                 obj.boundingBoxes = Plant.local.boundingBoxes;
             else
                 obj.boundingBoxes = {};
             end
+            % Check for door detection mode from Estimate.m
+            door_detection_mode = false;
+            if isfield(Plant, 'local') && isfield(Plant.local, 'door_detection_mode')
+                door_detection_mode = Plant.local.door_detection_mode;
+                if door_detection_mode
+                    fprintf('[CONTROL] Door detection debug mode activated - will bypass to Phase 1.5\n');
+                end
+            end
+            
+            % Extract both local and global xyz data for door detection
+            xyz_global = [];
+            xyz_local = [];
+            if isfield(Plant, 'local')
+                if isfield(Plant.local, 'xyz_global')
+                    xyz_global = Plant.local.xyz_global;
+                end
+                if isfield(Plant.local, 'xyz_local')
+                    xyz_local = Plant.local.xyz_local;
+                end
+            end
+            
+            % Combine both coordinate systems for elevator function
+            lidar_data = struct();
+            lidar_data.xyz_global = xyz_global;
+            lidar_data.xyz_local = xyz_local;
             
             % Initialize door (close it) only on first iteration
             if obj.count == 1
@@ -391,22 +437,17 @@ classdef Control < handle
             current_position = [Position.X, Position.Y];
             goal_distance = norm(current_position - goal_position);
 
-            % Check for mode transitions
-            if ~strcmp(obj.control_mode, 'elevator_entry') && goal_distance < 0.7
-                % Transition from path following to elevator entry
-                obj.control_mode = 'elevator_entry';
-                fprintf('=== MODE CHANGE: Switching to ELEVATOR ENTRY mode ===\n');
-            end
+            % Phase transition is now handled by Estimate.m
 
             % Execute control based on current mode
-            if strcmp(obj.control_mode, 'path_following')
+            if any(strcmp(obj.sharedControlMode.getMode(), {'path_following', 'floor_change'}))
                 % Normal path following control
                 [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = obj.pathFollowingControl(Position, preobs);
                 elevator_result = [];  % No elevator result in path following mode
 
-            elseif strcmp(obj.control_mode, 'elevator_entry')
+            elseif strcmp(obj.sharedControlMode.getMode(), 'elevator_entry')
                 % Elevator entry control
-                elevator_result = obj.executeElevatorEntry(current_position, Position.yaw);
+                elevator_result = obj.executeElevatorEntry(current_position, Position.yaw, lidar_data, door_detection_mode);
                 U = elevator_result.V;
 
                 % Fill empty variables for result.local
@@ -421,7 +462,7 @@ classdef Control < handle
 
                 % Check if elevator entry is completed
                 if isfield(elevator_result, 'completed') && elevator_result.completed
-                    obj.control_mode = 'completed';
+                    obj.sharedControlMode.setMode('completed');
                     controlElevatorDoor('close');
                     fprintf('=== MODE CHANGE: Elevator entry COMPLETED ===\n');
                 end
@@ -459,7 +500,7 @@ classdef Control < handle
             result.local.fval = fval;
 
             % Handle BestCostId indexing for different modes
-            if strcmp(obj.control_mode, 'path_following') && ~isempty(BestCostId)
+            if strcmp(obj.sharedControlMode.getMode(), 'path_following') && ~isempty(BestCostId)
                 result.local.Bestpx = {px(:,:,BestCostId)};
                 result.local.Bestpu = {pu(:,:,BestCostId)};
             else
@@ -474,6 +515,7 @@ classdef Control < handle
             result.local.Position_X = Position.X;
             result.local.Position_Y = Position.Y;
             result.local.Position_yaw = Position.yaw;
+            result.local.control_mode = obj.sharedControlMode.getMode(); % Pass control mode to Estimate
 
 
         end
@@ -486,21 +528,38 @@ classdef Control < handle
         [obj,pw_new] = Normalize(obj,pw)
         [px,pw,pv] = Resampling(obj,pu,pw)
         [uOpt,fval,removed] = clustering(obj,tempobj,pw,pu,px)
-
-        function elevator_result = executeElevatorEntry(obj, current_position, current_yaw)
-            % Execute elevator entry sequence
-            % This calls the external enterElevator function
-
-            % Open door when starting elevator entry (only once)
-            persistent door_opened;
-            if isempty(door_opened) || ~door_opened
-                controlElevatorDoor('open');
-                door_opened = true;
-                fprintf('Elevator door opened for entry.\n');
-            end
+%% Elevator Entry Algorithm
+        function elevator_result = executeElevatorEntry(obj, current_position, current_yaw, lidar_data, door_detection_mode)
+            % Execute elevator entry sequence with door detection and opening
+            % This calls the external enterElevator function and handles door opening
+            %
+            % Inputs:
+            %   lidar_data - struct containing both xyz_global and xyz_local coordinate data
+            %   door_detection_mode - boolean flag for debug mode (bypass to Phase 1.5)
 
             elevator_center = [27, 12]; % Elevator center position
-            elevator_result = enterElevator(current_position, current_yaw, elevator_center);
+            
+            % Use the elevator_odom_mode property from the Control class
+            % This can be configured when creating the Control object:
+            % - false (default): use global coordinates (map mode) 
+            % - true: use local coordinates (odometry mode) for map-independent operation
+            
+            if nargin < 5
+                door_detection_mode = false; % Default: normal elevator entry
+            end
+            
+            elevator_result = enterElevator(current_position, current_yaw, elevator_center, [], lidar_data, obj.Gazebo, obj.elevator_odom_mode, door_detection_mode);
+            
+            % Check if we need to open the door (Phase 1.5 - door verification)
+            if isfield(elevator_result, 'phase') && elevator_result.phase == 1.5
+                % Open elevator door only in Gazebo simulation
+                if obj.Gazebo
+                    controlElevatorDoor('open');
+                    fprintf('Control: Opening elevator door for Phase 1.5 verification (Gazebo)\n');
+                else
+                    fprintf('Control: Phase 1.5 detected - Real system, no door control needed\n');
+                end
+            end
         end
 
         function displayStatusMessage(obj, Position, goal_distance, U, elevator_result)
@@ -509,7 +568,7 @@ classdef Control < handle
 
             clc;  % Clear command window
 
-            if strcmp(obj.control_mode, 'path_following')
+            if any(strcmp(obj.sharedControlMode.getMode(), {'path_following', 'floor_change'}))
                 % Path following mode status
                 fprintf('=== PATH FOLLOWING MODE ===\n');
                 fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
@@ -518,7 +577,7 @@ classdef Control < handle
                 fprintf('Target Waypoint: %d/%d\n', obj.target_n(1,1), size(obj.waypoint,1));
                 fprintf('==========================\n');
 
-            elseif strcmp(obj.control_mode, 'elevator_entry')
+            elseif strcmp(obj.sharedControlMode.getMode(), 'elevator_entry')
                 % Elevator entry mode status
                 fprintf('=== ELEVATOR ENTRY MODE ===\n');
                 fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));

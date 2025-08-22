@@ -26,6 +26,20 @@ function RawData = integrateData(obj)
 		DataName = [fieldnames(RawNatnet);  fieldnames(RawRosData)];
 		RawData  = cell2struct(DataCell, DataName, 1);
 	end
+	
+	% Add user mode request from menu to RawData for all modes
+	if isprop(obj, 'UserModeRequest') || isfield(obj, 'UserModeRequest')
+		% Only pass the request if it hasn't been processed yet
+		if obj.UserModeRequest.requested && (isfield(obj.UserModeRequest, 'processed') && ~obj.UserModeRequest.processed)
+			RawData.UserModeRequest = obj.UserModeRequest;
+			% Mark as processed to prevent continuous application
+			obj.UserModeRequest.processed = true;
+		else
+			RawData.UserModeRequest = struct('requested', false);
+		end
+	else
+		RawData.UserModeRequest = struct('requested', false);
+	end
 end
 	
 function ret = structGeneration(obj)

@@ -110,8 +110,11 @@ folderPath   = makeFolder(obj);
 
 %----- Setting up your class files -----%
 % You have to call constructor functions of your class file.
-obj.ControllerObj = Control(te,dt,mode,rgtNum,Datadir,sensor,autoware);
-obj.EstimatorObj = Estimate(dt,mode,Datadir);
+% Create shared control mode instance
+sharedControlMode = SharedControlMode('path_following');
+
+obj.ControllerObj = Control(te,dt,mode,rgtNum,Datadir,sensor,autoware,sharedControlMode);
+obj.EstimatorObj = Estimate(dt,mode,Datadir,sharedControlMode);
 
 
 %----- Waiting until enter botton is pressed in the command window -----%

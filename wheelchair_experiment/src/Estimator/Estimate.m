@@ -144,6 +144,11 @@ classdef Estimate < handle
         trackStorage
         newTrackCandidates
         tempStorage
+        
+        % Phase detection for elevator control
+        elevator_center         % Elevator center position [x, y]
+        control_phase           % Current control phase: 'path_following', 'elevator_entry', or 'floor_change'
+        sharedControlMode       % Shared control mode handle object
 
 
 
@@ -151,7 +156,7 @@ classdef Estimate < handle
 
     end
     methods
-        function obj = Estimate(dt, mode,File) % 実行して最初の1度だけ呼び出される所
+        function obj = Estimate(dt, mode,File,sharedControlMode) % 実行して最初の1度だけ呼び出される所
 
             % p = gcp('nocreate');
             % if isempty(p)
@@ -183,6 +188,13 @@ classdef Estimate < handle
             % warning('off','all');
             obj.modeNumber = mode; % main.mで指定したmodeを代入
             obj.cnt = 1; % カウントの初期定義
+            
+            % Initialize shared control mode
+            obj.sharedControlMode = sharedControlMode; % Store shared control mode object
+            
+            % Initialize phase detection
+            obj.elevator_center = [27, 12]; % Elevator center position (same as Control.m)
+            obj.control_phase = 'floor_change'; % Start in floor change mode to allow elevator entry
 
             % Theater Plot---------------------------------------------
             tp = theaterPlot('XLim',obj.roi(1,1:2),'YLim',obj.roi(2,1:2)); grid on;
@@ -372,6 +384,76 @@ classdef Estimate < handle
             %     % grid on
             %     %%
             %
+            %% Handle user mode requests from menu
+            if isfield(Plant, 'UserModeRequest') && Plant.UserModeRequest.requested
+                user_request = Plant.UserModeRequest;
+                fprintf('[ESTIMATE] Processing user mode request: %s\n', user_request.new_phase);
+                
+                switch user_request.new_phase
+                    case 'floor_change'
+                        obj.sharedControlMode.setMode('floor_change');
+                        fprintf('[ESTIMATE] User set mode to FLOOR_CHANGE - elevator entry now allowed\n');
+                        
+                    case 'door_detection'
+                        obj.sharedControlMode.setMode('door_detection');
+                        fprintf('[ESTIMATE] User set mode to DOOR_DETECTION - debug mode activated\n');
+                        
+                    otherwise
+                        fprintf('[ESTIMATE] Unknown user mode request: %s\n', user_request.new_phase);
+                end
+            end
+            
+            %% Phase detection for elevator control
+            current_position = [Plant.X, Plant.Y];
+            
+            % Define elevator door approach area (rectangular zone in front of door)
+            elevator_door_area.x_min = 29.3;  % x > 29.3
+            elevator_door_area.x_max = 30.8;  % x <= 30.8
+            elevator_door_area.y_min = 12.0;  % y >= 12.0
+            elevator_door_area.y_max = 12.3;  % y < 12.3
+            
+            % Check if wheelchair is in the elevator door approach area
+            in_elevator_area = (current_position(1) > elevator_door_area.x_min) && ...
+                              (current_position(1) <= elevator_door_area.x_max) && ...
+                              (current_position(2) >= elevator_door_area.y_min) && ...
+                              (current_position(2) < elevator_door_area.y_max);
+            
+            % Check for mode transitions
+            if strcmp(obj.sharedControlMode.getMode(), 'floor_change') && in_elevator_area
+                % Transition from floor_change to elevator entry
+                obj.sharedControlMode.setMode('elevator_entry');
+                obj.control_phase = 'elevator_entry';
+                fprintf('[ESTIMATE] MODE CHANGE: Switching from FLOOR_CHANGE to ELEVATOR ENTRY mode\n');
+                fprintf('           Position: [%.3f, %.3f] entered elevator door area\n', current_position(1), current_position(2));
+                fprintf('           Area bounds: X(%.1f,%.1f], Y[%.1f,%.1f)\n', ...
+                    elevator_door_area.x_min, elevator_door_area.x_max, ...
+                    elevator_door_area.y_min, elevator_door_area.y_max);
+            elseif strcmp(obj.sharedControlMode.getMode(), 'door_detection')
+                % Door detection mode: immediately switch to elevator_entry for debug
+                obj.control_phase = 'elevator_entry';
+                fprintf('[ESTIMATE] MODE CHANGE: Door detection mode - switching to ELEVATOR ENTRY for debug\n');
+                fprintf('           Control.m will bypass Phase 1 and go directly to Phase 1.5\n');
+            elseif strcmp(obj.sharedControlMode.getMode(), 'elevator_entry') && ~in_elevator_area
+                % Optional: Switch back if wheelchair leaves the area (uncomment if needed)
+                % obj.control_phase = 'floor_change';
+                % fprintf('[ESTIMATE] MODE CHANGE: Leaving elevator area, switching back to FLOOR_CHANGE\n');
+            end
+            
+            % Debug info for position tracking
+            if mod(obj.cnt, 50) == 0 % Print every 50 iterations to avoid spam
+                if in_elevator_area
+                    fprintf('[ESTIMATE] Position: [%.3f, %.3f] - IN elevator door area, Mode: %s\n', ...
+                        current_position(1), current_position(2), obj.control_phase);
+                else
+                    distance_to_area_x = min(abs(current_position(1) - elevator_door_area.x_min), ...
+                                           abs(current_position(1) - elevator_door_area.x_max));
+                    distance_to_area_y = min(abs(current_position(2) - elevator_door_area.y_min), ...
+                                           abs(current_position(2) - elevator_door_area.y_max));
+                    fprintf('[ESTIMATE] Position: [%.3f, %.3f] - Distance to elevator area: X=%.2fm, Y=%.2fm, Mode: %s\n', ...
+                        current_position(1), current_position(2), distance_to_area_x, distance_to_area_y, obj.control_phase);
+                end
+            end
+
             %% 地面除去および検出点抽出
             xyz = double(xyz);
             ptCloud = pointCloud(xyz); % 全点群
@@ -381,55 +463,103 @@ classdef Estimate < handle
             ptCloud = pctransform(ptCloud, tform);
             xyz = ptCloud.Location;
 
-            % Filter wall points using occupancy map
-            debug_on = false; % Set to true to enable filtering visualization
-            if ~isempty(obj.occupancyMap)
-                xyz_before = xyz; % Save original for plotting
-                xyz = obj.filterWallPoints(xyz, Plant);
+            % Skip heavy processing during elevator entry phase (only odometry needed)
+            if strcmp(obj.control_phase, 'elevator_entry')
+                % Minimal processing for elevator entry phase
+                fprintf('[ESTIMATE] Elevator entry mode: Skipping heavy LiDAR processing\n');
+                
+                % Set empty values for variables that won't be computed
+                detections2 = [];
+                zk = [];
+                boundingBoxes = {};
+                ptCloudWithoutGround = pointCloud.empty;
+                
+            else
+                % Normal path following mode: Full LiDAR processing
+                
+                % Filter wall points using occupancy map
+                debug_on = false; % Set to true to enable filtering visualization
+                if ~isempty(obj.occupancyMap)
+                    xyz_before = xyz; % Save original for plotting
+                    xyz = obj.filterWallPoints(xyz, Plant);
 
+                end
+
+                % 地面除去+剛体変換+クラスタリング
+                [detections,survivedIndices,obstacleIndices,labels,numClusters] = Faster_processingPcloud_mex(xyz,obj.theta, ...
+                    obj.trans,obj.roi,obj.th_eClustering,obj.cnt*delta);
+                % [detections,survivedIndices,obstacleIndices,labels,numClusters] = Faster_processingPcloud(xyz,obj.theta, ...
+                %     obj.trans,Limit,obj.th_eClustering,obj.cnt*delta);
+
+                ptCloudWithoutGround_local = select(pointCloud(xyz),obstacleIndices); % 障害物点群(地面除去済)
+                NotGround = ptCloudWithoutGround_local.Location;
+                [NotGround(:,1), NotGround(:,2), NotGround(:,3)] = homogeneous(Plant, NotGround(:,1)', NotGround(:,2)', NotGround(:,3)', obj.trans(3)); % Convert coordinate system(local -> global)
+                ptCloudWithoutGround = pointCloud(NotGround);
+                labelLocation = [NotGround, double(labels)]'; % 障害物点群とラベルのセット
+
+                % Filter out wall clusters from detections
+                [detections2, wall_indices, labelLocation] = obj.filterWallClusters(detections, labelLocation, numClusters);
+
+                % Generate bounding boxes around clustered objects
+                boundingBoxes = obj.generateBoundingBoxes(NotGround, labels, numClusters);
+
+                % Plot comparison with bounding boxes if debug enabled
+                if debug_on
+                    obj.plotFilteringComparison(xyz_before, xyz, Plant, boundingBoxes, detections, wall_indices, labelLocation, obj.trans);
+                end
+
+                % 検出値の抽出-------------------
+                zk = detections2(1:2,:); % detections:[x;y;radius]
+                %--------------------------------
             end
 
-            % 地面除去+剛体変換+クラスタリング
-            [detections,survivedIndices,obstacleIndices,labels,numClusters] = Faster_processingPcloud_mex(xyz,obj.theta, ...
-                obj.trans,obj.roi,obj.th_eClustering,obj.cnt*delta);
-            % [detections,survivedIndices,obstacleIndices,labels,numClusters] = Faster_processingPcloud(xyz,obj.theta, ...
-            %     obj.trans,Limit,obj.th_eClustering,obj.cnt*delta);
-
-            ptCloudWithoutGround_local = select(pointCloud(xyz),obstacleIndices); % 障害物点群(地面除去済)
-            NotGround = ptCloudWithoutGround_local.Location;
-            [NotGround(:,1), NotGround(:,2), NotGround(:,3)] = homogeneous(Plant, NotGround(:,1)', NotGround(:,2)', NotGround(:,3)', obj.trans(3)); % Convert coordinate system(local -> global)
-            ptCloudWithoutGround = pointCloud(NotGround);
-            labelLocation = [NotGround, double(labels)]'; % 障害物点群とラベルのセット
-
-            % Filter out wall clusters from detections
-            [detections2, wall_indices, labelLocation] = obj.filterWallClusters(detections, labelLocation, numClusters);
-
-            % Generate bounding boxes around clustered objects
-            boundingBoxes = obj.generateBoundingBoxes(NotGround, labels, numClusters);
-
-            % Plot comparison with bounding boxes if debug enabled
-            if debug_on
-                obj.plotFilteringComparison(xyz_before, xyz, Plant, boundingBoxes, detections, wall_indices, labelLocation, obj.trans);
+            %% Transform xyz to global coordinates for door detection
+            xyz_global = [];
+            if ~isempty(xyz)
+                % Transform from LiDAR local coordinates to global coordinates
+                cos_yaw = cos(Plant.yaw);
+                sin_yaw = sin(Plant.yaw);
+                
+                % Apply rotation and translation to convert local to global
+                xyz_global = zeros(size(xyz));
+                xyz_global(:,1) = xyz(:,1) * cos_yaw - xyz(:,2) * sin_yaw + Plant.X;
+                xyz_global(:,2) = xyz(:,1) * sin_yaw + xyz(:,2) * cos_yaw + Plant.Y;
+                xyz_global(:,3) = xyz(:,3) + obj.trans(3); % Add wheelchair height offset
+                
+                fprintf('[ESTIMATE] Transformed %d points from local to global coordinates\n', size(xyz, 1));
             end
-
-            % 検出値の抽出-------------------
-            zk = detections2(1:2,:); % detections:[x;y;radius]
-            %--------------------------------
 
             %% result.localに各変数を保存
             result.local.boundingBoxes = boundingBoxes;  % LiDAR bounding boxes for controller
             result.local.delta = delta;
-            %% トラック候補のバッファリングとトラックの追加
-            % 新規トラック候補の距離閾値と必要連続フレーム数の設定-------
-            % distanceThreshold:同一検出点とみなす距離閾値sor
-            % requiredFrames:必要連続観測フレーム数
-            % Description: This function is track manager which
-            % continueously check observations and decide tracks at current
-            % time that should be estimated based on Hungarian method.
-            % It also supports intermittent detections.
-            %------------------------------------------------------------
-            [obj.trackStorage, obj.newTrackCandidates] = manage_track(zk,obj.trackStorage, obj.newTrackCandidates, ...
-                obj.Allxhat, obj.distanceThreshold,obj.requiredFrames, obj.xhat3to6_init, obj.P_init, delta, obj.tempStorage,obj.DimSta);
+            result.local.control_phase = obj.control_phase; % Pass control phase to Control.m
+            result.local.xyz_global = xyz_global; % Pass global xyz data for door detection
+            result.local.xyz_local = xyz; % Keep local xyz for reference if needed
+            
+            % Pass door detection mode flag to Control.m
+            if isfield(Plant, 'UserModeRequest') && Plant.UserModeRequest.requested
+                result.local.door_detection_mode = Plant.UserModeRequest.door_detection_mode;
+            else
+                result.local.door_detection_mode = false;
+            end
+            if strcmp(obj.control_phase, 'elevator_entry')
+                % Skip tracking during elevator entry phase
+                fprintf('[ESTIMATE] Skipping object tracking during elevator entry\n');
+                obj.Allxhat = [];
+                AllP = {};
+                model = [];
+            else
+                %% トラック候補のバッファリングとトラックの追加
+                % 新規トラック候補の距離閾値と必要連続フレーム数の設定-------
+                % distanceThreshold:同一検出点とみなす距離閾値sor
+                % requiredFrames:必要連続観測フレーム数
+                % Description: This function is track manager which
+                % continueously check observations and decide tracks at current
+                % time that should be estimated based on Hungarian method.
+                % It also supports intermittent detections.
+                %------------------------------------------------------------
+                [obj.trackStorage, obj.newTrackCandidates] = manage_track(zk,obj.trackStorage, obj.newTrackCandidates, ...
+                    obj.Allxhat, obj.distanceThreshold,obj.requiredFrames, obj.xhat3to6_init, obj.P_init, delta, obj.tempStorage,obj.DimSta);
 
             if ~isempty(obj.trackStorage)
                 %% 予測
@@ -462,6 +592,7 @@ classdef Estimate < handle
                     obj.trackP.plotTrack([obj.Allxhat(1,:)',obj.Allxhat(2,:)',zeros(size(obj.Allxhat,2),1)],[vx',vy',zeros(size(obj.Allxhat,2),1)]);
                 end
                 %---------------------------------------------------------------
+                end
             end
 
             %% result.localに各変数を保存
