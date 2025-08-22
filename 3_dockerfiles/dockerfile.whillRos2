@@ -41,13 +41,12 @@ RUN source /opt/${ROS_DISTRO}/setup.bash \
 && cd   ~/ros2_ws/ \
 && rm -fr install build log \
 && colcon build --packages-select velodyne_description \
-&& colcon build --packages-select velodyne_gazebo_plugins \
-
+&& colcon build --packages-select velodyne_gazebo_plugins
 
 RUN source /opt/${ROS_DISTRO}/setup.bash \
 && source /root/ros2_ws/install/setup.bash \
 && colcon build \
-&& source /root/ros2_ws/install/setup.bash \
+&& source /root/ros2_ws/install/setup.bash
 
 RUN source /usr/share/gazebo/setup.bash \
 && source /root/ros2_ws/install/setup.bash \
