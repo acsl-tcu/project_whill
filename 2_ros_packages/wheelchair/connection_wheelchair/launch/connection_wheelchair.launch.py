@@ -1,11 +1,11 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, GroupAction, ExecuteProcess, IncludeLaunchDescription, SetEnvironmentVariable
 from launch.conditions import IfCondition, UnlessCondition
-from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python.packages import get_package_share_directory
 from launch.conditions import IfCondition, UnlessCondition
+from launch.substitutions import LaunchConfiguration, EnvironmentVariable, TextSubstitution
 import os
 import xacro
 
@@ -81,5 +81,4 @@ def generate_launch_description():
         rosbag_record,
         gazebo_launch,
         gazebo_bridge_node,
-        gazebo_env,
     ])
