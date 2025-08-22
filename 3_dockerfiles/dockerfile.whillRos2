@@ -10,36 +10,36 @@ ENV NVIDIA_DRIVER_CAPABILITIES=all
 # RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 
 #Install Dependent Packages
-RUN cd ~/ ${ROS_DISTRO}
-RUN  git clone --depth 1 https://github.com/robotics-upo/lightsfm.git${ROS_DISTRO}
-RUN  cd lightsfm ${ROS_DISTRO}
-RUN  make ${ROS_DISTRO}
-RUN  make install ${ROS_DISTRO}
-RUN  apt install ros-${ROS_DISTRO}-diagnostic-updater ${ROS_DISTRO}
-RUN  apt update ${ROS_DISTRO}
+RUN cd ~/ 
+RUN  git clone --depth 1 https://github.com/robotics-upo/lightsfm.git
+RUN  cd lightsfm 
+RUN  make 
+RUN  make install 
+RUN  apt install ros-${ROS_DISTRO}-diagnostic-updater 
+RUN  apt update 
 RUN  apt install libpcap-dev -y 
 
 
 
 #colcon build
-RUN . /opt/ros/${ROS_DISTRO}/setup.bash ${ROS_DISTRO}
-RUN  cd ~/ros2_ws/ ${ROS_DISTRO}
-RUN  apt update${ROS_DISTRO}
-RUN  apt install gazebo libgazebo-dev ros-${ROS_DISTRO}-gazebo-ros-pkgs -y ${ROS_DISTRO}
-RUN  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH ${ROS_DISTRO} 
-RUN  dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake ${ROS_DISTRO}
-RUN  rm -fr build install log${ROS_DISTRO} 
-RUN  colcon build --symlink-install --packages-select velodyne_description ${ROS_DISTRO}
-RUN  colcon build --symlink-install --packages-select velodyne_gazebo_plugins ${ROS_DISTRO}
-RUN  . /root/ros2_ws/install/setup.bash ${ROS_DISTRO}
-RUN  colcon build --symlink-install ${ROS_DISTRO}
+RUN . /opt/ros/${ROS_DISTRO}/setup.bash 
+RUN  cd ~/ros2_ws/ 
+RUN  apt update
+RUN  apt install gazebo libgazebo-dev ros-${ROS_DISTRO}-gazebo-ros-pkgs -y 
+RUN  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH  
+RUN  dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake 
+RUN  rm -fr build install log 
+RUN  colcon build --symlink-install --packages-select velodyne_description 
+RUN  colcon build --symlink-install --packages-select velodyne_gazebo_plugins 
+RUN  . /root/ros2_ws/install/setup.bash 
+RUN  colcon build --symlink-install 
 RUN  . /root/ros2_ws/install/setup.bash
 
-RUN echo 'export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:${ROS_DISTRO} \
-$(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models:${ROS_DISTRO} \
-$(ros2 pkg prefix create_world)/share/create_world/models:${ROS_DISTRO} \
-$(ros2 pkg prefix gazebo_sfm_plugin)/share/gazebo_sfm_plugin/media/models' >> ~/.bashrc ${ROS_DISTRO}
-RUN  echo 'export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH' >> ~/.bashrc ${ROS_DISTRO}
-RUN  echo 'export FASTDDS_BUILTIN_TRANSPORTS=UDPv4' >> ~/.bashrc ${ROS_DISTRO}
+RUN echo 'export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH: \
+$(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models: \
+$(ros2 pkg prefix create_world)/share/create_world/models: \
+$(ros2 pkg prefix gazebo_sfm_plugin)/share/gazebo_sfm_plugin/media/models' >> ~/.bashrc 
+RUN  echo 'export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH' >> ~/.bashrc 
+RUN  echo 'export FASTDDS_BUILTIN_TRANSPORTS=UDPv4' >> ~/.bashrc 
 
 
