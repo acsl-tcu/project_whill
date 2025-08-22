@@ -246,6 +246,7 @@ classdef Control < handle
         V_ref
         th_target_w
         sharedControlMode  % Shared control mode handle object
+        door_params       % Door detection parameters struct
     end
 
 
@@ -291,6 +292,16 @@ classdef Control < handle
             obj.sharedControlMode = sharedControlMode;  % Store shared control mode object
             obj.sharedControlMode.setMode('path_following');  % Initialize shared control mode
 
+            % Door detection parameters - centralized configuration
+            obj.door_params = struct();
+            obj.door_params.ANGLE_TOLERANCE = 30;       % ±30 degrees cone towards elevator (initial filtering)
+            obj.door_params.NARROW_ROI_ANGLE = 7;       % ±7 degrees for wheelchair safe passage (critical ROI)
+            obj.door_params.DOOR_HEIGHT_MIN = 0.3;      % Minimum height (avoid floor)
+            obj.door_params.DOOR_HEIGHT_MAX = 2.2;      % Maximum door height  
+            obj.door_params.MIN_POINTS_THRESHOLD = 5;   % Minimum points needed for analysis
+            obj.door_params.DEPTH_THRESHOLD = 0.3;     % Points must be this much deeper than elevator center
+            obj.door_params.FIXED_ELEVATOR_DISTANCE = 2.2; % Fixed elevator center distance in odometry mode (meters)
+            
             obj.Vinit = rand();
             NamedConst = findAttrValue(obj,'Constant');
             obj.target_n = ones(obj.K,obj.NP)*2;
@@ -564,7 +575,7 @@ classdef Control < handle
                 door_detection_mode = false; % Default: normal elevator entry
             end
             
-            elevator_result = enterElevator(current_position, current_yaw, elevator_center, [], lidar_data, obj.Gazebo, obj.elevator_odom_mode, door_detection_mode);
+            elevator_result = enterElevator(current_position, current_yaw, elevator_center, [], lidar_data, obj.Gazebo, obj.elevator_odom_mode, door_detection_mode, obj.door_params);
             
             % Check if we need to open the door (Phase 1.5 - door verification)
             if isfield(elevator_result, 'phase') && elevator_result.phase == 1.5
