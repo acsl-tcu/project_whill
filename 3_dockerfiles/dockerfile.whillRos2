@@ -10,52 +10,12 @@ ENV NVIDIA_DRIVER_CAPABILITIES=all
 # ARG DEBIAN_FRONTEND=noninteractive
 # RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 
-
-#colcon build
-RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
-&&  cd ~/ros2_ws/ \
-&&  apt update\
-&&  apt install gazebo libgazebo-dev \
-ros-${ROS_DISTRO}-gazebo-ros-pkgs \
-ros-${ROS_DISTRO}-controller-manager \
-ros-${ROS_DISTRO}-controller-manager-msgs \  
-ros-${ROS_DISTRO}-ros2-control   \
-ros-${ROS_DISTRO}-ros2-controllers   \
-ros-${ROS_DISTRO}-gazebo-ros2-control -y 
-# &&  dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake
-# &&  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH  \
-
 #Install Dependent Packages
-RUN cd ~/ \
-&& git clone --depth 1 https://github.com/robotics-upo/lightsfm.git\
-&& cd lightsfm \
-&& make \
-&& make install \
-&& apt install ros-${ROS_DISTRO}-diagnostic-updater \
-&& apt update \
-&& apt install libpcap-dev -y
-# \
-#&& echo 'source ~/ros2_ws/install/setup.bash' >> ~/.bashrc 
-
-
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
-&& source /usr/share/gazebo/setup.bash \
-&& cd /root/ros2_ws/ \
-&& colcon build --packages-select velodyne_description
-# && colcon build --packages-select velodyne_gazebo_plugins
-
-
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
+RUN source /usr/share/gazebo/setup.bash \
 && source /root/ros2_ws/install/setup.bash \
-&& colcon build \
-&& source /root/ros2_ws/install/setup.bash
-
-# RUN source /usr/share/gazebo/setup.bash \
-# && source /root/ros2_ws/install/setup.bash \
-# && echo "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:\
-# $(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models:\
-# $(ros2 pkg prefix create_world)/share/create_world/models:\
-# $(ros2 pkg prefix gazebo_sfm_plugin)/share/gazebo_sfm_plugin/media/models" >> ~/.bashrc \
-# &&  echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> ~/.bashrc \
-# && echo "export FASTDDS_BUILTIN_TRANSPORTS=UDPv4" >> ~/.bashrc 
+&& echo "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:\
+$(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models:\
+$(ros2 pkg prefix create_world)/share/create_world/models" >> ~/.bashrc \
+&&  echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> ~/.bashrc \
+&& echo "export FASTDDS_BUILTIN_TRANSPORTS=UDPv4" >> ~/.bashrc 
 

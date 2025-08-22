@@ -1,0 +1,16 @@
+ARG BASE_IMAGE
+ARG ROS_DISTRO
+FROM ${BASE_IMAGE}
+
+SHELL [ "/bin/bash","-c" ]
+
+RUN cd ~/ \
+&& git clone --depth 1 https://github.com/robotics-upo/lightsfm.git\
+&& cd lightsfm \
+&& make \
+&& make install \
+&& apt install ros-${ROS_DISTRO}-diagnostic-updater \
+&& apt update \
+&& apt install libpcap-dev -y\
+&& echo  "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:$(ros2 pkg prefix gazebo_sfm_plugin)/share/gazebo_sfm_plugin/media/models" >> ~/.bashrc
+
