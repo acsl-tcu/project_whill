@@ -12,6 +12,7 @@ ENV NVIDIA_DRIVER_CAPABILITIES=all
 
 #Install Dependent Packages
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
+&& source ~/ros2_ws/install/setup.bash \
 && echo "source /usr/share/gazebo/setup.bash" >> ~/.bashrc \
 && echo "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:\
 $(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models:\
