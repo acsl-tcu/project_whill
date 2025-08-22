@@ -27,8 +27,10 @@ RUN . /opt/ros/${ROS_DISTRO}/setup.bash \
 &&  cd ~/ros2_ws/ \
 &&  apt update\
 &&  apt install gazebo libgazebo-dev ros-${ROS_DISTRO}-gazebo-ros-pkgs -y \
-&&  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH  \
-&&  dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake \
+&&  dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake
+
+# &&  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH  \
+
 
 RUN cd   ~/ros2_ws/ \
 && colcon build --symlink-install --packages-select velodyne_description \
