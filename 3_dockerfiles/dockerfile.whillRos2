@@ -10,17 +10,6 @@ ENV NVIDIA_DRIVER_CAPABILITIES=all
 # ARG DEBIAN_FRONTEND=noninteractive
 # RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 
-#Install Dependent Packages
-RUN cd ~/ \
-&& git clone --depth 1 https://github.com/robotics-upo/lightsfm.git\
-&& cd lightsfm \
-&& make \
-&& make install \
-&& apt install ros-${ROS_DISTRO}-diagnostic-updater \
-&& apt update \
-&& apt install libpcap-dev -y
-# \
-#&& echo 'source ~/ros2_ws/install/setup.bash' >> ~/.bashrc 
 
 #colcon build
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
@@ -41,6 +30,18 @@ RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
 && cd /root/ros2_ws/ \
 && colcon build --packages-select velodyne_description
 # && colcon build --packages-select velodyne_gazebo_plugins
+
+#Install Dependent Packages
+RUN cd ~/ \
+&& git clone --depth 1 https://github.com/robotics-upo/lightsfm.git\
+&& cd lightsfm \
+&& make \
+&& make install \
+&& apt install ros-${ROS_DISTRO}-diagnostic-updater \
+&& apt update \
+&& apt install libpcap-dev -y
+# \
+#&& echo 'source ~/ros2_ws/install/setup.bash' >> ~/.bashrc 
 
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
 && colcon build \
