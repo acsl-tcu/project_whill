@@ -43,6 +43,9 @@ RUN  source /usr/share/gazebo/setup.bash \
 &&  source /root/ros2_ws/install/setup.bash \
 &&  colcon build --symlink-install \
 &&  . /root/ros2_ws/install/setup.bash \
+
+RUN source /usr/share/gazebo/setup.bash \
+&& source /root/ros2_ws/install/setup.bash \
 && echo "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:\
 $(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models:\
 $(ros2 pkg prefix create_world)/share/create_world/models:\

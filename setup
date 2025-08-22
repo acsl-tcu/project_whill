@@ -10,8 +10,8 @@ if [ "$1" == "full" ]; then
 
   dbuild image_${PROJECT}${TARGET}${x86} whill_ros2 whillRos2
 
-  cd ~/.ssh/
-  cat id_*.pub >>authorized_keys
+  # cd ~/.ssh/
+  # cat id_*.pub >>authorized_keys
 fi
 
-build_project
+#build_project
