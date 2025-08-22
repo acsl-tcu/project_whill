@@ -25,12 +25,6 @@ ros-${ROS_DISTRO}-gazebo-ros2-control -y
 # &&  dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake
 # &&  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH  \
 
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
-&& source /usr/share/gazebo/setup.bash \
-&& cd /root/ros2_ws/ \
-&& colcon build --packages-select velodyne_description
-# && colcon build --packages-select velodyne_gazebo_plugins
-
 #Install Dependent Packages
 RUN cd ~/ \
 && git clone --depth 1 https://github.com/robotics-upo/lightsfm.git\
@@ -43,9 +37,18 @@ RUN cd ~/ \
 # \
 #&& echo 'source ~/ros2_ws/install/setup.bash' >> ~/.bashrc 
 
-# RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
-# && colcon build \
-# && source /root/ros2_ws/install/setup.bash
+
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
+&& source /usr/share/gazebo/setup.bash \
+&& cd /root/ros2_ws/ \
+&& colcon build --packages-select velodyne_description
+# && colcon build --packages-select velodyne_gazebo_plugins
+
+
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
+&& source /root/ros2_ws/install/setup.bash \
+&& colcon build \
+&& source /root/ros2_ws/install/setup.bash
 
 # RUN source /usr/share/gazebo/setup.bash \
 # && source /root/ros2_ws/install/setup.bash \
