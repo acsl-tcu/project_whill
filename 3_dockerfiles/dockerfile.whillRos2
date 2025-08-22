@@ -10,30 +10,30 @@ ENV NVIDIA_DRIVER_CAPABILITIES=all
 # RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 
 #Install Dependent Packages
-RUN cd ~/ 
-RUN  git clone --depth 1 https://github.com/robotics-upo/lightsfm.git
-RUN  cd lightsfm 
-RUN  make 
-RUN  make install 
-RUN  apt install ros-${ROS_DISTRO}-diagnostic-updater 
-RUN  apt update 
-RUN  apt install libpcap-dev -y 
+RUN cd ~/ \
+&& git clone --depth 1 https://github.com/robotics-upo/lightsfm.git\
+&& cd lightsfm \
+&& make \
+&& make install \
+&& apt install ros-${ROS_DISTRO}-diagnostic-updater \
+&& apt update \
+&& apt install libpcap-dev -y 
 
 
 
 #colcon build
-RUN . /opt/ros/${ROS_DISTRO}/setup.bash 
-RUN  cd ~/ros2_ws/ 
-RUN  apt update
-RUN  apt install gazebo libgazebo-dev ros-${ROS_DISTRO}-gazebo-ros-pkgs -y 
-RUN  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH  
-RUN  dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake 
-RUN  rm -fr build install log 
-RUN  colcon build --symlink-install --packages-select velodyne_description 
-RUN  colcon build --symlink-install --packages-select velodyne_gazebo_plugins 
-RUN  . /root/ros2_ws/install/setup.bash 
-RUN  colcon build --symlink-install 
-RUN  . /root/ros2_ws/install/setup.bash
+RUN . /opt/ros/${ROS_DISTRO}/setup.bash \
+&&  cd ~/ros2_ws/ \
+&&  apt update\
+&&  apt install gazebo libgazebo-dev ros-${ROS_DISTRO}-gazebo-ros-pkgs -y \
+&&  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH  \
+&&  dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake \
+&&  rm -fr build install log \
+&&  colcon build --symlink-install --packages-select velodyne_description \
+&&  colcon build --symlink-install --packages-select velodyne_gazebo_plugins \
+&&  . /root/ros2_ws/install/setup.bash \
+&&  colcon build --symlink-install \
+&&  . /root/ros2_ws/install/setup.bash
 
 RUN echo 'export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH: \
 $(ros2 pkg prefix electric_wheelchair)/share/electric_wheelchair/models: \
