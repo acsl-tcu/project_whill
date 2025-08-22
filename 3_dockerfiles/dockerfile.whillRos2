@@ -2,6 +2,7 @@ ARG BASE_IMAGE
 ARG ROS_DISTRO
 FROM ${BASE_IMAGE}
 
+SHELL [ "/bin/bash","-c" ]
 
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=all
@@ -22,7 +23,7 @@ RUN cd ~/ \
 
 
 #colcon build
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
+RUN . /opt/ros/${ROS_DISTRO}/setup.bash \
 &&  cd ~/ros2_ws/ \
 &&  apt update\
 &&  apt install gazebo libgazebo-dev ros-${ROS_DISTRO}-gazebo-ros-pkgs -y \
