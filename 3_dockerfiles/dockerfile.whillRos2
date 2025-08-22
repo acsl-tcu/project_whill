@@ -39,8 +39,8 @@ ros-${ROS_DISTRO}-gazebo-ros2-control -y
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 && source /usr/share/gazebo/setup.bash \
 && cd /root/ros2_ws/ \
-&& colcon build --packages-select velodyne_description \
-&& colcon build --packages-select velodyne_gazebo_plugins
+&& colcon build --packages-select velodyne_description
+# && colcon build --packages-select velodyne_gazebo_plugins
 
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 && source /root/ros2_ws/install/setup.bash \
