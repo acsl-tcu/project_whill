@@ -17,5 +17,5 @@ RUN cd ~/ \
 RUN cd ~/ros2_ws/src \
 && git clone --depth 1 -b galactic https://github.com/robotics-upo/gazebo_sfm_plugin.git \
 && cd ~/ros2_ws \
-&& colcon build --package-select gazebo_sfm_plugin \
+&& colcon build --packages-select gazebo_sfm_plugin \
 && source install/setup.bash
