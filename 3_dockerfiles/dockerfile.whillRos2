@@ -13,6 +13,9 @@ ENV NVIDIA_DRIVER_CAPABILITIES=all
 #Install Dependent Packages
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 && source ~/ros2_ws/install/setup.bash \
+&& echo "source /opt/ros/humble/setup.bash" \
+&& echo "source ~/ros2_ws/install/local_setup.bash" \
+&& echo "source ~/ros2_ws/install/setup.bash" \
 && echo "source /usr/share/gazebo/setup.bash" >> ~/.bashrc \
 && echo "export GAZEBO_PLUGIN_PATH=/opt/ros/$ROS_DISTRO/lib:${GAZEBO_PLUGIN_PATH:-}" >> ~/.bashrc \
 && echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> ~/.bashrc \
