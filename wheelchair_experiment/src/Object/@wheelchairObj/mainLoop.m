@@ -5,9 +5,16 @@ function Data = mainLoop(obj, varargin)
     else 
         waitTime = 1.e-12;
         while 1
-            % executeCommand‚ª1‚É‚È‚Á‚½‚ç’Eo
-            if executeCommand(obj)
-                break;
+            % Check for keyboard input and show menu before executing command
+            if obj.checkForModeMenu()
+                break; % Exit if user requested
+            end
+            
+            % executeCommandï¿½ï¿½1ï¿½É‚È‚ï¿½ï¿½ï¿½ï¿½ï¿½Eï¿½o
+            while 1
+                if executeCommand(obj);
+                 break;
+                end
             end
             if ~isempty(varargin)
                 varargin{1}.TranslationalvelocityGauge.Value = obj.DataObj.Data.V(1, obj.Count+1);

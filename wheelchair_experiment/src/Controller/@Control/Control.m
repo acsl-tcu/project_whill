@@ -254,8 +254,6 @@ classdef Control < handle
         %         function obj = Control(dt, Mode, FolderPath,sensor,autoware)
         function obj = Control(~, dt, mode ,rgtNum, FolderPath,sensor,autoware,sharedControlMode)
             % obj.wall = repmat([-0.5 8 -3 3],[size(obj.waypoint,1),1]);
-            initial_position = [28.9,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
-            goal_position =[];
             try
                 available_topics = rostopic('list');  
                 fprintf('=== ROS INITIALIZATION CHECK ===\n');
@@ -273,24 +271,41 @@ classdef Control < handle
                 fprintf('ROS topic detection failed: %s - Defaulting to real system\n', ME.message);
             end
             
-            % Try A* pathfinding first, fallback to original if it fails
-            try
-                % Calculate robot dimensions from wheel parameters
-                robot_width = obj.wheel_width * 2;  % Total width = 0.55m
-                robot_length = obj.wheel_len_rear + obj.wheel_len_front;  % Total length = 1.11m
+            % Get waypoints from SharedControlMode (path planning now done in Estimate.m)
+            if sharedControlMode.hasWaypoints()
+                obj.waypoint = sharedControlMode.getWaypoints();
+                fprintf('Control: Using waypoints from Estimate.m (%d points)\n', size(obj.waypoint, 1));
                 
-                [obj.waypoint, obj.selectZone,obj.NoEntryZone,obj.ZoneNum,obj.V_ref]=PathSetting_AStar(initial_position, goal_position, robot_width, robot_length);
-                fprintf('Control: Using A* generated waypoints (%d points) with vehicle size %.2fx%.2fm\n', size(obj.waypoint, 1), robot_width, robot_length);
+                % Generate V_ref based on waypoints (same logic as PathSetting functions)
+                obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
+                if size(obj.waypoint,1) >= 2
+                    obj.V_ref(end-1) = 0.2;  % Slow down before goal
+                end
+                if size(obj.waypoint,1) >= 1
+                    obj.V_ref(end) = 0;      % Stop at goal
+                end
+            else
+                % Fallback to simple default waypoints if none available
+                obj.waypoint = [28.9, 6; 30, 12]; % Basic start->elevator path
+                obj.V_ref = [0.5; 0]; % Default velocities
+                fprintf('Control: Using fallback waypoints (%d points)\n', size(obj.waypoint, 1));
+            end
+            
+            % Get zones from original path setting (kept separate for now)
+            try
+                [~, obj.selectZone,obj.NoEntryZone,obj.ZoneNum,~]=PathSetting_original;
             catch ME
-                fprintf('Control: A* pathfinding failed (%s), using original waypoints\n', ME.message);
-                [obj.waypoint, obj.selectZone,obj.NoEntryZone,obj.ZoneNum,obj.V_ref]=PathSetting_original;
+                fprintf('Control: Failed to get zones (%s), using defaults\n', ME.message);
+                obj.selectZone = ones(size(obj.waypoint, 1), 1);
+                obj.NoEntryZone = [];
+                obj.ZoneNum = [];
             end
 
             %初期化
             obj.v_old = 0.5;
             obj.t_old = 0.2;
             obj.sharedControlMode = sharedControlMode;  % Store shared control mode object
-            obj.sharedControlMode.setMode('path_following');  % Initialize shared control mode
+            obj.sharedControlMode.getMode();  % Initialize shared control mode
 
             % Door detection parameters - centralized configuration
             obj.door_params = struct();
@@ -466,7 +481,7 @@ classdef Control < handle
                 BestCost = [];
                 BestCostId = [];
                 uOpt = {};
-                
+                fval =[];
             elseif strcmp(obj.sharedControlMode.getMode(), 'ndt_pose_detection')
                 % NDT Pose Detection Mode - Manual control only
                 fprintf('[CONTROL] NDT Pose Detection mode: Autonomous control disabled - manual control active\n');
@@ -507,6 +522,25 @@ classdef Control < handle
                 removed = [];
             end
 
+            % Check for updated waypoints from Estimate.m (dynamic replanning) - only when flagged
+            if obj.sharedControlMode.areWaypointsUpdated()
+                obj.waypoint = obj.sharedControlMode.getWaypoints();
+                
+                % Regenerate V_ref for new waypoints (same logic as constructor)
+                obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
+                if size(obj.waypoint,1) >= 2
+                    obj.V_ref(end-1) = 0.2;  % Slow down before goal
+                end
+                if size(obj.waypoint,1) >= 1
+                    obj.V_ref(end) = 0;      % Stop at goal
+                end
+                
+                % Clear the update flag
+                obj.sharedControlMode.clearWaypointUpdateFlag();
+                
+                fprintf('[CONTROL] Updated to new waypoints from Estimate.m (%d points)\n', size(obj.waypoint, 1));
+            end
+            
             % Display status message for current mode
             obj.displayStatusMessage(Position, goal_distance, U, elevator_result);
 

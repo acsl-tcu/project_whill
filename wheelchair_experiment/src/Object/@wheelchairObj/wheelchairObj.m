@@ -19,6 +19,7 @@ classdef wheelchairObj < handle
         EstimatorObj
         DataObj
         Datadir
+        UserModeRequest  % Store user mode requests from menu
     end
     properties (Access = private)
         Mode
@@ -63,7 +64,7 @@ classdef wheelchairObj < handle
     end
     methods(Static)
 %         function Datadir = folderInfo(FilePath, FileName)
-%             % filesep...OS?¿½É‚ï¿½?¿½?¿½?¿½\?¿½?¿½/?¿½?¿½?¿½?¿½?¿½Ï‚ï¿½?¿½
+%             % filesep...OS?ï¿½ï¿½É‚ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½\?ï¿½ï¿½?ï¿½ï¿½/?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½Ï‚ï¿½?ï¿½ï¿½
 %             Datadir	= strcat(FilePath, filesep, datestr(datetime('today'), 'yyyymmdd'), filesep, FileName);
 %         end
         function [] = waitPressEnterkey()
@@ -82,14 +83,14 @@ classdef wheelchairObj < handle
         end
     end
     methods
-        % varagin...?¿½Â•Ï“ï¿½?¿½Í‚ï¿½?¿½Â”\?¿½Æ‚È‚ï¿½Öï¿½
+        % varagin...?ï¿½ï¿½Â•Ï“ï¿½?ï¿½ï¿½Í‚ï¿½?ï¿½ï¿½Â”\?ï¿½ï¿½Æ‚È‚ï¿½Öï¿½
         function obj = wheelchairObj(varargin)
-            % ?¿½x?¿½?¿½?¿½?¿½?¿½?¿½
+            % ?ï¿½ï¿½x?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½
             warning('off','backtrace')
-            % ?¿½?¿½?¿½Íˆï¿½?¿½?¿½?¿½?¿½m?¿½ÂˆÈï¿½n?¿½ÂˆÈ‰ï¿½?¿½Å‚ï¿½?¿½é‚©?¿½?¿½?¿½m?¿½F?¿½?¿½?¿½?¿½?¿½?¿½?¿½
-            % ?¿½?¿½É•Ï‚ï¿½?¿½?¿½?¿½?¿½æ‚¤?¿½É‚ï¿½?¿½Ìï¿½?¿½?¿½?¿½?¿½?¿½?¿½?¿½?¿½?¿½Ä‚ï¿½?¿½?¿½
+            % ?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½Íˆï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½m?ï¿½ï¿½ÂˆÈï¿½n?ï¿½ï¿½ÂˆÈ‰ï¿½?ï¿½ï¿½Å‚ï¿½?ï¿½ï¿½é‚©?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½m?ï¿½ï¿½F?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½
+            % ?ï¿½ï¿½?ï¿½ï¿½É•Ï‚ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½æ‚¤?ï¿½ï¿½É‚ï¿½?ï¿½ï¿½Ìï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½Ä‚ï¿½?ï¿½ï¿½?ï¿½ï¿½
             narginchk(obj.ConstArg, obj.Argument + obj.ConstArg);
-            % ?¿½v?¿½?¿½?¿½p?¿½e?¿½B?¿½É‘ï¿½?¿½
+            % ?ï¿½ï¿½v?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½p?ï¿½ï¿½e?ï¿½ï¿½B?ï¿½ï¿½É‘ï¿½?ï¿½ï¿½
             obj.AppMode     = varargin{obj.appMode};
             obj.LoopMode    = varargin{obj.loopMode};
             obj.Mode        = 1;
@@ -102,38 +103,39 @@ classdef wheelchairObj < handle
             obj.EndTime		= varargin{obj.Te};
             obj.DeltaT		= varargin{obj.Ts};
             obj.Datadir     = '';
+            obj.UserModeRequest = struct('requested', false); % Initialize user mode request
             info.HostIP		= '';
             info.ROSHostIP  = varargin{obj.IPAddr}.ROSHostIP;
             if varargin{obj.appMode}
                 obj.App = ElectricWheelchairApp(varargin);
             else
                 %- Mode Selection -%
-                % obj.Argument...?¿½?¿½?¿½Ô‚â?¿½ÝŽï¿½?¿½Ô‚È‚ÇC?¿½Å’ï¿½?¿½?¿½K?¿½v?¿½È‚ï¿½?¿½Ì‚ï¿½?¿½o?¿½?¿½?¿½Ä‚ï¿½?¿½?¿½
+                % obj.Argument...?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½Ô‚â?ï¿½ï¿½ÝŽï¿½?ï¿½ï¿½Ô‚È‚ÇC?ï¿½ï¿½Å’ï¿½?ï¿½ï¿½?ï¿½ï¿½K?ï¿½ï¿½v?ï¿½ï¿½È‚ï¿½?ï¿½ï¿½Ì‚ï¿½?ï¿½ï¿½o?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½Ä‚ï¿½?ï¿½ï¿½?ï¿½ï¿½
                 if nargin == (obj.Argument + obj.ConstArg)
-                    %Mode?¿½?¿½?¿½?¿½
+                    %Mode?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½
                     obj.Mode = varargin{obj.Md};
                     %- Acquisition and setting of IP address -%
                     info.HostIP		 = varargin{obj.IPAddr}.HostIP;
                     info.ROSHostIP   = varargin{obj.IPAddr}.ROSHostIP;
-                    % ?¿½?¿½?¿½?¿½?¿½?¿½IP?¿½?¿½?¿½?¿½?¿½?¿½ÉŽæ“¾?¿½?¿½?¿½?¿½Öï¿½
+                    % ?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½IP?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½ÉŽæ“¾?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½Öï¿½
                     IP = split(info.HostIP, ".");
                     info.ClientIP    = cell2mat(IPAddress.SearchOwnIP(join({IP{1:3}, '\d+'}, ".")));
                     IP = split(info.ROSHostIP, ".");
                     info.ROSClientIP = cell2mat(IPAddress.SearchOwnIP(join({IP{1:3}, '\d+'}, ".")));
-                    % ?¿½?¿½?¿½?¿½?¿½Ê’u?¿½?¿½Ý’ï¿½
+                    % ?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½Ê’u?ï¿½ï¿½?ï¿½ï¿½Ý’ï¿½
                     info.StartState  = varargin{obj.StartState};
-                    % ?¿½p?¿½?¿½?¿½?¿½?¿½?¿½?¿½ÅŒv?¿½Z?¿½?¿½?¿½?¿½Æ‚ï¿½?¿½ÉŽg?¿½p
+                    % ?ï¿½ï¿½p?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½ÅŒv?ï¿½ï¿½Z?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½Æ‚ï¿½?ï¿½ï¿½ÉŽg?ï¿½ï¿½p
                     obj.InitPose     = varargin{obj.StartState};
                     sensor = varargin{obj.SensorNum};
                     autoware = varargin{obj.AutowareNum};
                     obj.Sensor = sensor;
                     obj.Autoware = autoware;
                     if all(~sensor) && all(~autoware)
-                        % ?¿½?¿½?¿½?¿½?¿½?¿½Â‚ÍƒZ?¿½?¿½?¿½T?¿½?¿½?¿½g?¿½?¿½?¿½?¿½?¿½?¿½!!
+                        % ?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½Â‚ÍƒZ?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½T?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½g?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½!!
                         error('No sensors are switched on. Please turn on either sensor.');
                     end
                     switch obj.Mode
-                        % ?¿½N?¿½?¿½?¿½X?¿½Ì’ï¿½?¿½ÅƒN?¿½?¿½?¿½X?¿½?¿½Ú“I?¿½É‰ï¿½?¿½?¿½?¿½ÄŒÄ‚Ño?¿½?¿½
+                        % ?ï¿½ï¿½N?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½X?ï¿½ï¿½Ì’ï¿½?ï¿½ï¿½ÅƒN?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½X?ï¿½ï¿½?ï¿½ï¿½Ú“I?ï¿½ï¿½É‰ï¿½?ï¿½ï¿½?ï¿½ï¿½?ï¿½ï¿½ÄŒÄ‚Ño?ï¿½ï¿½?ï¿½ï¿½
                         case {'Numerical', 1}
                             disp('You selected numerical simulation.');
                             obj.DataObj = simulationObj(info, obj.StartTime, obj.EndTime, obj.DeltaT, sensor, obj.Mode);

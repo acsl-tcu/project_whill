@@ -158,34 +158,7 @@ classdef Estimate < handle
     methods
         function obj = Estimate(dt, mode,File,sharedControlMode) % 実行して最初の1度だけ呼び出される所
 
-            % p = gcp('nocreate');
-            % if isempty(p)
-            %     parpool
-            % end
-            %
-            % % パラメータを保存----------------------------------------------
-            % NamedConst_Estimate.Q                          = obj.Q;
-            % % NamedConst_Estimate.Q_pt                       = obj.Q_ptCOG;
-            % NamedConst_Estimate.R                          = obj.R;
-            % NamedConst_Estimate.R_pt                       = obj.R_temp;
-            % % NamedConst_Estimate.R_bbox                     = obj.R_bbox;
-            % NamedConst_Estimate.param_RANSAC               = obj.param_RANSAC;
-            % NamedConst_Estimate.trans                      = obj.trans;
-            % NamedConst_Estimate.theta                      = obj.theta;
-            % NamedConst_Estimate.roi                        = obj.roi;
-            % NamedConst_Estimate.th_clustering              = obj.th_eClustering;
-            % NamedConst_Estimate.th_newTrackCandidates      = obj.distanceThreshold;
-            % NamedConst_Estimate.comfirmFrames              = obj.requiredFrames;
-            % NamedConst_Estimate.associatecost              = obj.associatecost;
-            % NamedConst_Estimate.deletionFrames             = obj.deletionFrames;
-            % NamedConst_Estimate.initXhat3to6               = obj.xhat3to6_init;
-            % NamedConst_Estimate.initP                      = obj.P_init;
-            % NamedConst_Estimate.doRANSAC                   = obj.doRANSAC;
-            % % NamedConst_Estimate.dobbox                     = obj.dobbox;
-            % save(strcat(File,filesep,'settings_estimate.mat'),'NamedConst_Estimate');
-            % %-------------------------------------------------------------------------
-            %
-            % warning('off','all');
+
             obj.modeNumber = mode; % main.mで指定したmodeを代入
             obj.cnt = 1; % カウントの初期定義
             
@@ -195,6 +168,59 @@ classdef Estimate < handle
             % Initialize phase detection
             obj.elevator_center = [27, 12]; % Elevator center position (same as Control.m)
             obj.control_phase = 'floor_change'; % Start in floor change mode to allow elevator entry
+            
+            % Path planning - moved from Control.m constructor
+            initial_position = [4.2,0]; %set custom initial and goal positions if needed but if you want the default leave it as []
+            goal_position =[];
+            
+            % Calculate robot dimensions (using same constants as Control.m)
+            wheel_width = 0.55/2;           % wheel_width from Control.m
+            wheel_len_rear = 0.35;          % wheel_len_rear from Control.m  
+            wheel_len_front = 0.76;         % wheel_len_front from Control.m
+            robot_width = wheel_width * 2;  % Total width = 0.55m
+            robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
+            
+            % Try A* pathfinding first, fallback to original if it fails
+            try
+                [waypoint, ~, ~, ~, ~] = PathSetting_AStar(initial_position, goal_position, robot_width, robot_length);
+                fprintf('Estimate: Using A* generated waypoints (%d points) with vehicle size %.2fx%.2fm\n', size(waypoint, 1), robot_width, robot_length);
+            catch ME
+                fprintf('Estimate: A* pathfinding failed (%s), using original waypoints\n', ME.message);
+                [waypoint, ~, ~, ~, ~] = PathSetting_original;
+            end
+            
+            % Store waypoints in SharedControlMode for Control.m to access
+            obj.sharedControlMode.setWaypoints(waypoint);
+            
+            % Plot the generated path for visualization (world coordinates)
+            try
+                % Load map for visualization
+                map_data = load('map2.mat');
+                map_obj = map_data.map;
+                
+                figure('Name', 'Generated Path Visualization', 'Position', [100, 100, 900, 600]);
+                hold on;
+                
+                % Show occupancy grid in world coordinates
+                show(map_obj);
+                
+                % Plot generated waypoints
+                plot(waypoint(:,1), waypoint(:,2), 'ro-', 'LineWidth', 2, 'MarkerSize', 8);
+                plot(waypoint(1,1), waypoint(1,2), 'gs', 'MarkerSize', 12, 'LineWidth', 3);
+                plot(waypoint(end,1), waypoint(end,2), 'rs', 'MarkerSize', 12, 'LineWidth', 3);
+                
+                xlabel('X (m)');
+                ylabel('Y (m)');
+                title('Generated Path in World Coordinates');
+                legend('Occupancy Grid', 'Waypoints', 'Start', 'Goal', 'Location', 'best');
+                grid on;
+                axis equal;
+                hold off;
+                
+                fprintf('Estimate: Path visualization plotted in world coordinates\n');
+            catch ME
+                fprintf('Estimate: Could not create path visualization: %s\n', ME.message);
+            end
 
             % Theater Plot---------------------------------------------
             tp = theaterPlot('XLim',obj.roi(1,1:2),'YLim',obj.roi(2,1:2)); grid on;
@@ -391,8 +417,24 @@ classdef Estimate < handle
                 
                 switch user_request.new_phase
                     case 'floor_change'
-                        obj.sharedControlMode.setMode('floor_change');
-                        fprintf('[ESTIMATE] User set mode to FLOOR_CHANGE - elevator entry now allowed\n');
+                        % Check if this is the first time using the system
+                        if obj.sharedControlMode.isFirstTimeUse()
+                            % First time - just set mode, use existing waypoints
+                            obj.sharedControlMode.setMode('floor_change');
+                            fprintf('[ESTIMATE] User set mode to FLOOR_CHANGE (first time) - using existing waypoints\n');
+                        else
+                            % Not first time - replan path from current position and reset trackers
+                            fprintf('[ESTIMATE] User set mode to FLOOR_CHANGE (returning) - replanning path from current position\n');
+                            
+                            % Replan path from current position
+                            obj.replanPathFromCurrentPosition(Plant);
+                            
+                            % Reset all trackers
+                            obj.resetAllTrackers();
+                            
+                            obj.sharedControlMode.setMode('floor_change');
+                            fprintf('[ESTIMATE] Path replanning and tracker reset completed\n');
+                        end
                         
                     case 'door_detection'
                         obj.sharedControlMode.setMode('door_detection');
@@ -559,8 +601,8 @@ classdef Estimate < handle
             result.local.boundingBoxes = boundingBoxes;  % LiDAR bounding boxes for controller
             result.local.delta = delta;
             result.local.control_phase = obj.control_phase; % Pass control phase to Control.m
-            result.local.xyz_global = xyz_global; % Pass global xyz data for door detection
-            result.local.xyz_local = xyz; % Keep local xyz for reference if needed
+            result.local.xyz_global = {xyz_global}; % Pass global xyz data for door detection (as cell array)
+            result.local.xyz_local = {xyz}; % Keep local xyz for reference if needed (as cell array)
             
             % Pass door detection mode flag to Control.m
             if isfield(Plant, 'UserModeRequest') && Plant.UserModeRequest.requested
@@ -1406,6 +1448,62 @@ classdef Estimate < handle
 
             % Return filtered points
             filtered_xyz = xyz(valid_mask, :);
+        end
+        
+        function replanPathFromCurrentPosition(obj, Plant)
+            % Replan path using current wheelchair position as start
+            fprintf('[ESTIMATE] Replanning path from current position [%.2f, %.2f]\n', Plant.X, Plant.Y);
+            
+            current_position = [Plant.X, Plant.Y]; % Current wheelchair position
+            goal_position = []; % Default goal (will use elevator)
+            
+            % Calculate robot dimensions (same as constructor)
+            wheel_width = 0.55/2;           % wheel_width from Control.m
+            wheel_len_rear = 0.35;          % wheel_len_rear from Control.m  
+            wheel_len_front = 0.76;         % wheel_len_front from Control.m
+            robot_width = wheel_width * 2;  % Total width = 0.55m
+            robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
+            
+            % Try A* pathfinding first, fallback to original if it fails
+            try
+                [waypoint, ~, ~, ~, ~] = PathSetting_AStar(current_position, goal_position, robot_width, robot_length);
+                fprintf('[ESTIMATE] A* replanning SUCCESS: Generated %d waypoints from [%.2f, %.2f]\n', size(waypoint, 1), current_position(1), current_position(2));
+            catch ME
+                fprintf('[ESTIMATE] A* replanning FAILED (%s), using simple fallback path\n', ME.message);
+                % Simple fallback: current position -> elevator
+                waypoint = [current_position; 30.0, 12.5]; % Current -> elevator center
+            end
+            
+            % Update waypoints in SharedControlMode
+            obj.sharedControlMode.setWaypoints(waypoint);
+            fprintf('[ESTIMATE] Updated SharedControlMode with %d new waypoints\n', size(waypoint, 1));
+        end
+        
+        function resetAllTrackers(obj)
+            % Reset all tracking-related variables to clean state
+            fprintf('[ESTIMATE] Resetting all trackers to clean state\n');
+            
+            % Reset tracking variables
+            obj.Allxhat = [];
+            
+            % Reset track storage to clean state
+            numAllowableTracks = 50; % Same as constructor
+            obj.trackStorage.Logical = false(numAllowableTracks,1);
+            obj.trackStorage.CheckAssign = zeros(numAllowableTracks, 1);
+            obj.trackStorage.States = zeros(obj.DimSta,numAllowableTracks);
+            obj.trackStorage.P = cell(numAllowableTracks,1);
+            
+            % Reset tracker instances (clone fresh filters)
+            obj.trackStorage.tracker = arrayfun(@(~) clone(obj.ellipsefilter), 1:numAllowableTracks, 'UniformOutput', false)';
+            
+            % Reset temporary storage
+            numAllowabletempTracks = 20; % Same as constructor
+            obj.tempStorage.tracker = arrayfun(@(~) clone(obj.tempFilter), 1:numAllowabletempTracks, 'UniformOutput', false)';
+            
+            % Reset new track candidates
+            obj.newTrackCandidates = struct('Obs', {}, 'Count', {}, 'Buffer', {});
+            
+            fprintf('[ESTIMATE] All trackers reset - ready for fresh tracking\n');
         end
 
     end

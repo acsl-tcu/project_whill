@@ -113,14 +113,13 @@ folderPath   = makeFolder(obj);
 % Create shared control mode instance
 sharedControlMode = SharedControlMode('path_following');
 
-obj.ControllerObj = Control(te,dt,mode,rgtNum,Datadir,sensor,autoware,sharedControlMode);
-obj.EstimatorObj = Estimate(dt,mode,Datadir,sharedControlMode);
 
+obj.EstimatorObj = Estimate(dt,mode,Datadir,sharedControlMode);
+obj.ControllerObj = Control(te,dt,mode,rgtNum,Datadir,sensor,autoware,sharedControlMode); %Need to be after Estimate
 
 %----- Waiting until enter botton is pressed in the command window -----%
-fprintf('\n*** RUNNING WITH A* PATHFINDING ***\n');
-fprintf('Press Enter to start simulation...\n');
-obj.waitPressEnterkey();
+fprintf('\n*** RUNNING WITH A* PATHFINDING ***\n');4
+% obj.waitPressEnterkey();
 
 %% Execution of your programs
   data = mainLoop(obj);
