@@ -121,6 +121,8 @@ classdef Estimate < handle
         % Theater Plot
         trackP
         detectionP
+        waypointP
+        wheelchairP
 
         % Processing point cloud
         trans
@@ -226,6 +228,9 @@ classdef Estimate < handle
             tp = theaterPlot('XLim',obj.roi(1,1:2),'YLim',obj.roi(2,1:2)); grid on;
             obj.trackP = trackPlotter(tp,"DisplayName",'Tracks','MarkerFaceColor','g','HistoryDepth',0);
             obj.detectionP = detectionPlotter(tp,"DisplayName",'Detections','MarkerFaceColor','r');
+            % Add waypoints and wheelchair plotters
+            obj.waypointP = trackPlotter(tp,"DisplayName",'Waypoints','MarkerFaceColor','b','MarkerSize',8,'HistoryDepth',0);
+            obj.wheelchairP = trackPlotter(tp,"DisplayName",'Wheelchair','MarkerFaceColor','m','MarkerSize',12,'HistoryDepth',10);
             %----------------------------------------------------------
 
             obj.dt  = dt;
@@ -495,11 +500,7 @@ classdef Estimate < handle
                 fprintf('[NDT_POSE] X: %8.3f m | Y: %8.3f m | Z: %8.3f m | Yaw: %7.2f° | Time: %.2f s\n', ...
                     Plant.X, Plant.Y, Plant.Z, yaw_degrees, Plant.T);
                 
-                % Skip all heavy processing (LiDAR, tracking, etc.) in this mode
-                % Just focus on pose broadcasting
-                fprintf('[NDT_POSE] Manual control mode - skipping autonomous navigation processing\n');
-                
-                % Skip to the end of processing
+                % Continue with normal processing (don't skip)
                 obj.control_phase = 'ndt_pose_detection';
             end
             
@@ -742,6 +743,25 @@ classdef Estimate < handle
             %     %     % result.local.dobbox                     = [];
             %     %     result.local.model                      = [];
             %     % end
+            %% Plot waypoints and wheelchair position in theater plot
+            % Plot current wheelchair position with orientation (yaw)
+            % Use velocity vector to show yaw direction
+            arrow_length = 1.0; % 1 meter arrow length
+            vel_x = arrow_length * cos(Plant.yaw);
+            vel_y = arrow_length * sin(Plant.yaw);
+            obj.wheelchairP.plotTrack([Plant.X, Plant.Y, Plant.Z], [vel_x, vel_y, 0]);
+            
+            % Plot waypoints (only once, when cnt == 1, or when waypoints change)
+            if obj.cnt == 1
+                waypoints = obj.sharedControlMode.getWaypoints();
+                if ~isempty(waypoints)
+                    % Plot all waypoints as track points
+                    waypoint_z = zeros(size(waypoints, 1), 1); % Set Z to 0 for waypoints
+                    waypoint_vel = zeros(size(waypoints, 1), 3); % No velocity for waypoints
+                    obj.waypointP.plotTrack([waypoints, waypoint_z], waypoint_vel);
+                end
+            end
+            
             %
             obj.cnt     = obj.cnt + 1; % カウントの更新
         end
@@ -1505,6 +1525,7 @@ classdef Estimate < handle
             
             fprintf('[ESTIMATE] All trackers reset - ready for fresh tracking\n');
         end
+        
 
     end
 end

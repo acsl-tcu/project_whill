@@ -53,15 +53,15 @@ loopMode       = false;
 % addr.ROSHostIP = '192.168.1.6'; % Online
 % addr.HostIP	   = '192.168.1.35'; % Online
 addr.ROSHostIP = '127.0.0.1'; % Gazebo
-addr.HostIP	   = '127.0.0.1'; % Gazebo
+addr.HostIP	   = '192.168.1.6'; % Gazebo
 te             = 50;
 dt             = 0.2;
 rgtNum         = 1;
-mode           = 2;             % 2:Gazebo, 3:Online
-sensor(1)      = true;          %--> Prime (Gazebo)
+mode           = 3;             % 2:Gazebo, 3:Online
+sensor(1)      = false;          %--> Prime (Gazebo)
 sensor(2)      = true;          %--> LiDAR (Gazebo, online)
 sensor(3)      = false;         %--> realSence
-autoware(1)    = false;         %--> Autoware(Online)
+autoware(1)    = true;         %--> Autoware(Online)
 
 % Prime=true(1),autoware=true(1)
 %   ...Vehicle runs by Autoware(estimated) and get Autoware(estimated) and Prime(measured) position
@@ -118,8 +118,12 @@ obj.EstimatorObj = Estimate(dt,mode,Datadir,sharedControlMode);
 obj.ControllerObj = Control(te,dt,mode,rgtNum,Datadir,sensor,autoware,sharedControlMode); %Need to be after Estimate
 
 %----- Waiting until enter botton is pressed in the command window -----%
-fprintf('\n*** RUNNING WITH A* PATHFINDING ***\n');4
+fprintf('\n*** RUNNING WITH A* PATHFINDING ***\n');
 % obj.waitPressEnterkey();
+
+%% Initialize kbhit for keyboard input handling
+kbhit('stop'); 
+kbhit('init');
 
 %% Execution of your programs
   data = mainLoop(obj);
