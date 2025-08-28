@@ -119,7 +119,7 @@ classdef Control < handle
         Cell_Size
 
         points
-        
+        elevator_center %Elevator center position (inside)
         % Bounding boxes from LiDAR object detection
         boundingBoxes
     end
@@ -151,7 +151,7 @@ classdef Control < handle
         param_FPM = struct( 'eta',      0.5,... % 0.2
             'alpha',    10,...  % 10
             'margin',   0.15,...   % 0.15
-            'obs_cost', 0);     % 1000
+            'obs_cost', 1);     % 1000
 
         %% --車椅子のサイズ情報--
         wheel_width         = 0.55/2;                   % 横幅/2
@@ -482,6 +482,7 @@ classdef Control < handle
                 BestCostId = [];
                 uOpt = {};
                 fval =[];
+                removed =[];
             elseif strcmp(obj.sharedControlMode.getMode(), 'ndt_pose_detection')
                 % NDT Pose Detection Mode - Manual control only
                 fprintf('[CONTROL] NDT Pose Detection mode: Autonomous control disabled - manual control active\n');
@@ -575,6 +576,7 @@ classdef Control < handle
             result.local.Position_Y = Position.Y;
             result.local.Position_yaw = Position.yaw;
             result.local.control_mode = obj.sharedControlMode.getMode(); % Pass control mode to Estimate
+            result.local.BB = {obj.boundingBoxes}; % Save bounding boxes for plotting
 
 
         end
@@ -594,9 +596,9 @@ classdef Control < handle
             %
             % Inputs:
             %   lidar_data - struct containing both xyz_global and xyz_local coordinate data
-            %   door_detection_mode - boolean flag for debug mode (bypass to Phase 1.5)
+            %   door_detection_mode - boolean flag or debug mode (bypass to Phase 1.5)
 
-            elevator_center = [27, 12]; % Elevator center position
+            obj.elevator_center = [27, 9.3]; % Elevator center position
             
             % Use the elevator_odom_mode property from the Control class
             % This can be configured when creating the Control object:
@@ -607,7 +609,7 @@ classdef Control < handle
                 door_detection_mode = false; % Default: normal elevator entry
             end
             
-            elevator_result = enterElevator(current_position, current_yaw, elevator_center, [], lidar_data, obj.Gazebo, obj.elevator_odom_mode, door_detection_mode, obj.door_params);
+            elevator_result = enterElevator(current_position, current_yaw, obj.elevator_center, [], lidar_data, obj.Gazebo, obj.elevator_odom_mode, door_detection_mode, obj.door_params);
             
             % Check if we need to open the door (Phase 1.5 - door verification)
             if isfield(elevator_result, 'phase') && elevator_result.phase == 1.5
@@ -644,7 +646,7 @@ classdef Control < handle
                     fprintf('Phase: %d - %s\n', elevator_result.phase, elevator_result.status);
                 end
                 fprintf('Control: V=%.3f m/s, Ω=%.3f rad/s\n', U(1), U(2));
-                fprintf('Elevator Center: [27.0, 12.0]\n');
+                fprintf('Elevator Center: [%.1d, %.1d]\n', obj.elevator_center(1),  obj.elevator_center(2));
                 
             elseif strcmp(obj.sharedControlMode.getMode(), 'ndt_pose_detection')
                 % NDT Pose Detection mode status

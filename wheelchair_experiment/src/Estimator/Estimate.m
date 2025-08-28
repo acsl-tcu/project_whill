@@ -151,6 +151,9 @@ classdef Estimate < handle
         elevator_center         % Elevator center position [x, y]
         control_phase           % Current control phase: 'path_following', 'elevator_entry', or 'floor_change'
         sharedControlMode       % Shared control mode handle object
+        
+        % Tracking control switch
+        track_on                % Boolean switch to enable/disable LiDAR processing and tracking
 
 
 
@@ -170,6 +173,9 @@ classdef Estimate < handle
             % Initialize phase detection
             % obj.elevator_center = [27, 9.3]; % Elevator center position (same as Control.m)
             obj.control_phase = 'floor_change'; % Start in floor change mode to allow elevator entry
+            
+            % Initialize tracking switch (default enabled)
+            obj.track_on = true;
             
             % Path planning - moved from Control.m constructor
             initial_position = [31,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
@@ -420,6 +426,12 @@ classdef Estimate < handle
                 user_request = Plant.UserModeRequest;
                 fprintf('[ESTIMATE] Processing user mode request: %s\n', user_request.new_phase);
                 
+                % Set tracking switch based on menu selection
+                if isfield(user_request, 'track_on')
+                    obj.track_on = user_request.track_on;
+                    fprintf('[ESTIMATE] Tracking switch set to: %s\n', string(obj.track_on));
+                end
+                
                 switch user_request.new_phase
                     case 'floor_change'
                         % Check if this is the first time using the system
@@ -528,14 +540,10 @@ classdef Estimate < handle
             ptCloud = pctransform(ptCloud, tform);
             xyz = ptCloud.Location;
 
-            % Skip heavy processing during elevator entry phase or NDT pose detection mode (only odometry needed)
-            if strcmp(obj.control_phase, 'elevator_entry') || strcmp(obj.control_phase, 'ndt_pose_detection')
-                % Minimal processing for elevator entry phase or NDT pose detection mode
-                if strcmp(obj.control_phase, 'elevator_entry')
-                    fprintf('[ESTIMATE] Elevator entry mode: Skipping heavy LiDAR processing\n');
-                else
-                    fprintf('[ESTIMATE] NDT pose detection mode: Skipping heavy LiDAR processing for manual control\n');
-                end
+            % Skip heavy processing when tracking is disabled (only odometry needed)
+            if ~obj.track_on
+                % Minimal processing when tracking is disabled
+                fprintf('[ESTIMATE] Tracking disabled: Skipping heavy LiDAR processing\n');
                 
                 % Set empty values for variables that won't be computed
                 detections2 = [];
@@ -611,13 +619,9 @@ classdef Estimate < handle
             else
                 result.local.door_detection_mode = false;
             end
-            if strcmp(obj.control_phase, 'elevator_entry') || strcmp(obj.control_phase, 'ndt_pose_detection')
-                % Skip tracking during elevator entry phase or NDT pose detection mode
-                if strcmp(obj.control_phase, 'elevator_entry')
-                    fprintf('[ESTIMATE] Skipping object tracking during elevator entry\n');
-                else
-                    fprintf('[ESTIMATE] Skipping object tracking during NDT pose detection mode\n');
-                end
+            if ~obj.track_on
+                % Skip tracking when tracking is disabled
+                fprintf('[ESTIMATE] Skipping object tracking (tracking disabled)\n');
                 obj.Allxhat = [];
                 AllP = {};
                 model = [];
