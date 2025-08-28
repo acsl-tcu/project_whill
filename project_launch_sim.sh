@@ -4,9 +4,6 @@ echo $PROJECT
 echo $ROS_DOMAIN_ID
 
 cd $ACSL_ROS2_DIR/0_host_commands/scripts/
-
-dup rtk_gnss ublox_launch
-dup whill
-dup velodyne run
-dup rtk_gnss run
-RMW=cyclonedds dup whill_ros2
+#dup rtk_gnss
+RMW=cyclonedds dup whill_sim
+#dup velodyne run

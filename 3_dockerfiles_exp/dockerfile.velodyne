@@ -1,0 +1,17 @@
+ARG BASE_IMAGE
+ARG ROS_DISTRO
+FROM ${BASE_IMAGE} as base
+
+SHELL [ "/bin/bash","-c" ]
+
+RUN apt update\
+&&  apt install libpcap-dev
+
+RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
+&& mkdir -p ~/ros2_ws/src\
+&&  cd ~/ros2_ws/src \
+&& git clone --depth 1 https://github.com/ros-drivers/velodyne.git \
+&& . /opt/ros/${ROS_DISTRO}/setup.sh \
+&& cd ~/ros2_ws/ \
+&& colcon build \
+&& source /root/ros2_ws/install/setup.bash
