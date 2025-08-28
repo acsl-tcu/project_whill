@@ -1,0 +1,25 @@
+ARG BASE_IMAGE
+ARG ROS_DISTRO
+FROM ${BASE_IMAGE}
+
+SHELL [ "/bin/bash","-c" ]
+
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+# ARG DEBIAN_FRONTEND=noninteractive
+# RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
+
+#Install Dependent Packages
+RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
+&& source /root/ros2_ws/install/setup.bash \
+&& source /root/.bashrc \
+&& echo "source /opt/ros/humble/setup.bash"  >> ~/.bashrc \
+&& echo "source ~/ros2_ws/install/local_setup.bash"  >> ~/.bashrc \
+&& echo "source ~/ros2_ws/install/setup.bash" >> ~/.bashrc \
+&& echo "source /usr/share/gazebo/setup.bash" >> ~/.bashrc \
+&& echo "export GAZEBO_PLUGIN_PATH=/opt/ros/$ROS_DISTRO/lib:${GAZEBO_PLUGIN_PATH:-}" >> ~/.bashrc \
+&& echo "export GAZEBO_MODEL_PATH=${GAZEBO_MODEL_PATH}:/root/ros2_ws/install/electric_wheelchair/share/electric_wheelchair/models:/root/ros2_ws/install/create_world/share/create_world/models:" >> ~/.bashrc \
+&& echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> ~/.bashrc \
+&& echo "export FASTDDS_BUILTIN_TRANSPORTS=UDPv4" >> ~/.bashrc 
+

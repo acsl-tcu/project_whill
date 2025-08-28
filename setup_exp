@@ -1,0 +1,18 @@
+#! /bin/bash
+
+source $ACSL_ROS2_DIR/bashrc
+echo ${PROJECT}${TARGET}${x86}
+echo ${ROS_DOMAIN_ID}
+ROS_DISTRO=humble
+if [ "$1" == "full" ]; then
+  dpull $ROS_DISTRO$x86
+  dtag $ROS_DISTRO$x86 image_${PROJECT}${TARGET}${x86}
+
+  dbuild image_${PROJECT}${TARGET}${x86} velodyne velodyne
+  dbuild velodyne${x86} image_${PROJECT}${TARGET}${x86} whillRos2
+
+  cd ~/.ssh/
+  cat id_*.pub >>authorized_keys
+fi
+
+build_project
