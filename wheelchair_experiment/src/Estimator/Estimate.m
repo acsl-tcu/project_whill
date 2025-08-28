@@ -168,11 +168,11 @@ classdef Estimate < handle
             obj.sharedControlMode = sharedControlMode; % Store shared control mode object
             
             % Initialize phase detection
-            obj.elevator_center = [27, 12]; % Elevator center position (same as Control.m)
+            % obj.elevator_center = [27, 9.3]; % Elevator center position (same as Control.m)
             obj.control_phase = 'floor_change'; % Start in floor change mode to allow elevator entry
             
             % Path planning - moved from Control.m constructor
-            initial_position = [4.2,0]; %set custom initial and goal positions if needed but if you want the default leave it as []
+            initial_position = [31,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
             goal_position =[];
             
             % Calculate robot dimensions (using same constants as Control.m)
@@ -461,8 +461,8 @@ classdef Estimate < handle
             % Define elevator door approach area (rectangular zone in front of door)
             elevator_door_area.x_min = 29.3;  % x > 29.3
             elevator_door_area.x_max = 30.8;  % x <= 30.8
-            elevator_door_area.y_min = 12.0;  % y >= 12.0
-            elevator_door_area.y_max = 12.3;  % y < 12.3
+            elevator_door_area.y_min = 9.1;  % y >= 12.0
+            elevator_door_area.y_max = 9.4;  % y < 12.3
             
             % Check if wheelchair is in the elevator door approach area
             in_elevator_area = (current_position(1) > elevator_door_area.x_min) && ...
@@ -558,7 +558,7 @@ classdef Estimate < handle
                 [detections,survivedIndices,obstacleIndices,labels,numClusters] = Faster_processingPcloud_mex(xyz,obj.theta, ...
                     obj.trans,obj.roi,obj.th_eClustering,obj.cnt*delta);
                 % [detections,survivedIndices,obstacleIndices,labels,numClusters] = Faster_processingPcloud(xyz,obj.theta, ...
-                %     obj.trans,Limit,obj.th_eClustering,obj.cnt*delta);
+                    % obj.trans,obj.roi,obj.th_eClustering,obj.cnt*delta);
 
                 ptCloudWithoutGround_local = select(pointCloud(xyz),obstacleIndices); % 障害物点群(地面除去済)
                 NotGround = ptCloudWithoutGround_local.Location;
@@ -1114,6 +1114,7 @@ classdef Estimate < handle
             if isempty(detections) || numClusters == 0
                 filtered_detections = detections;
                 wall_indices = [];
+                relabeled_labelLocation = labelLocation;  % Assign output argument
                 return;
             end
 

@@ -48,19 +48,20 @@ function [exit_requested, mode_change] = wheelchairModeMenu()
     fprintf('1. Set Floor Change Mode (allows elevator entry)\n');
     fprintf('2. Door Detection Debug Mode (bypass to Phase 1.5)\n');
     fprintf('3. NDT Pose Detection Mode (manual control + continuous pose broadcast)\n');
-    fprintf('4. Exit Simulation\n');
+    fprintf('4. Set Floor Change Mode WITHOUT Estimator (navigation only)\n');
+    fprintf('5. Exit Simulation\n');
     fprintf('================================\n');
     
     % Get user input with validation
     valid_input = false;
     while ~valid_input
-        choice_str = input('Enter your choice (1-4): ', 's'); % Get as string first
+        choice_str = input('Enter your choice (1-5): ', 's'); % Get as string first
         choice = str2double(choice_str); % Convert to number
         
-        if ~isnan(choice) && isscalar(choice) && ismember(choice, [1, 2, 3, 4])
+        if ~isnan(choice) && isscalar(choice) && ismember(choice, [1, 2, 3, 4, 5])
             valid_input = true;
         else
-            fprintf('Invalid input. Please enter 1, 2, 3, or 4.\n');
+            fprintf('Invalid input. Please enter 1, 2, 3, 4, or 5.\n');
         end
     end
     
@@ -72,6 +73,7 @@ function [exit_requested, mode_change] = wheelchairModeMenu()
             mode_change.requested = true;
             mode_change.new_phase = 'floor_change';
             mode_change.door_detection_mode = false;
+            mode_change.track_on = true; % Enable tracking
             
         case 2
             % Door Detection Debug Mode
@@ -80,6 +82,7 @@ function [exit_requested, mode_change] = wheelchairModeMenu()
             mode_change.requested = true;
             mode_change.new_phase = 'door_detection';
             mode_change.door_detection_mode = true;
+            mode_change.track_on = false; % Disable tracking
             
         case 3
             % NDT Pose Detection Mode
@@ -89,8 +92,18 @@ function [exit_requested, mode_change] = wheelchairModeMenu()
             mode_change.requested = true;
             mode_change.new_phase = 'ndt_pose_detection';
             mode_change.door_detection_mode = false;
+            mode_change.track_on = false; % Disable tracking
             
         case 4
+            % Floor Change Mode WITHOUT Estimator
+            fprintf('\n[MENU] Setting wheelchair to FLOOR_CHANGE mode WITHOUT ESTIMATOR\n');
+            fprintf('This will enable path following but disable LiDAR processing and tracking.\n');
+            mode_change.requested = true;
+            mode_change.new_phase = 'floor_change';
+            mode_change.door_detection_mode = false;
+            mode_change.track_on = false; % Disable tracking
+            
+        case 5
             % Exit simulation
             fprintf('\n[MENU] Exiting simulation...\n');
             exit_requested = true;
