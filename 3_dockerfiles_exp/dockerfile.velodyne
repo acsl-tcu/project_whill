@@ -4,13 +4,6 @@ FROM ${BASE_IMAGE} as base
 
 SHELL [ "/bin/bash","-c" ]
 
-RUN apt update\
-&&  apt install libpcap-dev \
-ros-${ROS_DISTRO}-controller-manager \
-ros-${ROS_DISTRO}-controller-manager-msgs \
-ros-${ROS_DISTRO}-ros2-control   \
-ros-${ROS_DISTRO}-ros2-controllers  -y
-
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 && mkdir -p ~/ros2_ws/src\
 &&  cd ~/ros2_ws/src \
