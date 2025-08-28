@@ -1,0 +1,9 @@
+ARG BASE_IMAGE
+ARG ROS_DISTRO
+FROM ${BASE_IMAGE}
+
+SHELL [ "/bin/bash","-c" ]
+
+#Install Dependent Packages
+RUN . /root/.venv/bin/activate \
+  && pip install -U whill

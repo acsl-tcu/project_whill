@@ -6,12 +6,13 @@ echo ${ROS_DOMAIN_ID}
 ROS_DISTRO=humble
 if [ "$1" == "full" ]; then
   dpull $ROS_DISTRO$x86
-  dtag $ROS_DISTRO$x86 image_${PROJECT}${TARGET}${x86}
+  dbuild $ROS_DISTRO$x86 image_${PROJECT}${TARGET}${x86} whill_exp
 
   dbuild image_${PROJECT}${TARGET}${x86} velodyne velodyne
   # dtag velodyne${x86} image_${PROJECT}${TARGET}${x86}
 
   dbuild image_${PROJECT}${TARGET}${x86} rtk_gnss rtk_gnss
+
   cd ~/.ssh/
   cat id_*.pub >>authorized_keys
 fi
