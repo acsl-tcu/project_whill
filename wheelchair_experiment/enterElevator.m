@@ -342,7 +342,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
             if nargin >= 5 && ~isempty(lidar_scan_data)
                 wheelchair_pose = [current_position, current_yaw];
                 % Use floor/hallway center as reference (outside the elevator)
-                floor_center = [30, 12]; % Position outside elevator door
+                floor_center = [30, 9.3]; % Position outside elevator door
                 
                 % Extract point cloud data for Phase 3 door detection
                 if isstruct(lidar_scan_data) && isfield(lidar_scan_data, 'xyz_global')
