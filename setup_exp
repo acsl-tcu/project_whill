@@ -9,10 +9,10 @@ if [ "$1" == "full" ]; then
   dtag $ROS_DISTRO$x86 image_${PROJECT}${TARGET}${x86}
 
   dbuild image_${PROJECT}${TARGET}${x86} velodyne velodyne
-  dbuild velodyne${x86} image_${PROJECT}${TARGET}${x86} whillRos2
+  dtag velodyne${x86} image_${PROJECT}${TARGET}${x86}
 
   cd ~/.ssh/
   cat id_*.pub >>authorized_keys
 fi
 
-build_project
+build_project whill_driver
