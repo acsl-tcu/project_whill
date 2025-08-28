@@ -17,10 +17,5 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 && git clone --depth 1 https://github.com/ros-drivers/velodyne.git \
 && . /opt/ros/${ROS_DISTRO}/setup.sh \
 && cd ~/ros2_ws/ \
-&& colcon build --packages-select velodyne_description
-
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
-&& cd ~/ros2_ws/ \
-&& source /root/ros2_ws/install/setup.bash \
 && colcon build \
 && source /root/ros2_ws/install/setup.bash
