@@ -4,6 +4,9 @@ FROM ${BASE_IMAGE} as base
 
 SHELL [ "/bin/bash","-c" ]
 
+RUN apt update\
+&&  apt install libpcap-dev
+
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 && mkdir -p ~/ros2_ws/src\
 &&  cd ~/ros2_ws/src \
