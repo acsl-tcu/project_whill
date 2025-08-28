@@ -12,7 +12,7 @@ if [ "$1" == "full" ]; then
   # dtag velodyne${x86} image_${PROJECT}${TARGET}${x86}
 
   dbuild image_${PROJECT}${TARGET}${x86} rtk_gnss rtk_gnss
-
+  
   cd ~/.ssh/
   cat id_*.pub >>authorized_keys
 fi
