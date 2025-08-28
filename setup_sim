@@ -12,8 +12,6 @@ if [ "$1" == "full" ]; then
   dbuild velodyne${x86} sfm sfm
   dbuild sfm${x86} image_${PROJECT}${TARGET}${x86} whill_sim
 
-  dup rtk_gnss ublox_launch rtk_gnss rtk_gnss
-
   cd ~/.ssh/
   cat id_*.pub >>authorized_keys
 fi
