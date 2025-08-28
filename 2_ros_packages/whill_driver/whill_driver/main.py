@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/root/.venv/bin/python3
+###!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """WHILL Chair CRの制御ROSプログラム\n
 Auther:Koki Yamaguchi \n
