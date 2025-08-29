@@ -13,6 +13,7 @@ RUN cd ~/ \
 && apt update \
 && apt install libpcap-dev -y\
 && echo "===============================" \
+&& source ~/.bashrc \
 && printenv \
 && echo  "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:/root/ros2_ws/install/gazebo_sfm_plugin/share/gazebo_sfm_plugin/media/models" >> ~/.bashrc
 
