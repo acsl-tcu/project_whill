@@ -25,6 +25,7 @@ RUN source /root/.bashrc \
 && echo "source ~/ros2_ws/install/local_setup.bash"  >> ~/.bashrc \
 && echo "source ~/ros2_ws/install/setup.bash" >> ~/.bashrc \
 && echo "source /usr/share/gazebo/setup.bash" >> ~/.bashrc \
+&& printenv \
 && echo "export GAZEBO_PLUGIN_PATH=/opt/ros/$ROS_DISTRO/lib:${GAZEBO_PLUGIN_PATH:-}" >> ~/.bashrc \
 && echo "export GAZEBO_MODEL_PATH=${GAZEBO_MODEL_PATH}:/root/ros2_ws/install/electric_wheelchair/share/electric_wheelchair/models:/root/ros2_ws/install/create_world/share/create_world/models:" >> ~/.bashrc \
 && echo "export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH" >> ~/.bashrc \
