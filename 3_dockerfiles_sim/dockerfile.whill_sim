@@ -11,11 +11,11 @@ ENV NVIDIA_DRIVER_CAPABILITIES=all
 # RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 
 # 以下 gazebo classic用のレガシーな設定。classic利用をやめて消すべし。
-RUN mkdir -p "$HOME/.gazebo/models/sun" \ 
-&& curl -L https://raw.githubusercontent.com/gazebosim/gazebo-classic/gazebo11/models/sun/model.sdf \
-  -o "$HOME/.gazebo/models/sun/model.sdf" \
-&& curl -L https://raw.githubusercontent.com/gazebosim/gazebo-classic/gazebo11/models/sun/model.config \
-  -o "$HOME/.gazebo/models/sun/model.config"
+# RUN mkdir -p "$HOME/.gazebo/models/sun" \ 
+# && curl -L https://raw.githubusercontent.com/gazebosim/gazebo-classic/gazebo11/models/sun/model.sdf \
+#   -o "$HOME/.gazebo/models/sun/model.sdf" \
+# && curl -L https://raw.githubusercontent.com/gazebosim/gazebo-classic/gazebo11/models/sun/model.config \
+#   -o "$HOME/.gazebo/models/sun/model.config"
 
 #Install Dependent Packages
 RUN source /root/.bashrc \

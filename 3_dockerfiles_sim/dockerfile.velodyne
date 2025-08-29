@@ -12,7 +12,7 @@ ros-${ROS_DISTRO}-controller-manager-msgs \
 ros-${ROS_DISTRO}-ros2-control   \
 ros-${ROS_DISTRO}-ros2-controllers   \
 ros-${ROS_DISTRO}-gazebo-ros2-control -y \
-&& echo "source /usr/share/gazebo/setup.bash" >> ~/.bashrc \
+&& echo "source /usr/share/gazebo/setup.bash" >> ~/.bashrc 
 # &&  dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake
 # &&  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH  \
 
