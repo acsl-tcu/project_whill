@@ -11,6 +11,7 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 && mkdir -p ~/ros2_ws/src\
 &&  cd ~/ros2_ws/src \
 && git clone --depth 1 https://github.com/ros-drivers/velodyne.git \
+&& sed -i "s/^\s*rpm:\s*[0-9.]\+/        rpm: 1200.0/" ~/ros2_ws/src/velodyne/velodyne_driver/config/VLP16-velodyne_driver_node-params.yaml && \
 && . /opt/ros/${ROS_DISTRO}/setup.sh \
 && cd ~/ros2_ws/ \
 && colcon build \

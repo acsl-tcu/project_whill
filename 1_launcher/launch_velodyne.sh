@@ -3,9 +3,6 @@
 # https://qiita.com/porizou1/items/c815cb17749aad561909
 #  $(echo "exec ros2 launch velodyne velodyne-all-nodes-VLP16-launch.py")
 
-# Change publish rate 0.1s -> 0.05s (Default rpm: 600.0)
-sed -i "s/^\s*rpm:\s*[0-9.]\+/        rpm: 1200.0/" /root/ros2_ws/src/velodyne/velodyne_driver/config/VLP16-velodyne_driver_node-params.yaml
-
 # https://qiita.com/miriwo/items/e829f5a78314e0878f1b
 case $1 in
 "run")
