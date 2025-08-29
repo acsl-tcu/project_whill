@@ -10,10 +10,17 @@ ENV NVIDIA_DRIVER_CAPABILITIES=all
 # ARG DEBIAN_FRONTEND=noninteractive
 # RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
 
+# 以下 gazebo classic用のレガシーな設定。classic利用をやめて消すべし。
+RUN mkdir -p "$HOME/.gazebo/models/sun" \ 
+&& curl -L https://raw.githubusercontent.com/gazebosim/gazebo-classic/gazebo11/models/sun/model.sdf \
+  -o "$HOME/.gazebo/models/sun/model.sdf" \
+&& curl -L https://raw.githubusercontent.com/gazebosim/gazebo-classic/gazebo11/models/sun/model.config \
+  -o "$HOME/.gazebo/models/sun/model.config"
+
 #Install Dependent Packages
-RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
+RUN source /root/.bashrc \
+&& source /opt/ros/${ROS_DISTRO}/setup.bash \
 && source /root/ros2_ws/install/setup.bash \
-&& source /root/.bashrc \
 && echo "source /opt/ros/humble/setup.bash"  >> ~/.bashrc \
 && echo "source ~/ros2_ws/install/local_setup.bash"  >> ~/.bashrc \
 && echo "source ~/ros2_ws/install/setup.bash" >> ~/.bashrc \
