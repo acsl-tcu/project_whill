@@ -11,8 +11,7 @@ ros-${ROS_DISTRO}-controller-manager \
 ros-${ROS_DISTRO}-controller-manager-msgs \  
 ros-${ROS_DISTRO}-ros2-control   \
 ros-${ROS_DISTRO}-ros2-controllers   \
-ros-${ROS_DISTRO}-gazebo-ros2-control -y \
-&& echo "source /usr/share/gazebo/setup.bash" >> ~/.bashrc 
+ros-${ROS_DISTRO}-gazebo-ros2-control -y 
 # &&  dpkg -L libgazebo11-dev | grep gazebo_devConfig.cmake
 # &&  export CMAKE_PREFIX_PATH=/usr/share/gazebo-11:$CMAKE_PREFIX_PATH  \
 
@@ -27,7 +26,9 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 && colcon build --packages-select velodyne_description \
 && colcon build --packages-select velodyne_gazebo_plugins
 
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
+# RUN . /opt/ros/${ROS_DISTRO}/setup.sh \
+RUN echo "source /usr/share/gazebo/setup.bash" >> ~/.bashrc \
+&& source ~/.bashrc
 && cd ~/ros2_ws/ \
 && source /root/ros2_ws/install/setup.bash \
 && colcon build \
