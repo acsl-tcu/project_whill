@@ -186,7 +186,7 @@ def generate_launch_description():
             os.path.join(get_package_share_directory('gazebo_ros'), 'launch', 'gazebo.launch.py')
         ),
         launch_arguments={
-            # 'factory': 'true',
+            'factory': 'true',
             'world': LaunchConfiguration('world_name'),
             'paused': LaunchConfiguration('paused'),
             'gui': LaunchConfiguration('gui'),
