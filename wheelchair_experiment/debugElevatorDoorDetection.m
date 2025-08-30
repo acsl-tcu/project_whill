@@ -43,7 +43,7 @@ function door_state = debugElevatorDoorDetection(pointCloud, wheelchair_pose, el
     door_state = detectElevatorDoorState(pointCloud, wheelchair_pose, elevator_center, odometry_mode, door_params);
     
     % Simple visualization
-    if enable_debug
+    if true
         % Set coordinates based on mode
         if odometry_mode
             wheelchair_pos = [0, 0]; % Wheelchair is at origin in odometry mode

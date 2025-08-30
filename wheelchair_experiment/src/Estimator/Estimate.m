@@ -178,14 +178,14 @@ classdef Estimate < handle
             obj.track_on = true;
             
             % Path planning - moved from Control.m constructor
-            initial_position = [31,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
-            goal_position =[];
+            initial_position = [35,9.52]; %set custom initial and goal positions if needed but if you want the default leave it as []
+            goal_position =[30,9.52];
             
             % Calculate robot dimensions (using same constants as Control.m)
             wheel_width = 0.55/2;           % wheel_width from Control.m
             wheel_len_rear = 0.35;          % wheel_len_rear from Control.m  
             wheel_len_front = 0.76;         % wheel_len_front from Control.m
-            robot_width = wheel_width * 2;  % Total width = 0.55m
+            robot_width = wheel_width * 3;  % Total width = 0.55m
             robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
             
             % Try A* pathfinding first, fallback to original if it fails
@@ -378,7 +378,7 @@ classdef Estimate < handle
                     delta                   = nowtime - obj.oldtime; %時変の刻み時間を計算
                     obj.timeStep(obj.cnt,1) = delta; %各刻み時間を時刻ごとに保存
                     obj.oldtime             = nowtime;%時変の刻み時間計算の処理
-                    obj.trans = [Plant.X Plant.Y 1.2];
+                    obj.trans = [Plant.X Plant.Y 1.6]; %blue wheechair lidar is 1.6m
                     obj.theta = Plant.yaw;
                 otherwise
                     error('No such a configured mode.')
@@ -472,9 +472,9 @@ classdef Estimate < handle
             
             % Define elevator door approach area (rectangular zone in front of door)
             elevator_door_area.x_min = 29.3;  % x > 29.3
-            elevator_door_area.x_max = 30.8;  % x <= 30.8
-            elevator_door_area.y_min = 9.1;  % y >= 12.0
-            elevator_door_area.y_max = 9.4;  % y < 12.3
+            elevator_door_area.x_max = 30.5;  % x <= 30.8
+            elevator_door_area.y_min = 9.45;  % y >= 12.0
+            elevator_door_area.y_max = 9.6;  % y < 12.3
             
             % Check if wheelchair is in the elevator door approach area
             in_elevator_area = (current_position(1) > elevator_door_area.x_min) && ...
@@ -602,7 +602,7 @@ classdef Estimate < handle
                 xyz_global(:,1) = xyz(:,1) * cos_yaw - xyz(:,2) * sin_yaw + Plant.X;
                 xyz_global(:,2) = xyz(:,1) * sin_yaw + xyz(:,2) * cos_yaw + Plant.Y;
                 xyz_global(:,3) = xyz(:,3) + obj.trans(3); % Add wheelchair height offset
-                
+                xyz_local = [xyz(:,1:2),xyz_global(:,3)];
                 fprintf('[ESTIMATE] Transformed %d points from local to global coordinates\n', size(xyz, 1));
             end
 
@@ -611,7 +611,7 @@ classdef Estimate < handle
             result.local.delta = delta;
             result.local.control_phase = obj.control_phase; % Pass control phase to Control.m
             result.local.xyz_global = {xyz_global}; % Pass global xyz data for door detection (as cell array)
-            result.local.xyz_local = {xyz}; % Keep local xyz for reference if needed (as cell array)
+            result.local.xyz_local = {xyz_local}; % Keep local xyz for reference if needed (as cell array)
             
             % Pass door detection mode flag to Control.m
             if isfield(Plant, 'UserModeRequest') && Plant.UserModeRequest.requested
@@ -1486,7 +1486,7 @@ classdef Estimate < handle
             wheel_width = 0.55/2;           % wheel_width from Control.m
             wheel_len_rear = 0.35;          % wheel_len_rear from Control.m  
             wheel_len_front = 0.76;         % wheel_len_front from Control.m
-            robot_width = wheel_width * 2;  % Total width = 0.55m
+            robot_width = wheel_width * 3;  % Total width = 0.55m (need to check again)
             robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
             
             % Try A* pathfinding first, fallback to original if it fails

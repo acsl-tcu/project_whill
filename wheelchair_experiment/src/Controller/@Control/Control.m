@@ -154,7 +154,7 @@ classdef Control < handle
             'obs_cost', 1);     % 1000
 
         %% --車椅子のサイズ情報--
-        wheel_width         = 0.55/2;                   % 横幅/2
+        wheel_width         = 0.65/2;                   % 横幅/2
         wheel_len_rear      = 0.35;                 % 回転中心から後方までの長さ
         wheel_len_front     = 0.76;        % 回転中心から前方までの長さ
         r_wheel             = 0.3;                          % 車椅子半径(円形)
@@ -310,9 +310,9 @@ classdef Control < handle
             % Door detection parameters - centralized configuration
             obj.door_params = struct();
             obj.door_params.ANGLE_TOLERANCE = 30;       % ±30 degrees cone towards elevator (initial filtering)
-            obj.door_params.NARROW_ROI_ANGLE = 7;       % ±7 degrees for wheelchair safe passage (critical ROI)
-            obj.door_params.DOOR_HEIGHT_MIN = 0.3;      % Minimum height (avoid floor)
-            obj.door_params.DOOR_HEIGHT_MAX = 2.2;      % Maximum door height  
+            obj.door_params.NARROW_ROI_ANGLE = 3.5;       % ±7 degrees for wheelchair safe passage (critical ROI)
+            obj.door_params.DOOR_HEIGHT_MIN = 0.5;      % Minimum height (avoid floor)
+            obj.door_params.DOOR_HEIGHT_MAX = 1.7;      % Maximum door height  
             obj.door_params.MIN_POINTS_THRESHOLD = 5;   % Minimum points needed for analysis
             obj.door_params.DEPTH_THRESHOLD = 0.3;     % Points must be this much deeper than elevator center
             obj.door_params.FIXED_ELEVATOR_DISTANCE = 2.2; % Fixed elevator center distance in odometry mode (meters)

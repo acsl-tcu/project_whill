@@ -1,0 +1,11 @@
+function points = gen_vehicle_points(wheel_width,wheel_len_rear,wheel_len_front,numPoint)
+numPoint=numPoint+[1 1];
+dx = (wheel_len_front+wheel_len_rear)/(numPoints(1));
+dy = 2*wheel_width/(numPoints(2));
+p_x =-wheel_len_rear:dx:wheel_len_rear;
+p_y =-wheel_width:dy:wheel_width;
+left    = [p_x(1:end-1)' ones(numPoint(1),1)*p_y(end)];
+front   = [ones(numPoint(2),1)*p_x(end),p_y(end:-1,2)];
+right   = [p_x(end:-1,2)' ones(numPoint(1),1)*(-p_y(end))];
+rear    = [ones(numPoint(2),1)*p_x(end),p_y(1:end-1)];
+points= [left;front;right;rear];

@@ -79,7 +79,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
     
     % Parameters
     TURN_TOLERANCE = 0.1; % radians (~6 degrees)
-    MOVE_DISTANCE = 2.0;  % meters to move into elevator
+    MOVE_DISTANCE = 2.5;  % meters to move into elevator
     TURN_SPEED = 0.1;     % rad/s for turning
     MOVE_SPEED = 0.2;     % m/s for forward movement
     
@@ -235,9 +235,9 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                 % Check door state
                 wheelchair_pose = [current_position, current_yaw];
                 if DEBUG_MODE
-                    door_state = debugElevatorDoorDetection(pointCloud, wheelchair_pose, elevator_center, DEBUG_MODE, odometry_mode, door_params);
+                    door_state = debugElevatorDoorDetection(pointCloud{1}, wheelchair_pose, elevator_center, DEBUG_MODE, odometry_mode, door_params);
                 else
-                    door_state = detectElevatorDoorState(pointCloud, wheelchair_pose, elevator_center, odometry_mode, door_params);
+                    door_state = detectElevatorDoorState(pointCloud{1}, wheelchair_pose, elevator_center, odometry_mode, door_params);
                 end
                 
                 % Handle results based on mode

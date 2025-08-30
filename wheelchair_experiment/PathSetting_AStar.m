@@ -32,7 +32,7 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
     % Robot parameters (wheelchair dimensions) - passed as function arguments
     if nargin >= 4 && ~isempty(robot_width) && ~isempty(robot_length)
         % Use provided vehicle dimensions
-        safety_margin = 0.15;  % Additional safety clearance
+        safety_margin = 0.8;  % Additional safety clearance
         fprintf('Using provided vehicle dimensions:\n');
         fprintf('  Width: %.2fm, Length: %.2fm, Safety margin: %.2fm\n', ...
                 robot_width, robot_length, safety_margin);
@@ -217,7 +217,7 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
     
     % The A* path might have too many points, so subsample for smoother control
     % Keep every Nth point, but always keep start and end
-    subsample_factor = max(1, floor(size(astar_path, 1) / 30)); % Target ~30 waypoints
+    subsample_factor = max(1, floor(size(astar_path, 1) / 50)); % Target ~30 waypoints
     indices = 1:subsample_factor:size(astar_path, 1);
     if indices(end) ~= size(astar_path, 1)
         indices = [indices, size(astar_path, 1)]; % Ensure goal is included
