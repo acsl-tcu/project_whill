@@ -19,6 +19,11 @@ class whill_ope(ComWHILL):
     def __init__(self, ros, port='/dev/ttyUSB-WhillCR'):
         super().__init__(port)
         self.ros = ros
+        # マニュアル操作検知用変数の定義
+        self.joy_x = 0.0
+        self.joy_y = 0.0
+        self.last_joy_time = 0.0
+        self.joy_suppression_time = 3.0  # Joy入力後に制御指令を無効化する時間
         # データ受信のコールバック関数の定義
         self.register_callback('data_set_0', self.callback0)
         self.register_callback('data_set_1', self.callback1)
@@ -97,6 +102,10 @@ class whill_ope(ComWHILL):
         self.ros.puber_motor_speed.publish(motor_speed)
         self.ros.puber_speedmode.publish(speedmode)
         self.ros.puber_joy.publish(joy)
+
+        # マニュアル操作検知のため保存
+        self.joy_x = float(joy_x)
+        self.joy_y = float(joy_y)
 
     def power_on_callback(self):
         """Whillから電源が入ったことを知らされた際に実行する関数"""
@@ -222,14 +231,15 @@ class node(Node):
         """メインの実行関数\n
         コンストラクタで設定した制御周期で速度コマンドを送信する．
         """
-        # Check manual input
-        joy_x, joy_y = self.joy.values()
+        # マニュアル操作をチェック
+        joy_x = self.whill.joy_x
+        joy_y = self.whill.joy_y
         if joy_x != 0 or joy_y != 0:
             self.last_joy_time = time()
-        # Accept commands when no manual joy input is received
+        # Joy入力が無い場合は制御指令を送信
         if (time() < 1.0 + self.sub_vel_t 
             and joy_x == 0 and joy_y == 0
-            and (not hasattr(self, "last_joy_time") or time() - self.last_joy_time > 3.0)):
+            and (time() - self.last_joy_time) > self.joy_suppression_time):
             a, b = self.whill.velocity2cmd(self.v, self.w)
             self.whill.send_velocity(front=int(a), side=int(b))
             self.get_logger().info(f"V:{self.v}, W:{self.w}")
