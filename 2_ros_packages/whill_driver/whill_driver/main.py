@@ -140,7 +140,7 @@ class whill_ope(ComWHILL):
         d = 0.5 # ホイール間距離
         unit = 0.004 # 最小単位 km/h
         front = min(max(v*3.6/unit,-500),1500)
-        side = min(max(w*d*3.6/unit,-750),750)
+        side = min(max(-w*d*3.6/2/unit,-750),750)
         return front, side
 
 
@@ -222,7 +222,14 @@ class node(Node):
         """メインの実行関数\n
         コンストラクタで設定した制御周期で速度コマンドを送信する．
         """
-        if time() < 1.0 + self.sub_vel_t:
+        # Check manual input
+        joy_x, joy_y = self.joy.values()
+        if joy_x != 0 or joy_y != 0:
+            self.last_joy_time = time()
+        # Accept commands when no manual joy input is received
+        if (time() < 1.0 + self.sub_vel_t 
+            and joy_x == 0 and joy_y == 0
+            and (not hasattr(self, "last_joy_time") or time() - self.last_joy_time > 3.0)):
             a, b = self.whill.velocity2cmd(self.v, self.w)
             self.whill.send_velocity(front=int(a), side=int(b))
             self.get_logger().info(f"V:{self.v}, W:{self.w}")
@@ -230,7 +237,7 @@ class node(Node):
         else:
             front = 0
             side = 0
-            self.whill.send_velocity(int(0), int(0))
+            # self.whill.send_velocity(int(0), int(0))
             front_up = (front & 0xFF00) >> 8
             front_low = (front & 0x00FF)
             side_up = (side & 0xFF00) >> 8
