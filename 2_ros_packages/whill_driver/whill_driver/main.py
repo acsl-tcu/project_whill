@@ -102,7 +102,6 @@ class whill_ope(ComWHILL):
         self.ros.puber_motor_speed.publish(motor_speed)
         self.ros.puber_speedmode.publish(speedmode)
         self.ros.puber_joy.publish(joy)
-
         # マニュアル操作検知のため保存
         self.joy_x = float(joy_x)
         self.joy_y = float(joy_y)
@@ -146,10 +145,10 @@ class whill_ope(ComWHILL):
 
     def velocity2cmd(self, v, w):
         """速度・角速度入力を実機入力に変換する関数"""
-        d = 0.5 # ホイール間距離
+        d = 0.25 # ホイール間距離/2
         unit = 0.004 # 最小単位 km/h
         front = min(max(v*3.6/unit,-500),1500)
-        side = min(max(-w*d*3.6/2/unit,-750),750)
+        side = min(max(-w*3.6/unit,-750),750)
         return front, side
 
 
@@ -186,7 +185,7 @@ class node(Node):
         self.whill = whill_ope(self)
 
         dt = 0.03  # 制御周期
-        self.create_timer(dt, self.mainloop)
+        self.create_timer(dt, self.mainloop2)
 
     def sub_cmd_vel(self, topic):
         """速度・角速度指令トピックを購読し構造体に格納する関数"""
@@ -234,12 +233,13 @@ class node(Node):
         # マニュアル操作をチェック
         joy_x = self.whill.joy_x
         joy_y = self.whill.joy_y
-        if joy_x != 0 or joy_y != 0:
-            self.last_joy_time = time()
-        # Joy入力が無い場合は制御指令を送信
+        # Joy入力があった時刻を保持
+        if joy_x != 0 and joy_y != 0:
+            self.whill.last_joy_time = time()
+        # 制御指令を送信(安全のためマニュアル操作割り込み有)
         if (time() < 1.0 + self.sub_vel_t 
             and joy_x == 0 and joy_y == 0
-            and (time() - self.last_joy_time) > self.joy_suppression_time):
+            and (time() - self.whill.last_joy_time) > self.whill.joy_suppression_time):
             a, b = self.whill.velocity2cmd(self.v, self.w)
             self.whill.send_velocity(front=int(a), side=int(b))
             self.get_logger().info(f"V:{self.v}, W:{self.w}")
@@ -247,7 +247,7 @@ class node(Node):
         else:
             front = 0
             side = 0
-            # self.whill.send_velocity(int(0), int(0))
+            #self.whill.send_velocity(int(0), int(0))
             front_up = (front & 0xFF00) >> 8
             front_low = (front & 0x00FF)
             side_up = (side & 0xFF00) >> 8
