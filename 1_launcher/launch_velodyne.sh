@@ -10,6 +10,8 @@ case $1 in
   #$(echo -e "ros2 run velodyne_driver velodyne_driver_node --ros-args -p device_ip:='192.168.1.201' -p model:='VLP16' -p rpm:=1200.0\n ros2 launch velodyne_pointcloud velodyne_transform_node-VLP16-launch.py" | xargs -P 2 -I @ bash -c "exec @")
   #  $(echo -e "ros2 run velodyne_driver velodyne_driver_node --ros-args -p device_ip:='192.168.1.201' -p model:='VLP16' -p rpm:=1200.0 --remap __ns:=/${HOSTNAME}\n ros2 launch velodyne_pointcloud velodyne_transform_node-VLP16-launch.py  --remap __ns:=/${HOSTNAME}" | xargs -P 2 -I @ bash -c "exec @")
   #  $(echo "exec ros2 run velodyne_driver velodyne_driver_node --ros-args -p device_ip:='192.168.1.201' -p model:='VLP16' -p rpm:=1200.0")
+  # Change publish rate 0.1s -> 0.05s (Default rpm: 600.0)
+  sed -i "s/^\s*rpm:\s*[0-9.]\+/        rpm: 1200.0/" /opt/ros/humble/share/velodyne_driver/config/VLP16-velodyne_driver_node-params.yaml
   ;;
 #ROS2のPCL2形式に変換するノードのようです。
 "convert")

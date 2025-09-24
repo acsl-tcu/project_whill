@@ -4,15 +4,21 @@ FROM ${BASE_IMAGE} as base
 
 SHELL [ "/bin/bash","-c" ]
 
-RUN apt update\
-&&  apt install -y libpcap-dev
+# RUN apt update\
+# &&  apt install -y libpcap-dev
 
-RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
-&& mkdir -p ~/ros2_ws/src\
-&&  cd ~/ros2_ws/src \
-&& git clone --depth 1 https://github.com/ros-drivers/velodyne.git \
-&& sed -i "s/^\s*rpm:\s*[0-9.]\+/        rpm: 1200.0/" ~/ros2_ws/src/velodyne/velodyne_driver/config/VLP16-velodyne_driver_node-params.yaml && \
-&& . /opt/ros/${ROS_DISTRO}/setup.sh \
-&& cd ~/ros2_ws/ \
-&& colcon build \
-&& source /root/ros2_ws/install/setup.bash
+# RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
+# && mkdir -p ~/ros2_ws/src\
+# &&  cd ~/ros2_ws/src \
+# && git clone --depth 1 https://github.com/ros-drivers/velodyne.git \
+# && sed -i "s/^\s*rpm:\s*[0-9.]\+/        rpm: 1200.0/" ~/ros2_ws/src/velodyne/velodyne_driver/config/VLP16-velodyne_driver_node-params.yaml && \
+# && . /opt/ros/${ROS_DISTRO}/setup.sh \
+# && cd ~/ros2_ws/ \
+# && colcon build \
+# && source /root/ros2_ws/install/setup.bash
+
+# velodyne のドライバインストール 
+# 
+RUN mkdir -p ~/ros2_ws/src && cd ~/ros2_ws/src \
+  && apt update \  
+  && apt install -y libpcl-dev libyaml-cpp-dev libpcap-dev libpcap0.8 libpcap0.8-dev ros-${ROS_DISTRO}-velodyne
