@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""WHILL Chair CRの制御ROSプログラム\n
-Auther:Koki Yamaguchi \n
-year:2022 \n
+"""WHILL Chair CRの制御ROS2プログラム\n
+Auther:Koki Yamaguchi, Masanori Imoto\n
+year:2025 \n
 """
 import os
 import traceback
@@ -23,7 +23,7 @@ class whill_ope(ComWHILL):
         self.joy_x = 0.0
         self.joy_y = 0.0
         self.last_joy_time = 0.0
-        self.joy_suppression_time = 3.0  # Joy入力後に制御指令を無効化する時間
+        self.joy_suppression_time = 3.0  # Joy入力後に制御指令を無効化する時間[s]
         # データ受信のコールバック関数の定義
         self.register_callback('data_set_0', self.callback0)
         self.register_callback('data_set_1', self.callback1)
@@ -32,7 +32,7 @@ class whill_ope(ComWHILL):
 
         # 電源オン
         self.send_power_on_com(1)
-        self.start_data_stream(100)
+        self.start_data_stream(50)
         while 1:
             if self.power_status == 1:
                 break
@@ -114,7 +114,6 @@ class whill_ope(ComWHILL):
         """whillのイグニッションを管理するための関数"""
         if io:
             self.send_power_on()
-           # self.set_battery_voltage_output_mode(True)  # Model CR
         else:
             self.send_power_off()
 
@@ -125,7 +124,7 @@ class whill_ope(ComWHILL):
             self.start_data_stream(10, 0, i)
             while old_count == self.seq_data_set_0:
                 self.refresh()
-        self.start_data_stream(100)
+        self.start_data_stream(50)
 
     def velocity2joy(self, v, w):
         """速度・角速度入力をジョイスティック入力に変換する関数"""
@@ -145,7 +144,6 @@ class whill_ope(ComWHILL):
 
     def velocity2cmd(self, v, w):
         """速度・角速度入力を実機入力に変換する関数"""
-        d = 0.25 # ホイール間距離/2
         unit = 0.004 # 最小単位 km/h
         front = min(max(v*3.6/unit,-500),1500)
         side = min(max(-w*3.6/unit,-750),750)
