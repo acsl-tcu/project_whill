@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""WHILL Chair CRの制御ROSプログラム\n
-Auther:Koki Yamaguchi \n
-year:2022 \n
+"""WHILL Chair CRの制御ROS2プログラム\n
+Auther:Koki Yamaguchi, Masanori Imoto\n
+year:2025 \n
 """
 import os
 import traceback
@@ -19,6 +19,11 @@ class whill_ope(ComWHILL):
     def __init__(self, ros, port='/dev/ttyUSB-WhillCR'):
         super().__init__(port)
         self.ros = ros
+        # マニュアル操作検知用変数の定義
+        self.joy_x = 0.0
+        self.joy_y = 0.0
+        self.last_joy_time = 0.0
+        self.joy_suppression_time = 3.0  # Joy入力後に制御指令を無効化する時間[s]
         # データ受信のコールバック関数の定義
         self.register_callback('data_set_0', self.callback0)
         self.register_callback('data_set_1', self.callback1)
@@ -27,7 +32,7 @@ class whill_ope(ComWHILL):
 
         # 電源オン
         self.send_power_on_com(1)
-        self.start_data_stream(100)
+        self.start_data_stream(50)
         while 1:
             if self.power_status == 1:
                 break
@@ -97,6 +102,9 @@ class whill_ope(ComWHILL):
         self.ros.puber_motor_speed.publish(motor_speed)
         self.ros.puber_speedmode.publish(speedmode)
         self.ros.puber_joy.publish(joy)
+        # マニュアル操作検知のため保存
+        self.joy_x = float(joy_x)
+        self.joy_y = float(joy_y)
 
     def power_on_callback(self):
         """Whillから電源が入ったことを知らされた際に実行する関数"""
@@ -106,7 +114,6 @@ class whill_ope(ComWHILL):
         """whillのイグニッションを管理するための関数"""
         if io:
             self.send_power_on()
-           # self.set_battery_voltage_output_mode(True)  # Model CR
         else:
             self.send_power_off()
 
@@ -117,7 +124,7 @@ class whill_ope(ComWHILL):
             self.start_data_stream(10, 0, i)
             while old_count == self.seq_data_set_0:
                 self.refresh()
-        self.start_data_stream(100)
+        self.start_data_stream(50)
 
     def velocity2joy(self, v, w):
         """速度・角速度入力をジョイスティック入力に変換する関数"""
@@ -137,10 +144,9 @@ class whill_ope(ComWHILL):
 
     def velocity2cmd(self, v, w):
         """速度・角速度入力を実機入力に変換する関数"""
-        d = 0.5 # ホイール間距離
         unit = 0.004 # 最小単位 km/h
         front = min(max(v*3.6/unit,-500),1500)
-        side = min(max(w*d*3.6/unit,-750),750)
+        side = min(max(-w*3.6/unit,-750),750)
         return front, side
 
 
@@ -177,7 +183,7 @@ class node(Node):
         self.whill = whill_ope(self)
 
         dt = 0.03  # 制御周期
-        self.create_timer(dt, self.mainloop)
+        self.create_timer(dt, self.mainloop2)
 
     def sub_cmd_vel(self, topic):
         """速度・角速度指令トピックを購読し構造体に格納する関数"""
@@ -222,7 +228,16 @@ class node(Node):
         """メインの実行関数\n
         コンストラクタで設定した制御周期で速度コマンドを送信する．
         """
-        if time() < 1.0 + self.sub_vel_t:
+        # マニュアル操作をチェック
+        joy_x = self.whill.joy_x
+        joy_y = self.whill.joy_y
+        # Joy入力があった時刻を保持
+        if joy_x != 0 and joy_y != 0:
+            self.whill.last_joy_time = time()
+        # 制御指令を送信(安全のためマニュアル操作割り込み有)
+        if (time() < 1.0 + self.sub_vel_t 
+            and joy_x == 0 and joy_y == 0
+            and (time() - self.whill.last_joy_time) > self.whill.joy_suppression_time):
             a, b = self.whill.velocity2cmd(self.v, self.w)
             self.whill.send_velocity(front=int(a), side=int(b))
             self.get_logger().info(f"V:{self.v}, W:{self.w}")
@@ -230,7 +245,7 @@ class node(Node):
         else:
             front = 0
             side = 0
-            self.whill.send_velocity(int(0), int(0))
+            #self.whill.send_velocity(int(0), int(0))
             front_up = (front & 0xFF00) >> 8
             front_low = (front & 0x00FF)
             side_up = (side & 0xFF00) >> 8
