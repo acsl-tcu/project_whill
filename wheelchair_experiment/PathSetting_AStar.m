@@ -1,10 +1,10 @@
-function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_AStar(start_position,goal_position,robot_width,robot_length)
+function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_AStar(start_position,goal_position,robot_width,robot_length, safety_margin)
     % A*-based path setting using map2.mat occupancy grid
     % This version automatically generates waypoints using A* pathfinding
     % instead of manual waypoint definition
     
     fprintf('Loading occupancy map for A* pathfinding...\n');
-    debug_on=false;
+    debug_on=true;
     try
         % Load the occupancy map
         map_data = load('map2.mat');
@@ -30,9 +30,8 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
     end
     
     % Robot parameters (wheelchair dimensions) - passed as function arguments
-    if nargin >= 4 && ~isempty(robot_width) && ~isempty(robot_length)
+    if nargin >= 4 && ~isempty(robot_width) && ~isempty(robot_length) && ~isempty(safety_margin)
         % Use provided vehicle dimensions
-        safety_margin = 0.8;  % Additional safety clearance
         fprintf('Using provided vehicle dimensions:\n');
         fprintf('  Width: %.2fm, Length: %.2fm, Safety margin: %.2fm\n', ...
                 robot_width, robot_length, safety_margin);
@@ -193,9 +192,10 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
     hold off;
     fprintf('Two debug plots created - check both figure windows\n');
    end
+
     %% Use A* pathfinding
     astar_path = pathPlanningOccupancyGrid(start_pos, goal_pos, occ_matrix, ...
-                                          resolution, map_origin, robot_width, robot_length, map_obj, debug_on);
+                                          resolution, map_origin, robot_width, robot_length, safety_margin, map_obj, debug_on);
     
     if isempty(astar_path)
         fprintf('\nA* PATHFINDING FAILED!\n');
@@ -208,6 +208,11 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
         fprintf('==================\n');
         [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_original();
         return;
+    end
+
+    %% Visualize inflation with A* path (if debug enabled)
+    if debug_on
+        visualize_inflation_inline(occ_matrix, robot_width, robot_length, safety_margin, resolution, astar_path, map_obj);
     end
     
     fprintf('A* SUCCESS: Found path with %d points\n', size(astar_path, 1));
@@ -367,10 +372,10 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
 end
 % ===== A* UTILITY FUNCTIONS =====
 
-function path = pathPlanningOccupancyGrid(start, goal, occ_matrix, resolution, map_origin, robot_width, robot_length, map_obj, debug_on)
+function path = pathPlanningOccupancyGrid(start, goal, occ_matrix, resolution, map_origin, robot_width, robot_length, safety_margin, map_obj, debug_on)
     % A* path planning using occupancy grid
     [rows, cols] = size(occ_matrix);
-    
+
     % Convert world coordinates to grid coordinates using the original map object
     start_grid = world2grid(map_obj, [start(1), start(2)]);
     start_r = start_grid(1);
@@ -378,15 +383,17 @@ function path = pathPlanningOccupancyGrid(start, goal, occ_matrix, resolution, m
     goal_grid = world2grid(map_obj, [goal(1), goal(2)]);
     goal_r = goal_grid(1);
     goal_c = goal_grid(2);
-    
+
     % Bounds checking
     start_r = max(1, min(rows, start_r));
     start_c = max(1, min(cols, start_c));
     goal_r = max(1, min(rows, goal_r));
     goal_c = max(1, min(cols, goal_c));
-    
-    % Inflate obstacles for robot size
-    clearance_cells = ceil(max(robot_width, robot_length) * resolution / 2) + 1;
+
+    % Inflate obstacles for robot size (using same calculation as main function)
+    robot_clearance = robot_width + safety_margin;
+    clearance_cells = ceil(robot_clearance * resolution / 2) + 1;
+    fprintf('Path planning using clearance: %d cells (%.2fm total)\n', clearance_cells, robot_clearance);
     inflated_map = inflateMap(occ_matrix, clearance_cells);
     
     % A* pathfinding
@@ -439,7 +446,7 @@ function path = astar(start, goal, obstacle_map,debug_on)
     VIDEO_FRAME_RATE = 10;        % Frames per second in output video
     VIDEO_QUALITY = 90;           % Video quality (0-100)
     EARLY_RECORD_ITERATIONS = 10; % Record every iteration for first N iterations
-    MAIN_RECORD_INTERVAL = 10000;   % Record every N iterations during main search
+    MAIN_RECORD_INTERVAL = 500;   % Record every N iterations during main search
     FINAL_RECORD_DURATION = 3;    % Seconds to record final result
     
     % Setup video recording
@@ -487,7 +494,7 @@ function path = astar(start, goal, obstacle_map,debug_on)
                     'Units', 'pixels');
         
         % Subsample for visualization (every 5th cell for performance)
-        vis_subsample = 5;
+        vis_subsample = 1;
         if rows > 200 || cols > 200
             occ_vis = obstacle_map(1:vis_subsample:end, 1:vis_subsample:end);
             vis_scale = vis_subsample;
@@ -776,4 +783,113 @@ end
 function h = heuristic(a, b)
     % Euclidean distance heuristic
     h = sqrt((a(1) - b(1))^2 + (a(2) - b(2))^2);
+end
+
+function visualize_inflation_inline(occ_matrix, robot_width, robot_length, safety_margin, resolution, astar_path, map_obj)
+    % Inline inflation visualization for PathSetting_AStar.m with A* path overlay
+    fprintf('\n=== INFLATION VISUALIZATION ===\n');
+
+    % Calculate clearance using same method as main function
+    robot_clearance = robot_width + safety_margin;
+    clearance_cells = ceil(robot_clearance * resolution / 2) + 1;
+
+    fprintf('Robot: %.2fm × %.2fm + %.2fm safety\n', robot_width, robot_length, safety_margin);
+    fprintf('Clearance: %d cells (%.2fm)\n', clearance_cells, clearance_cells/resolution);
+
+    % Perform inflation
+    tic;
+    inflated_map = inflateMapSquareInline(occ_matrix, clearance_cells);
+    inflation_time = toc;
+
+    % Statistics
+    original_occupied = sum(occ_matrix(:) >= 0.5);
+    inflated_occupied = sum(inflated_map(:) >= 0.5);
+
+    fprintf('Inflation: %d → %d cells (%.2fx growth) in %.3fs\n', ...
+            original_occupied, inflated_occupied, inflated_occupied/original_occupied, inflation_time);
+
+    % Convert A* path from world coordinates to grid coordinates
+    path_grid = zeros(size(astar_path));
+    for i = 1:size(astar_path, 1)
+        grid_pos = world2grid(map_obj, [astar_path(i,1), astar_path(i,2)]);
+        path_grid(i,:) = [grid_pos(1), grid_pos(2)];  % [row, col]
+    end
+
+    % Create visualization
+    figure('Name', 'Obstacle Inflation Analysis with A* Path', 'Position', [200, 200, 1400, 500]);
+
+    % Subplot 1: Original Map with Path
+    subplot(1,3,1);
+    imagesc(occ_matrix);
+    colormap(gray);
+    hold on;
+    % Plot path (col, row for imagesc)
+    plot(path_grid(:,2), path_grid(:,1), 'r-', 'LineWidth', 3);
+    plot(path_grid(:,2), path_grid(:,1), 'ro', 'MarkerSize', 4, 'MarkerFaceColor', 'red');
+    % Mark start and goal
+    plot(path_grid(1,2), path_grid(1,1), 'gs', 'MarkerSize', 12, 'LineWidth', 3, 'MarkerFaceColor', 'green');
+    plot(path_grid(end,2), path_grid(end,1), 'bs', 'MarkerSize', 12, 'LineWidth', 3, 'MarkerFaceColor', 'blue');
+    hold off;
+    title('Original Map + A* Path');
+    colorbar;
+    legend('Path', '', 'Start', 'Goal', 'Location', 'best');
+
+    % Subplot 2: Inflated Map with Path
+    subplot(1,3,2);
+    imagesc(inflated_map);
+    colormap(gray);
+    hold on;
+    % Plot path
+    plot(path_grid(:,2), path_grid(:,1), 'r-', 'LineWidth', 3);
+    plot(path_grid(:,2), path_grid(:,1), 'ro', 'MarkerSize', 4, 'MarkerFaceColor', 'red');
+    % Mark start and goal
+    plot(path_grid(1,2), path_grid(1,1), 'gs', 'MarkerSize', 12, 'LineWidth', 3, 'MarkerFaceColor', 'green');
+    plot(path_grid(end,2), path_grid(end,1), 'bs', 'MarkerSize', 12, 'LineWidth', 3, 'MarkerFaceColor', 'blue');
+    hold off;
+    title(sprintf('Inflated Map (+%d cells) + Path', clearance_cells));
+    colorbar;
+    legend('Path', '', 'Start', 'Goal', 'Location', 'best');
+
+    % Subplot 3: Difference with Path
+    subplot(1,3,3);
+    diff_map = inflated_map - occ_matrix;
+    imagesc(diff_map);
+    colormap(gray);
+    hold on;
+    % Plot path
+    plot(path_grid(:,2), path_grid(:,1), 'r-', 'LineWidth', 3);
+    plot(path_grid(:,2), path_grid(:,1), 'ro', 'MarkerSize', 4, 'MarkerFaceColor', 'red');
+    % Mark start and goal
+    plot(path_grid(1,2), path_grid(1,1), 'gs', 'MarkerSize', 12, 'LineWidth', 3, 'MarkerFaceColor', 'green');
+    plot(path_grid(end,2), path_grid(end,1), 'bs', 'MarkerSize', 12, 'LineWidth', 3, 'MarkerFaceColor', 'blue');
+    hold off;
+    title('Added by Inflation + Path');
+    colorbar;
+    legend('Path', '', 'Start', 'Goal', 'Location', 'best');
+
+    sgtitle(sprintf('Inflation Analysis: %.2fm robot → %d cells clearance | Path Length: %d points', ...
+                   robot_clearance, clearance_cells, size(astar_path,1)));
+
+    fprintf('Inflation visualization with A* path created\n');
+    fprintf('Path info: Start [%.2f, %.2f] → Goal [%.2f, %.2f]\n', ...
+            astar_path(1,1), astar_path(1,2), astar_path(end,1), astar_path(end,2));
+end
+
+function inflated_map = inflateMapSquareInline(occ_matrix, clearance)
+    % Same inflation method as main inflateMap function
+    [rows, cols] = size(occ_matrix);
+    inflated_map = occ_matrix;
+    
+    for r = 1:rows
+        for c = 1:cols
+            if occ_matrix(r, c) >= 0.5
+                r_min = max(1, r - clearance);
+                r_max = min(rows, r + clearance);
+                c_min = max(1, c - clearance);
+                c_max = min(cols, c + clearance);
+                
+                inflated_map(r_min:r_max, c_min:c_max) = 1;
+            end
+        end
+    end
 end

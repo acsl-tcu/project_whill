@@ -105,6 +105,14 @@ classdef Estimate < handle
         xhat3to6_init = [pi/2;0;0.18;0.08]; % [theta v alpha beta]
         P_init = diag([.01;.01;(pi)^2;4;0.1;0.1]); % 姿勢角はtheta=0のため誤差を十分に許容
 
+        %% A* Path Planning Parameters-----------------------------
+        % Safety margin for obstacle inflation in path planning
+        safety_margin = 0.2;  % meters - Additional clearance beyond robot width
+        % This controls how much buffer space A* maintains around obstacles
+        % Larger values = more conservative paths (safer but may not fit through narrow spaces)
+        % Smaller values = tighter paths (riskier but can navigate narrower passages)
+        %----------------------------------------------------------
+
     end
     properties (Access = public) %変数定義
         dt                      %刻み時間(main.mのdt)
@@ -178,20 +186,21 @@ classdef Estimate < handle
             obj.track_on = true;
             
             % Path planning - moved from Control.m constructor
-            initial_position = [35,9.52]; %set custom initial and goal positions if needed but if you want the default leave it as []
-            goal_position =[30,9.52];
+            initial_position = [0,0]; %set custom initial and goal positions if needed but if you want the default leave it as []
+            goal_position =[30,9.8];
             
             % Calculate robot dimensions (using same constants as Control.m)
             wheel_width = 0.55/2;           % wheel_width from Control.m
             wheel_len_rear = 0.35;          % wheel_len_rear from Control.m  
             wheel_len_front = 0.76;         % wheel_len_front from Control.m
-            robot_width = wheel_width * 3;  % Total width = 0.55m
+            robot_width = wheel_width * 2;  % Total width = 0.55m
             robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
             
             % Try A* pathfinding first, fallback to original if it fails
             try
-                [waypoint, ~, ~, ~, ~] = PathSetting_AStar(initial_position, goal_position, robot_width, robot_length);
-                fprintf('Estimate: Using A* generated waypoints (%d points) with vehicle size %.2fx%.2fm\n', size(waypoint, 1), robot_width, robot_length);
+                [waypoint, ~, ~, ~, ~] = PathSetting_AStar(initial_position, goal_position, robot_width, robot_length, obj.safety_margin);
+                fprintf('Estimate: Using A* generated waypoints (%d points) with vehicle size %.2fx%.2fm, safety margin %.2fm\n', ...
+                    size(waypoint, 1), robot_width, robot_length, obj.safety_margin);
             catch ME
                 fprintf('Estimate: A* pathfinding failed (%s), using original waypoints\n', ME.message);
                 [waypoint, ~, ~, ~, ~] = PathSetting_original;
@@ -473,7 +482,7 @@ classdef Estimate < handle
             % Define elevator door approach area (rectangular zone in front of door)
             elevator_door_area.x_min = 29.3;  % x > 29.3
             elevator_door_area.x_max = 30.5;  % x <= 30.8
-            elevator_door_area.y_min = 9.45;  % y >= 12.0
+            elevator_door_area.y_min = 9.0;  % y >= 12.0
             elevator_door_area.y_max = 9.6;  % y < 12.3
             
             % Check if wheelchair is in the elevator door approach area
