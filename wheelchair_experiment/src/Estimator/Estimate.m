@@ -196,15 +196,8 @@ classdef Estimate < handle
             robot_width = wheel_width * 2;  % Total width = 0.55m
             robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
             
-            % Try A* pathfinding first, fallback to original if it fails
-            try
-                [waypoint, ~, ~, ~, ~] = PathSetting_AStar(initial_position, goal_position, robot_width, robot_length, obj.safety_margin);
-                fprintf('Estimate: Using A* generated waypoints (%d points) with vehicle size %.2fx%.2fm, safety margin %.2fm\n', ...
-                    size(waypoint, 1), robot_width, robot_length, obj.safety_margin);
-            catch ME
-                fprintf('Estimate: A* pathfinding failed (%s), using original waypoints\n', ME.message);
-                [waypoint, ~, ~, ~, ~] = PathSetting_original;
-            end
+            % Ask user to select waypoint method (interactive or A*)
+            waypoint = selectWaypointMethod(initial_position, goal_position, robot_width, robot_length, obj.safety_margin);
             
             % Store waypoints in SharedControlMode for Control.m to access
             obj.sharedControlMode.setWaypoints(waypoint);
@@ -433,12 +426,12 @@ classdef Estimate < handle
             %% Handle user mode requests from menu
             if isfield(Plant, 'UserModeRequest') && Plant.UserModeRequest.requested
                 user_request = Plant.UserModeRequest;
-                fprintf('[ESTIMATE] Processing user mode request: %s\n', user_request.new_phase);
+ 
                 
                 % Set tracking switch based on menu selection
                 if isfield(user_request, 'track_on')
                     obj.track_on = user_request.track_on;
-                    fprintf('[ESTIMATE] Tracking switch set to: %s\n', string(obj.track_on));
+
                 end
                 
                 switch user_request.new_phase
@@ -447,10 +440,10 @@ classdef Estimate < handle
                         if obj.sharedControlMode.isFirstTimeUse()
                             % First time - just set mode, use existing waypoints
                             obj.sharedControlMode.setMode('floor_change');
-                            fprintf('[ESTIMATE] User set mode to FLOOR_CHANGE (first time) - using existing waypoints\n');
+                            
                         else
                             % Not first time - replan path from current position and reset trackers
-                            fprintf('[ESTIMATE] User set mode to FLOOR_CHANGE (returning) - replanning path from current position\n');
+                            
                             
                             % Replan path from current position
                             obj.replanPathFromCurrentPosition(Plant);
@@ -459,17 +452,17 @@ classdef Estimate < handle
                             obj.resetAllTrackers();
                             
                             obj.sharedControlMode.setMode('floor_change');
-                            fprintf('[ESTIMATE] Path replanning and tracker reset completed\n');
+                            
                         end
                         
                     case 'door_detection'
                         obj.sharedControlMode.setMode('door_detection');
-                        fprintf('[ESTIMATE] User set mode to DOOR_DETECTION - debug mode activated\n');
+                        
                         
                     case 'ndt_pose_detection'
                         obj.sharedControlMode.setMode('ndt_pose_detection');
-                        fprintf('[ESTIMATE] User set mode to NDT_POSE_DETECTION - manual control with pose broadcasting\n');
-                        fprintf('[ESTIMATE] Use manual controls to move wheelchair - pose will be continuously displayed\n');
+                        
+                        
                         
                     otherwise
                         fprintf('[ESTIMATE] Unknown user mode request: %s\n', user_request.new_phase);
@@ -496,16 +489,12 @@ classdef Estimate < handle
                 % Transition from floor_change to elevator entry
                 obj.sharedControlMode.setMode('elevator_entry');
                 obj.control_phase = 'elevator_entry';
-                fprintf('[ESTIMATE] MODE CHANGE: Switching from FLOOR_CHANGE to ELEVATOR ENTRY mode\n');
-                fprintf('           Position: [%.3f, %.3f] entered elevator door area\n', current_position(1), current_position(2));
-                fprintf('           Area bounds: X(%.1f,%.1f], Y[%.1f,%.1f)\n', ...
-                    elevator_door_area.x_min, elevator_door_area.x_max, ...
-                    elevator_door_area.y_min, elevator_door_area.y_max);
+                
+
             elseif strcmp(obj.sharedControlMode.getMode(), 'door_detection')
                 % Door detection mode: immediately switch to elevator_entry for debug
                 obj.control_phase = 'elevator_entry';
-                fprintf('[ESTIMATE] MODE CHANGE: Door detection mode - switching to ELEVATOR ENTRY for debug\n');
-                fprintf('           Control.m will bypass Phase 1 and go directly to Phase 1.5\n');
+                
             elseif strcmp(obj.sharedControlMode.getMode(), 'elevator_entry') && ~in_elevator_area
                 % Optional: Switch back if wheelchair leaves the area (uncomment if needed)
                 % obj.control_phase = 'floor_change';
@@ -551,8 +540,6 @@ classdef Estimate < handle
 
             % Skip heavy processing when tracking is disabled (only odometry needed)
             if ~obj.track_on
-                % Minimal processing when tracking is disabled
-                fprintf('[ESTIMATE] Tracking disabled: Skipping heavy LiDAR processing\n');
                 
                 % Set empty values for variables that won't be computed
                 detections2 = [];
@@ -612,7 +599,7 @@ classdef Estimate < handle
                 xyz_global(:,2) = xyz(:,1) * sin_yaw + xyz(:,2) * cos_yaw + Plant.Y;
                 xyz_global(:,3) = xyz(:,3) + obj.trans(3); % Add wheelchair height offset
                 xyz_local = [xyz(:,1:2),xyz_global(:,3)];
-                fprintf('[ESTIMATE] Transformed %d points from local to global coordinates\n', size(xyz, 1));
+               
             end
 
             %% result.localに各変数を保存
@@ -630,7 +617,6 @@ classdef Estimate < handle
             end
             if ~obj.track_on
                 % Skip tracking when tracking is disabled
-                fprintf('[ESTIMATE] Skipping object tracking (tracking disabled)\n');
                 obj.Allxhat = [];
                 AllP = {};
                 model = [];
@@ -1514,9 +1500,7 @@ classdef Estimate < handle
         end
         
         function resetAllTrackers(obj)
-            % Reset all tracking-related variables to clean state
-            fprintf('[ESTIMATE] Resetting all trackers to clean state\n');
-            
+                        
             % Reset tracking variables
             obj.Allxhat = [];
             
@@ -1537,7 +1521,7 @@ classdef Estimate < handle
             % Reset new track candidates
             obj.newTrackCandidates = struct('Obs', {}, 'Count', {}, 'Buffer', {});
             
-            fprintf('[ESTIMATE] All trackers reset - ready for fresh tracking\n');
+            
         end
         
 
