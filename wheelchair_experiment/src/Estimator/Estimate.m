@@ -195,12 +195,12 @@ classdef Estimate < handle
             wheel_len_front = 0.76;         % wheel_len_front from Control.m
             robot_width = wheel_width * 2;  % Total width = 0.55m
             robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
-            
+            safety_margin = 0.65;
             % Try A* pathfinding first, fallback to original if it fails
             try
-                [waypoint, ~, ~, ~, ~] = PathSetting_AStar(initial_position, goal_position, robot_width, robot_length, obj.safety_margin);
+                [waypoint, ~, ~, ~, ~] = PathSetting_AStar(initial_position, goal_position, robot_width, robot_length, safety_margin);
                 fprintf('Estimate: Using A* generated waypoints (%d points) with vehicle size %.2fx%.2fm, safety margin %.2fm\n', ...
-                    size(waypoint, 1), robot_width, robot_length, obj.safety_margin);
+                    size(waypoint, 1), robot_width, robot_length, safety_margin);
             catch ME
                 fprintf('Estimate: A* pathfinding failed (%s), using original waypoints\n', ME.message);
                 [waypoint, ~, ~, ~, ~] = PathSetting_original;

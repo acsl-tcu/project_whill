@@ -277,7 +277,7 @@ classdef Control < handle
                 fprintf('Control: Using waypoints from Estimate.m (%d points)\n', size(obj.waypoint, 1));
                 
                 % Generate V_ref based on waypoints (same logic as PathSetting functions)
-                obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
+                obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.2;  % 0.5 m/s default
                 if size(obj.waypoint,1) >= 2
                     obj.V_ref(end-1) = 0.2;  % Slow down before goal
                 end

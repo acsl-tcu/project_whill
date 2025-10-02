@@ -4,7 +4,7 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
     % instead of manual waypoint definition
     
     fprintf('Loading occupancy map for A* pathfinding...\n');
-    debug_on=true;
+    debug_on=false;
     try
         % Load the occupancy map
         map_data = load('map2.mat');

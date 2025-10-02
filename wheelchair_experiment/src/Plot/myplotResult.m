@@ -153,7 +153,7 @@ function [collision_flag] = myplotResult(DATAPath)
     set(gca,'FontSize',20,'FontName','Times');
     xlabel('$$X$$(m)','Interpreter', 'Latex','FontSize',20);
     ylabel('$$Y$$(m)','Interpreter', 'Latex','FontSize',20);
-    axis equal
+    % axis equal
     grid on
     box on;  % 枠線を表示
     ax.YLim = [-1.5 1.5];
