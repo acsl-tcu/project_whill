@@ -104,8 +104,8 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
     fprintf('Free space threshold: < 0.5, Occupied: >= 0.5\n');
     
     % Check robot clearance - use larger dimension plus safety margin
-    robot_clearance = max(robot_width, robot_length) + safety_margin;
-    clearance_cells = ceil(robot_clearance * resolution / 2) + 1;
+    robot_clearance = robot_width/2 + safety_margin;
+    clearance_cells = ceil(robot_clearance * resolution) + 1;
     fprintf('Robot clearance: %.1f cells (%.2fm total clearance)\n', clearance_cells, robot_clearance);
     
     % PLOT: Create two debug plots to show both coordinate systems
@@ -391,8 +391,8 @@ function path = pathPlanningOccupancyGrid(start, goal, occ_matrix, resolution, m
     goal_c = max(1, min(cols, goal_c));
 
     % Inflate obstacles for robot size (using same calculation as main function)
-    robot_clearance = robot_width + safety_margin;
-    clearance_cells = ceil(robot_clearance * resolution / 2) + 1;
+    robot_clearance = robot_width/2 + safety_margin;
+    clearance_cells = ceil(robot_clearance * resolution) + 1;
     fprintf('Path planning using clearance: %d cells (%.2fm total)\n', clearance_cells, robot_clearance);
     inflated_map = inflateMap(occ_matrix, clearance_cells);
     

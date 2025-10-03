@@ -187,7 +187,7 @@ classdef Estimate < handle
             
             % Path planning - moved from Control.m constructor
             initial_position = [0,0]; %set custom initial and goal positions if needed but if you want the default leave it as []
-            goal_position =[30,9.8];
+            goal_position =[];
             
             % Calculate robot dimensions (using same constants as Control.m)
             wheel_width = 0.55/2;           % wheel_width from Control.m
@@ -195,7 +195,9 @@ classdef Estimate < handle
             wheel_len_front = 0.76;         % wheel_len_front from Control.m
             robot_width = wheel_width * 2;  % Total width = 0.55m
             robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
-            safety_margin = 0.65;
+            safety_margin = 0.35;
+            %% 
+            %% 
 
             % Ask user to select waypoint method (interactive or A*)
             waypoint = selectWaypointMethod(initial_position, goal_position, robot_width, robot_length, safety_margin);
