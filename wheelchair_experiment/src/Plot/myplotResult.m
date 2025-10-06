@@ -144,6 +144,21 @@ function [collision_flag] = myplotResult(DATAPath)
                 %-------------------------------------
             end
         end
+        
+        % Plot bounding boxes if available
+        if isfield(USER, 'BB') && length(USER.BB) >= count-1 && ~isempty(USER.BB{count-1})
+            bboxes = USER.BB{count-1};
+            for bbox_idx = 1:length(bboxes)
+                bbox = bboxes{bbox_idx};
+                if isfield(bbox, 'corners') && size(bbox.corners, 1) == 4
+                    % Plot bounding box as rectangle
+                    corners = bbox.corners;
+                    rectangle_x = [corners(:,1); corners(1,1)];  % Close the rectangle
+                    rectangle_y = [corners(:,2); corners(1,2)];
+                    plot(rectangle_x, rectangle_y, 'Color', [0 0.7 0], 'LineWidth', 2); hold on;
+                end
+            end
+        end
         wheelchair = polyshape([right_rear(count,:);right_front(count,:);left_front(count,:);left_rear(count,:)]);
         plot(wheelchair,'FaceAlpha',0,'EdgeColor','k','LineWidth',2); hold on;
         quiver(DATA.X(count),DATA.Y(count),0.7*cos(DATA.yaw(count)),0.7*sin(DATA.yaw(count)),'LineWidth',1.75,'Color', [255,94,25]/255,'Marker','o','MarkerSize',6,'MaxHeadSize',2.); hold on;
@@ -327,6 +342,12 @@ function [collision_flag] = myplotResult(DATAPath)
             pObsM(num) = plot(polyshape(), 'FaceColor', 'none', 'EdgeColor',[1, 0.5, 0],'LineWidth',2); hold on;
             pObsH(num) = plot(NaN,NaN,'-','Color','m','LineWidth',1.5); hold on;
         end
+        
+        % Initialize bounding box plot objects
+        pBBox = NaN(30,1);
+        for num = 1:30
+            pBBox(num) = plot(NaN,NaN,'-','Color',[0 0.7 0],'LineWidth',2); hold on;
+        end
         pRemovedPt = scatter(NaN,NaN,10,'filled', 'MarkerFaceColor', 'b','MarkerFaceAlpha', 0.2);hold on;
        
         pBest2 = plot(NaN,NaN,'Color','k','LineWidth',3); hold on;
@@ -464,6 +485,32 @@ function [collision_flag] = myplotResult(DATAPath)
                        ObsHorizon(:,k) = USER.preobs{count-1,1}(:,num,k);
                    end
                    set(pObsH(num),'XData',ObsHorizon(1,:),'YData',ObsHorizon(2,:))
+               end
+           end
+           
+           % Plot bounding boxes in animation
+           if isfield(USER, 'BB') && length(USER.BB) >= count-1 && ~isempty(USER.BB{count-1})
+               bboxes = USER.BB{count-1};
+               for bbox_idx = 1:min(length(bboxes), 30)  % Limit to 30 bounding boxes
+                   bbox = bboxes{bbox_idx};
+                   if isfield(bbox, 'corners') && size(bbox.corners, 1) == 4
+                       % Plot bounding box as rectangle
+                       corners = bbox.corners;
+                       rectangle_x = [corners(:,1); corners(1,1)];  % Close the rectangle
+                       rectangle_y = [corners(:,2); corners(1,2)];
+                       set(pBBox(bbox_idx),'XData',rectangle_x,'YData',rectangle_y);
+                   else
+                       set(pBBox(bbox_idx),'XData',NaN,'YData',NaN);
+                   end
+               end
+               % Clear unused bounding box plots
+               for bbox_idx = length(bboxes)+1:30
+                   set(pBBox(bbox_idx),'XData',NaN,'YData',NaN);
+               end
+           else
+               % Clear all bounding box plots if no data
+               for bbox_idx = 1:30
+                   set(pBBox(bbox_idx),'XData',NaN,'YData',NaN);
                end
            end
 

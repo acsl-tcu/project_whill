@@ -42,17 +42,19 @@ function [pw,remove_sample] = EvaluationPath_vec_gpu(obj,px,pu,preobs,param_FPM,
     remove_sample = squeeze(max(Grid_values,[],3)>=0.98);
     %% �ǖʃR�X�g
     WALLcost = pagetranspose(squeeze(sum(Grid_values,3))*obj.wall_penalty1);
-    %% FPM cost
-    preobs2=pagetranspose(preobs);
-    [grade] = FPM_capsule_v3_3vec(obj,px2(1,:,2:obj.K,:),px2(2,:,2:obj.K,:),px2(3,:,2:obj.K,:),preobs2(:,:,1:obj.K-1),param_FPM);
-    FPMcost = reshape((obj.K-1) - sum(grade,3) , 1 , []);
-    
-    %% Bounding Box Avoidance Cost
-    if nargin > 6 && ~isempty(boundingBoxes) && false
-        BBcost = calculateBoundingBoxCost(obj, px2, boundingBoxes, mapObject);
+    %% FPM cost - Now using Bounding Box FPM instead of Capsule FPM
+    if nargin > 6 && ~isempty(boundingBoxes)&& false
+        % Use bounding box FPM for better rectangular obstacle representation
+        FPMcost = calculateBoundingBoxFPMCost(obj, px2, boundingBoxes, param_FPM);
     else
-        BBcost = zeros(1, obj.NP, 'gpuArray');
+        % Fallback to capsule FPM for backward compatibility
+        preobs2=pagetranspose(preobs);
+        [grade] = FPM_capsule_v3_3vec(obj,px2(1,:,2:obj.K,:),px2(2,:,2:obj.K,:),px2(3,:,2:obj.K,:),preobs2(:,:,1:obj.K-1),param_FPM);
+        FPMcost = reshape((obj.K-1) - sum(grade,3) , 1 , []);
     end
+    
+    %% Legacy Bounding Box Cost (now integrated into FPM above)
+    % BBcost = zeros(1, obj.NP, 'gpuArray');  % Removed - cost integrated into FPMcost
 
     %% Velocity cost
     v_max= 0.55;
@@ -61,8 +63,8 @@ function [pw,remove_sample] = EvaluationPath_vec_gpu(obj,px,pu,preobs,param_FPM,
     Vcost = reshape(((pu(1,1,:)-v_max)*v_cost).*(pu(1,1,:) > v_max)+((pu(1,1,:)-v_min)*-v_cost).*(pu(1,1,:) < v_min),1,[]);
 	
     %% Input cost
-    Vref = reshape(obj.V_ref(obj.target_n(1:obj.K-1,:)), 1, obj.K-1, obj.NP);       % ���ꂼ��̃|�C���g���ƂɖڕW���x������
-    % Vref =obj.V_ref(obj.target_n(1,1));     % ���ׂē����ڕW���x
+    % Vref = reshape(obj.V_ref(obj.target_n(1:obj.K-1,:)), 1, obj.K-1, obj.NP);       % ���ꂼ��̃|�C���g���ƂɖڕW���x������
+    Vref =obj.V_ref(obj.target_n(1,1));     % ���ׂē����ڕW���x
     Inputcost = reshape(sum(pu(2,1:end-1,:).^2)*obj.R(2) +  sum((pu(1,1:end-1,:) - Vref).^2)*obj.R(1),[1,obj.NP]);
 	
     %% Distance cost
@@ -73,7 +75,7 @@ function [pw,remove_sample] = EvaluationPath_vec_gpu(obj,px,pu,preobs,param_FPM,
     d_target = get_distance(w0,w1,state);
     Dcost = reshape(sum(d_target,3)*Q,1,[]);
     %% Cost SUM
-    pw = FPMcost + Inputcost + Vcost + WALLcost + Dcost + BBcost;
+    pw = FPMcost + Inputcost + Vcost + WALLcost + Dcost;  % BBcost removed - now integrated into FPMcost
     % pw = FPMcost + Inputcost + Vcost + Dcost;
     % pw = FPMcost + Inputcost + Vcost + WALLcost;
 

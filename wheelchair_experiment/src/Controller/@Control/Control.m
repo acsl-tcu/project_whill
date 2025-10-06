@@ -119,9 +119,9 @@ classdef Control < handle
         Cell_Size
 
         points
-        elevator_center %Elevator center position (inside)
         % Bounding boxes from LiDAR object detection
         boundingBoxes
+        map
     end
     properties (Constant)
         %% --MPC パラメータ--
@@ -229,7 +229,7 @@ classdef Control < handle
         %         Ymin		= -1.0;
         %         dt			= 0.05;
         %         ObstacleSize	= 0.60;
-
+        % elevator_center = [27, 9.4]; % Elevator center position
     end
     properties(Constant,Access = private)
         X  = 1;
@@ -254,22 +254,17 @@ classdef Control < handle
         %         function obj = Control(dt, Mode, FolderPath,sensor,autoware)
         function obj = Control(~, dt, mode ,rgtNum, FolderPath,sensor,autoware,sharedControlMode)
             % obj.wall = repmat([-0.5 8 -3 3],[size(obj.waypoint,1),1]);
-            try
-                available_topics = rostopic('list');  
-                fprintf('=== ROS INITIALIZATION CHECK ===\n');
-                gazebo_topics = available_topics(contains(available_topics, 'gazebo'));
-                if ~isempty(gazebo_topics)
-                    obj.Gazebo = true;
-                    fprintf('Gazebo topics detected: %d - Setting obj.Gazebo = true\n', length(gazebo_topics));
-                else
-                    obj.Gazebo = false;
-                    fprintf('No Gazebo topics found - Setting obj.Gazebo = false (real system)\n');
-                end
-                fprintf('=================================\n');
-            catch ME
-                obj.Gazebo = false; % Default to real system if detection fails
-                fprintf('ROS topic detection failed: %s - Defaulting to real system\n', ME.message);
+            % Set Gazebo flag based on mode parameter from main_astar.m
+            % mode = 2: Gazebo simulation, mode = 3: Real experiment
+            fprintf('=== ROS INITIALIZATION CHECK ===\n');
+            if mode == 2
+                obj.Gazebo = true;
+                fprintf('Mode %d detected - Setting obj.Gazebo = true (Gazebo simulation)\n', mode);
+            else
+                obj.Gazebo = false;
+                fprintf('Mode %d detected - Setting obj.Gazebo = false (real system/experiment)\n', mode);
             end
+            fprintf('=================================\n');
             
             % Get waypoints from SharedControlMode (path planning now done in Estimate.m)
             if sharedControlMode.hasWaypoints()
@@ -277,12 +272,12 @@ classdef Control < handle
                 fprintf('Control: Using waypoints from Estimate.m (%d points)\n', size(obj.waypoint, 1));
                 
                 % Generate V_ref based on waypoints (same logic as PathSetting functions)
-                obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.2;  % 0.5 m/s default
+                obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
                 if size(obj.waypoint,1) >= 2
-                    obj.V_ref(end-1) = 0.2;  % Slow down before goal
+                    obj.V_ref(end-1) = 0.5;  % Slow down before goal
                 end
                 if size(obj.waypoint,1) >= 1
-                    obj.V_ref(end) = 0;      % Stop at goal
+                    obj.V_ref(end) = 0.5;      % Stop at goal
                 end
             else
                 % Fallback to simple default waypoints if none available
@@ -351,6 +346,7 @@ classdef Control < handle
 
             %% 占有格子図の準備
             load map2.mat map;
+            obj.map         = map;
             obj.Grid_Xlim   = gpuArray(map.XWorldLimits);
             obj.Grid_Ylim   = gpuArray(map.YWorldLimits);
             obj.Grid_Matrix = gpuArray(getOccupancy(map));
@@ -464,7 +460,7 @@ classdef Control < handle
             % Phase transition is now handled by Estimate.m
 
             % Execute control based on current mode
-            if any(strcmp(obj.sharedControlMode.getMode(), {'path_following', 'floor_change'}))
+            if any(strcmp(obj.sharedControlMode.getMode(), {'path_following', 'floor_change'}))&& ~(obj.target_n(1,1)==size(obj.waypoint,1))
                 % Normal path following control
                 [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = obj.pathFollowingControl(Position, preobs);
                 elevator_result = [];  % No elevator result in path following mode
@@ -473,7 +469,12 @@ classdef Control < handle
                 % Elevator entry control
                 elevator_result = obj.executeElevatorEntry(current_position, Position.yaw, lidar_data, door_detection_mode);
                 U = elevator_result.V;
-
+                % Check if elevator entry is completed
+                if isfield(elevator_result, 'completed') && elevator_result.completed
+                    obj.sharedControlMode.setMode('completed');
+                    controlElevatorDoor('close');
+                    fprintf('=== MODE CHANGE: Elevator entry COMPLETED ===\n');
+                end
                 % Fill empty variables for result.local
                 pu = {};
                 px = {};
@@ -501,12 +502,7 @@ classdef Control < handle
                 removed = [];
                 elevator_result = [];
 
-                % Check if elevator entry is completed
-                if isfield(elevator_result, 'completed') && elevator_result.completed
-                    obj.sharedControlMode.setMode('completed');
-                    controlElevatorDoor('close');
-                    fprintf('=== MODE CHANGE: Elevator entry COMPLETED ===\n');
-                end
+
 
             else
                 % Default: stop the wheelchair
@@ -530,10 +526,10 @@ classdef Control < handle
                 % Regenerate V_ref for new waypoints (same logic as constructor)
                 obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
                 if size(obj.waypoint,1) >= 2
-                    obj.V_ref(end-1) = 0.2;  % Slow down before goal
+                    obj.V_ref(end-1) = 0.5;  % Slow down before goal
                 end
                 if size(obj.waypoint,1) >= 1
-                    obj.V_ref(end) = 0;      % Stop at goal
+                    obj.V_ref(end) = 0.5;      % Stop at goal
                 end
                 
                 % Clear the update flag
@@ -598,7 +594,7 @@ classdef Control < handle
             %   lidar_data - struct containing both xyz_global and xyz_local coordinate data
             %   door_detection_mode - boolean flag or debug mode (bypass to Phase 1.5)
 
-            obj.elevator_center = [27, 9.3]; % Elevator center position
+            
             
             % Use the elevator_odom_mode property from the Control class
             % This can be configured when creating the Control object:
@@ -608,8 +604,11 @@ classdef Control < handle
             if nargin < 5
                 door_detection_mode = false; % Default: normal elevator entry
             end
-            
-            elevator_result = enterElevator(current_position, current_yaw, obj.elevator_center, [], lidar_data, obj.Gazebo, obj.elevator_odom_mode, door_detection_mode, obj.door_params);
+
+            % Get elevator metadata for floor_center and door_center parameters
+            elevator_metadata = LocationMetadata.getLocation('elevator');
+
+            elevator_result = enterElevator(current_position, current_yaw, elevator_metadata.door_center, [], lidar_data, obj.Gazebo, obj.elevator_odom_mode, door_detection_mode, obj.door_params, elevator_metadata.target_position);
             
             % Check if we need to open the door (Phase 1.5 - door verification)
             if isfield(elevator_result, 'phase') && elevator_result.phase == 1.5
@@ -640,13 +639,14 @@ classdef Control < handle
 
             elseif any(strcmp(obj.sharedControlMode.getMode(), {'elevator_entry', 'door_detection'}))
                 % Elevator entry mode status
+                elevator_metadata = LocationMetadata.getLocation('elevator');
                 fprintf('=== ELEVATOR ENTRY MODE ===\n');
                 fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
                 if nargin >= 5 && ~isempty(elevator_result)
                     fprintf('Phase: %d - %s\n', elevator_result.phase, elevator_result.status);
                 end
                 fprintf('Control: V=%.3f m/s, Ω=%.3f rad/s\n', U(1), U(2));
-                fprintf('Elevator Center: [%.1d, %.1d]\n', obj.elevator_center(1),  obj.elevator_center(2));
+                fprintf('Elevator Center: [%.1d, %.1d]\n', elevator_metadata.door_center(1), elevator_metadata.door_center(2));
                 
             elseif strcmp(obj.sharedControlMode.getMode(), 'ndt_pose_detection')
                 % NDT Pose Detection mode status
@@ -686,7 +686,7 @@ classdef Control < handle
             tempobj_d.K         = gpuArray(obj.K);
             tempobj_d.waypoint  = gpuArray(obj.waypoint);
             tempobj_d.target_n  = gpuArray(obj.target_n);
-            px                  = gpuArray(px);
+            % px                  = gpuArray(px);
             obj.target_n        = determine_target_location(tempobj_d, px);
             %--------------------------------------------------------------
 
@@ -721,13 +721,11 @@ classdef Control < handle
 
             %% 評価計算
             % Load map object for world coordinate visualization
-            try
-                load map2.mat map;
-                [pw, remove_sample] = EvaluationPath_vec_gpu(tempobj, px, pu, preobs, obj.param_FPM, obj.Grid_Matrix, obj.boundingBoxes, map);
-            catch
-                % Fallback if map loading fails
-                [pw, remove_sample] = EvaluationPath_vec_gpu(tempobj, px, pu, preobs, obj.param_FPM, obj.Grid_Matrix, obj.boundingBoxes);
-            end
+
+                % [pw, remove_sample] = EvaluationPath_vec_gpu(tempobj, px, pu, preobs, obj.param_FPM, obj.Grid_Matrix, obj.boundingBoxes, obj.map);
+
+                [pw, remove_sample] = EvaluationPath_vec_gpu(tempobj, px, pu, preobs, obj.param_FPM, obj.Grid_Matrix);
+           
 
             [BestCost, BestCostId] = min(pw);
 

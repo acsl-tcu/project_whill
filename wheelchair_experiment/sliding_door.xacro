@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<robot name="sliding_door" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ==================================================== -->
+  <!-- ====               LINKS & JOINT                ==== -->
+  <!-- ==================================================== -->
+
+  <!-- Base link to connect everything to -->
+  <link name="door_base_link"/>
+
+  <joint name="frame_joint" type="fixed">
+    <parent link="door_base_link"/>
+    <child link="door_frame"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Door Frame (The static part) -->
+  <link name="door_frame">
+    <visual>
+      <geometry>
+        <box size="0.1 1.2 2.0"/>
+      </geometry>
+      <material name="wood">
+        <color rgba="0.8 0.5 0.2 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.1 1.2 2.0"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Door Panel (The moving part) -->
+  <link name="door">
+    <inertial>
+      <mass value="10.0"/>
+      <inertia ixx="1.0" ixy="0" ixz="0" iyy="1.0" iyz="0" izz="1.0"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <box size="0.05 1.0 2.0"/>
+      </geometry>
+      <material name="grey">
+        <color rgba="0.5 0.5 0.5 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.05 1.0 2.0"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- The Prismatic (Sliding) Joint -->
+  <joint name="door_joint" type="prismatic">
+    <parent link="door_frame"/>
+    <child link="door"/>
+    <origin xyz="0.05 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0" upper="0.9" effort="100" velocity="1.0"/>
+  </joint>
+
+  <!-- ==================================================== -->
+  <!-- ====      TRANSMISSION & PLUGIN (THE BRAIN)     ==== -->
+  <!-- ==================================================== -->
+
+  <!-- Transmission: Connects the virtual motor to the joint -->
+  <transmission name="door_trans">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="door_joint">
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="door_motor">
+      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
+  <!-- Gazebo Control Plugin: Connects transmissions to ROS controllers -->
+  <gazebo>
+    <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
+      <robotNamespace>/sliding_door</robotNamespace>
+    </plugin>
+  </gazebo>
+
+</robot>

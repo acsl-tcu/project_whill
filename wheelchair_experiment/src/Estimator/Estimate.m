@@ -186,8 +186,9 @@ classdef Estimate < handle
             obj.track_on = true;
             
             % Path planning - moved from Control.m constructor
+            BIM_data= LocationMetadata.getLocation('elevator');
             initial_position = [0,0]; %set custom initial and goal positions if needed but if you want the default leave it as []
-            goal_position =[];
+            goal_position =BIM_data.target_position;
             
             % Calculate robot dimensions (using same constants as Control.m)
             wheel_width = 0.55/2;           % wheel_width from Control.m
@@ -474,12 +475,10 @@ classdef Estimate < handle
             
             %% Phase detection for elevator control
             current_position = [Plant.X, Plant.Y];
-            
-            % Define elevator door approach area (rectangular zone in front of door)
-            elevator_door_area.x_min = 29.3;  % x > 29.3
-            elevator_door_area.x_max = 30.5;  % x <= 30.8
-            elevator_door_area.y_min = 9.0;  % y >= 12.0
-            elevator_door_area.y_max = 9.6;  % y < 12.3
+
+            % Get elevator metadata from configuration
+            elevator_metadata = LocationMetadata.getLocation('elevator');
+            elevator_door_area = elevator_metadata.roi;
             
             % Check if wheelchair is in the elevator door approach area
             in_elevator_area = (current_position(1) > elevator_door_area.x_min) && ...

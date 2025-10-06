@@ -11,10 +11,9 @@ function controlElevatorDoor(action)
         
         % Set door position based on action (reversed logic)
         if strcmp(action, 'open')
-            doorMsg.Data = 0.0;  % Reversed: 0.0 = open
-            fprintf('Opening elevator door...\n');
+            doorMsg.Data = 0.0;              fprintf('Opening elevator door...\n');
         elseif strcmp(action, 'close')
-            doorMsg.Data = 1.5;  % Reversed: 1.1 = close  
+            doorMsg.Data = -1.4;   
             fprintf('Closing elevator door...\n');
         else
             fprintf('Error: Invalid action. Use "open" or "close".\n');

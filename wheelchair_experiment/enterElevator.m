@@ -1,4 +1,4 @@
-function result = enterElevator(current_position, current_yaw, elevator_center, start_position, lidar_scan_data, is_gazebo, odometry_mode, door_detection_mode, door_params)
+function result = enterElevator(current_position, current_yaw, elevator_center, start_position, lidar_scan_data, is_gazebo, odometry_mode, door_detection_mode, door_params, floor_center)
     % Enter elevator function with three phases:
     % Phase 1: Turn towards elevator center
     % Phase 1.5: Verify elevator door is open using LiDAR (done once)
@@ -13,6 +13,8 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
     %   is_gazebo - boolean flag indicating if running in Gazebo simulation
     %   odometry_mode - boolean or empty: true = use local coordinates, false/[] = use global coordinates
     %   door_detection_mode - boolean: true = bypass Phase 1, go directly to Phase 1.5 debug
+    %   door_params - struct with door detection parameters
+    %   floor_center - [x, y] position outside elevator door (for Phase 3 door detection)
     %
     % Outputs:
     %   result - struct with control commands and status
@@ -342,7 +344,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
             if nargin >= 5 && ~isempty(lidar_scan_data)
                 wheelchair_pose = [current_position, current_yaw];
                 % Use floor/hallway center as reference (outside the elevator)
-                floor_center = [30, 9.3]; % Position outside elevator door
+                % floor_center passed as function parameter from Control.m
                 
                 % Extract point cloud data for Phase 3 door detection
                 if isstruct(lidar_scan_data) && isfield(lidar_scan_data, 'xyz_global')
@@ -354,7 +356,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                 end
                 
                 % Detect door state looking toward floor/hallway
-                door_state = detectElevatorDoorState(phase3_pointCloud, wheelchair_pose, floor_center, phase3_odometry_mode, door_params);
+                door_state = detectElevatorDoorState(phase3_pointCloud{1}, wheelchair_pose, floor_center, phase3_odometry_mode, door_params);
                 
                 if strcmp(door_state, 'open')
                     fprintf('Phase 3: LiDAR confirmed door is OPEN - ready to reverse\n');
