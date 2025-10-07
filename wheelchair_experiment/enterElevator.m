@@ -57,7 +57,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
         % Phase 1: Position Correction
         door_params.POSITION_TOLERANCE = 0.15;          % ±15cm acceptable distance error
         door_params.POSITION_ANGLE_TOLERANCE = 0.087;   % ±5 degrees acceptable heading error (radians)
-        door_params.CORRECTION_TURN_SPEED = 0.1;        % rad/s for correction turns
+        door_params.CORRECTION_TURN_SPEED = 0.3;        % rad/s for correction turns
         door_params.CORRECTION_MOVE_SPEED = 0.15;       % m/s for correction movement (slower than entry)
         % Phase 2.5: Door Detection
         door_params.ANGLE_TOLERANCE = 30;       % ±30 degrees cone towards elevator (initial filtering)

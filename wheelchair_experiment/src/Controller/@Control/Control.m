@@ -612,14 +612,17 @@ classdef Control < handle
 
             elevator_result = enterElevator(current_position, current_yaw, door_center, [], lidar_data, obj.Gazebo, obj.elevator_odom_mode, door_detection_mode, obj.door_params, target_position);
             
-            % Check if we need to open the door (Phase 1.5 - door verification)
-            if isfield(elevator_result, 'phase') && elevator_result.phase == 1.5
-                % Open elevator door only in Gazebo simulation
-                if obj.Gazebo
-                    controlElevatorDoor('open');
-                    fprintf('Control: Opening elevator door for Phase 1.5 verification (Gazebo)\n');
-                else
-                    fprintf('Control: Phase 1.5 detected - Real system, no door control needed\n');
+            % Check if we need to open the door (Phase 2.5 - door verification)
+            if isfield(elevator_result, 'phase') && elevator_result.phase == 2.5
+                % Check if door is closed and open it
+                if isfield(elevator_result, 'door_state') && strcmp(elevator_result.door_state, 'closed')
+                    % Open elevator door only in Gazebo simulation
+                    if obj.Gazebo
+                        controlElevatorDoor('open');
+                        fprintf('Control: Opening elevator door for Phase 2.5 verification (Gazebo)\n');
+                    else
+                        fprintf('Control: Phase 2.5 detected - Real system, no door control needed\n');
+                    end
                 end
             end
         end
