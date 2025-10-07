@@ -187,8 +187,8 @@ classdef Estimate < handle
             
             % Path planning - moved from Control.m constructor
             BIM_data= LocationMetadata.getLocation('elevator');
-            initial_position = [0,0]; %set custom initial and goal positions if needed but if you want the default leave it as []
-            goal_position =BIM_data.target_position;
+            initial_position = [25,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
+            goal_position = BIM_data.astar_goal;  % Use astar_goal for path planning (final waypoint)
             
             % Calculate robot dimensions (using same constants as Control.m)
             wheel_width = 0.55/2;           % wheel_width from Control.m
@@ -476,31 +476,33 @@ classdef Estimate < handle
             %% Phase detection for elevator control
             current_position = [Plant.X, Plant.Y];
 
-            % Get elevator metadata from configuration
-            elevator_metadata = LocationMetadata.getLocation('elevator');
-            elevator_door_area = elevator_metadata.roi;
-            
-            % Check if wheelchair is in the elevator door approach area
-            in_elevator_area = (current_position(1) > elevator_door_area.x_min) && ...
-                              (current_position(1) <= elevator_door_area.x_max) && ...
-                              (current_position(2) >= elevator_door_area.y_min) && ...
-                              (current_position(2) < elevator_door_area.y_max);
-            
+            % Check if wheelchair has passed the final waypoint
+            % Using same logic as determine_target_location_gpu.m line 6: dot(w1-w0, robot-w1) >= 0
+            waypoints = obj.sharedControlMode.getWaypoints();
+            passed_final_waypoint = false;
+
+            if ~isempty(waypoints) && size(waypoints, 1) >= 2
+                % Get last two waypoints
+                w0 = waypoints(end-1, 1:2);  % Second-to-last waypoint [x, y]
+                w1 = waypoints(end, 1:2);     % Last waypoint (final) [x, y]
+                robot = current_position;     % Current robot position [x, y]
+
+                % Check if robot has passed final waypoint: dot(w1-w0, robot-w1) >= 0
+                passed_final_waypoint = dot(w1 - w0, robot - w1) >= 0;
+            end
+
             % Check for mode transitions
-            if strcmp(obj.sharedControlMode.getMode(), 'floor_change') && in_elevator_area
-                % Transition from floor_change to elevator entry
+            if strcmp(obj.sharedControlMode.getMode(), 'floor_change') && passed_final_waypoint
+                % Transition from floor_change to elevator entry when final waypoint is passed
                 obj.sharedControlMode.setMode('elevator_entry');
                 obj.control_phase = 'elevator_entry';
-                
+                fprintf('[ESTIMATE] MODE CHANGE: Final waypoint passed at [%.3f, %.3f] - Switching to ELEVATOR_ENTRY\n', ...
+                        current_position(1), current_position(2));
 
             elseif strcmp(obj.sharedControlMode.getMode(), 'door_detection')
                 % Door detection mode: immediately switch to elevator_entry for debug
                 obj.control_phase = 'elevator_entry';
-                
-            elseif strcmp(obj.sharedControlMode.getMode(), 'elevator_entry') && ~in_elevator_area
-                % Optional: Switch back if wheelchair leaves the area (uncomment if needed)
-                % obj.control_phase = 'floor_change';
-                % fprintf('[ESTIMATE] MODE CHANGE: Leaving elevator area, switching back to FLOOR_CHANGE\n');
+
             end
             
             %% NDT Pose Detection Mode - Continuous pose broadcasting
@@ -518,16 +520,14 @@ classdef Estimate < handle
             
             % Debug info for position tracking
             if mod(obj.cnt, 50) == 0 % Print every 50 iterations to avoid spam
-                if in_elevator_area
-                    fprintf('[ESTIMATE] Position: [%.3f, %.3f] - IN elevator door area, Mode: %s\n', ...
-                        current_position(1), current_position(2), obj.control_phase);
+                if ~isempty(waypoints) && size(waypoints, 1) >= 1
+                    final_waypoint = waypoints(end, 1:2);
+                    distance_to_final = norm(current_position - final_waypoint);
+                    fprintf('[ESTIMATE] Position: [%.3f, %.3f] - Distance to final waypoint: %.2fm, Passed: %d, Mode: %s\n', ...
+                        current_position(1), current_position(2), distance_to_final, passed_final_waypoint, obj.control_phase);
                 else
-                    distance_to_area_x = min(abs(current_position(1) - elevator_door_area.x_min), ...
-                                           abs(current_position(1) - elevator_door_area.x_max));
-                    distance_to_area_y = min(abs(current_position(2) - elevator_door_area.y_min), ...
-                                           abs(current_position(2) - elevator_door_area.y_max));
-                    fprintf('[ESTIMATE] Position: [%.3f, %.3f] - Distance to elevator area: X=%.2fm, Y=%.2fm, Mode: %s\n', ...
-                        current_position(1), current_position(2), distance_to_area_x, distance_to_area_y, obj.control_phase);
+                    fprintf('[ESTIMATE] Position: [%.3f, %.3f] - Mode: %s\n', ...
+                        current_position(1), current_position(2), obj.control_phase);
                 end
             end
 

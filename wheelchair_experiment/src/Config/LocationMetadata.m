@@ -20,7 +20,10 @@ classdef LocationMetadata
                 metadata.roi.y_min = 9.0;
                 metadata.roi.y_max = 9.6;
 
-                % Target position (where wheelchair should stop before entry)
+                % A* pathfinding goal position (final waypoint for path planning)
+                metadata.astar_goal = [33, 9.3];
+
+                % Target position (where wheelchair should stop before elevator entry - Phase 1)
                 metadata.target_position = [30, 9.4];
 
                 % Door center position (inside elevator)

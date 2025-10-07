@@ -57,6 +57,23 @@ safe_colors = {
 };
 ```
 
+## Git/GitHub Configuration
+
+### GitHub Personal Access Token
+**Token:** `[Stored in git remote URL - not displayed for security]`
+
+**Usage for authentication:**
+```bash
+# When pushing, use token as password, or configure:
+git config credential.helper store
+# Then on next push, enter username and use token as password
+```
+
+**Repository:**
+- URL: `https://github.com/acsl-tcu/project_whill.git`
+- Current branch: `Elevator_Gazebo`
+- Main branch: `main`
+
 ## Project Structure Notes
 
 ### Key Files and Directories
@@ -67,7 +84,7 @@ safe_colors = {
 
 ### Integration Points
 - Flood fill ROI can replace static ROI in `Estimate.m:558`
-- Bounding boxes are already generated in `Estimate.m:572` 
+- Bounding boxes are already generated in `Estimate.m:572`
 - FPM controller in `Control.m` uses obstacle data from Estimate.m
 
 ## Common MATLAB Issues

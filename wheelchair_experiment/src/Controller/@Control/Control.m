@@ -605,10 +605,12 @@ classdef Control < handle
                 door_detection_mode = false; % Default: normal elevator entry
             end
 
-            % Get elevator metadata for floor_center and door_center parameters
+            % Get elevator metadata for target_position and door_center parameters
             elevator_metadata = LocationMetadata.getLocation('elevator');
+            target_position = elevator_metadata.target_position;  % Phase 1 target position
+            door_center = elevator_metadata.door_center;          % Elevator door center
 
-            elevator_result = enterElevator(current_position, current_yaw, elevator_metadata.door_center, [], lidar_data, obj.Gazebo, obj.elevator_odom_mode, door_detection_mode, obj.door_params, elevator_metadata.target_position);
+            elevator_result = enterElevator(current_position, current_yaw, door_center, [], lidar_data, obj.Gazebo, obj.elevator_odom_mode, door_detection_mode, obj.door_params, target_position);
             
             % Check if we need to open the door (Phase 1.5 - door verification)
             if isfield(elevator_result, 'phase') && elevator_result.phase == 1.5
