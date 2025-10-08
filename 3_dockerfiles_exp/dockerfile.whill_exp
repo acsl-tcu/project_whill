@@ -5,6 +5,10 @@ FROM ${BASE_IMAGE}
 SHELL [ "/bin/bash","-c" ]
 
 #Install Dependent Packages
-RUN . /root/.venv/bin/activate \ 
-&& /usr/bin/python3 -m pip install --upgrade pip \
-&& /usr/bin/python3 -m pip install whill
+# RUN . /root/.venv/bin/activate \ 
+# && /usr/bin/python3 -m pip install --upgrade pip \
+# && /usr/bin/python3 -m pip install whill
+RUN apt-get update && apt-get install -y python3-venv \
+ && python3 -m venv /opt/venv \
+ && /opt/venv/bin/pip install --upgrade pip \
+ && /opt/venv/bin/pip install whill
