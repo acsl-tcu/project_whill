@@ -74,6 +74,22 @@ git config credential.helper store
 - Current branch: `Elevator_Gazebo`
 - Main branch: `main`
 
+### Files to Ignore (DO NOT Commit/Push)
+The following files and folders should **NOT** be committed or pushed to GitHub:
+
+**Large Data Files:**
+- `data/` - Experimental data folders (contains large video/result files)
+- `*.avi` - Video files (often > 100MB)
+- `*.dae` - Large 3D model files (can be > 100MB)
+- `*.asv` - MATLAB autosave temporary files
+
+**Why these are ignored:**
+- GitHub has a 100MB file size limit
+- Experimental data is local and regeneratable
+- Temporary files are not needed in version control
+
+These files are listed in `.gitignore` to prevent accidental commits.
+
 ## Project Structure Notes
 
 ### Key Files and Directories
@@ -81,6 +97,7 @@ git config credential.helper store
 - `src/Estimator/Estimate.m` - Main estimation class with flood fill integration
 - `src/Controller/FPM_capsule.m` - Current capsule-based obstacle avoidance
 - `Floodfill/` - Flood fill ROI implementation
+- `data/` - **[IGNORED]** Experimental data (do not commit)
 
 ### Integration Points
 - Flood fill ROI can replace static ROI in `Estimate.m:558`

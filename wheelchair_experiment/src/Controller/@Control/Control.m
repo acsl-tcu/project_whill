@@ -177,60 +177,9 @@ classdef Control < handle
         L_yaw       =  0.0
         %%
 
-        %         % 障害物の数(userInitialPositionやuserInitialVelocityの行数と一致する必要があります．)
-        %         % 0に設定すると障害物は表示されません．
-        %         userObstacleNum = 3;
-        %
-        %         % それぞれの障害物の大きさ (半径 [m]で入力してください)
-        %         % 行は障害物の数「userObstacleNum」分，作成する必要があります．
-        %         userObstacleSize= [0.512;0.512;0.512];
-        %
-        %         % 障害物の初期位置
-        %         % 列が それぞれの障害物位置[x, y]を表しており，
-        %         % 行は障害物の数「userObstacleNum」分，作成する必要があります．
-        %         userInitialPosition = [5.5, -0.1;4.5, 2.0;8.5, 1.5];
-        %
-        %         % 障害物の初期速度
-        %         % 列が それぞれの障害物速度[vx, vy]を表しており，
-        %         % 行は障害物の数「userObstacleNum」分，作成する必要があります．
-        %         userInitialVelocity = [-0.3, -0.;-0.0, -0.1;-0.1, 0.0];
-        %         % Common configuration
-        %         removeRgtNum = 3;
-        %
-        % %         vehicleSize = 0.4;
-        %         gain        = [0.5;0.5];
-        %         InputDelay  = 2000.; % Lv.5で使用．
-        %         AfterVelocity = [0,0];
-        %         randamObstacleFlag = 0;
-        %         randamObstacleNum = 2;
-        %         randamObstacleRange = [4.0,-1.0;8.0,4.0];
-        %         randamVelocityObstacleRange = [-0.5,-0.5;0.0,0.2];
-        %         randamObstacleSize= 0.5;
         animation = [0,0,0];
-        %         virtualObstacleFlag = 1;
-        %         %移植↑
-        %
-        %
-        %
-        %         obswn          = 1;          %Obstacle feedback position deviation gain
-        %         obsz           = 1;          %Obstacle feedback angle deviation gain
-        %         obsrwn         = 0.9;
-        %         obsrd          = 0.5;        %Target radius of obstacle
-        %
-        %         Stationary_obstacles = 3;    %dynamic obstacles douteki1konotoki1nisuru
-        %         Dynami
         c_obstacles    = 10;    %Stationary obstacles
-        %
-        %         InitialPosition = [5,0.5;10.0, -0.6; 15.0, 0.6 ; 42.3 ,4.3];
-        %
-        %         dT			= 0.05;
-        %         Hp			= 15;
-        %         Ymax		= 1.0;
-        %         Ymin		= -1.0;
-        %         dt			= 0.05;
-        %         ObstacleSize	= 0.60;
-        % elevator_center = [27, 9.4]; % Elevator center position
-    end
+     end
     properties(Constant,Access = private)
         X  = 1;
         Y  = 2;
@@ -304,13 +253,25 @@ classdef Control < handle
 
             % Door detection parameters - centralized configuration
             obj.door_params = struct();
+            % Phase 1: Position Correction
+            obj.door_params.POSITION_TOLERANCE = 0.15;          % ±15cm acceptable distance error
+            obj.door_params.POSITION_ANGLE_TOLERANCE = 0.087;   % ±5 degrees acceptable heading error (radians)
+            obj.door_params.CORRECTION_TURN_SPEED = 0.3;        % rad/s for correction turns
+            obj.door_params.CORRECTION_MOVE_SPEED = 0.15;       % m/s for correction movement (slower than entry)
+            % Phase 2: Turning towards elevator
+            obj.door_params.TURN_TOLERANCE = 0.1;               % radians (~6 degrees) - when to stop turning
+            obj.door_params.TURN_SPEED = 0.1;                   % rad/s for Phase 2 turning
+            % Phase 2.5: Door Detection
             obj.door_params.ANGLE_TOLERANCE = 30;       % ±30 degrees cone towards elevator (initial filtering)
             obj.door_params.NARROW_ROI_ANGLE = 3.5;       % ±7 degrees for wheelchair safe passage (critical ROI)
             obj.door_params.DOOR_HEIGHT_MIN = 0.5;      % Minimum height (avoid floor)
-            obj.door_params.DOOR_HEIGHT_MAX = 1.7;      % Maximum door height  
+            obj.door_params.DOOR_HEIGHT_MAX = 1.7;      % Maximum door height
             obj.door_params.MIN_POINTS_THRESHOLD = 5;   % Minimum points needed for analysis
             obj.door_params.DEPTH_THRESHOLD = 0.3;     % Points must be this much deeper than elevator center
             obj.door_params.FIXED_ELEVATOR_DISTANCE = 2.2; % Fixed elevator center distance in odometry mode (meters)
+            % Phase 3 & 5: Movement into/out of elevator
+            obj.door_params.MOVE_DISTANCE = 2.5;                % meters to move into elevator
+            obj.door_params.MOVE_SPEED = 0.2;                   % m/s for forward/reverse movement
             
             obj.Vinit = rand();
             NamedConst = findAttrValue(obj,'Constant');

@@ -1,0 +1,12 @@
+# Experimental data folders - do not commit
+data/
+
+# Large files
+*.avi
+*.dae
+
+# MATLAB temporary files
+*.asv
+
+# Video files
+astar_visualization*.avi

@@ -1,18 +1,18 @@
-function result = enterElevator(current_position, current_yaw, elevator_center, start_position, lidar_scan_data, is_gazebo, odometry_mode, door_detection_mode, door_params, target_position)
+function result = enterElevator(current_position, current_yaw, elevator_center, ~, lidar_scan_data, is_gazebo, odometry_mode, door_detection_mode, door_params, target_position)
     % Enter elevator function with six phases:
     % Phase 1: Position correction (reach target distance and orientation)
     % Phase 2: Turn towards elevator center
     % Phase 2.5: Verify elevator door is open using LiDAR (done once)
-    % Phase 3: Move into elevator using odometry only until target distance reached
+    % Phase 3: Move into elevator using odometry (velocity × time) until target distance reached
     % Phase 4: Inside elevator waiting (door close, reopen, detect)
-    % Phase 5: Reverse out of elevator
+    % Phase 5: Reverse out of elevator (odometry-based)
     % Phase 6: Completed
     %
     % Inputs:
-    %   current_position - [x, y] current wheelchair position
+    %   current_position - [x, y] current wheelchair position (used only for Phase 1 & 2)
     %   current_yaw - current heading angle in radians
     %   elevator_center - [x, y] position of elevator center (default: [27, 12])
-    %   start_position - [x, y] position where Phase 3 started (for distance tracking)
+    %   (4th parameter unused - kept for backward compatibility)
     %   lidar_scan_data - struct with xyz_global and xyz_local point cloud data from Estimate.m
     %   is_gazebo - boolean flag indicating if running in Gazebo simulation
     %   odometry_mode - boolean or empty: true = use local coordinates, false/[] = use global coordinates
@@ -22,21 +22,22 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
     %
     % Outputs:
     %   result - struct with control commands and status
+    %
+    % Note: Phase 3 & 5 use odometry-based distance tracking (velocity × time integration)
+    %       independent of global position to work in map-free environments
     
     persistent phase1_completed; % Track if Phase 1 position correction is done
-    persistent phase3_start_pos; % Remember where Phase 3 started (moving into elevator)
+    persistent phase3_distance_traveled; % Track accumulated distance in Phase 3 (odometry-based)
     persistent door_verified; % Track if door has been verified (check only once)
     persistent elevator_sequence_state; % Track elevator simulation state
     persistent sequence_timer; % Timer for elevator sequence
     persistent current_floor; % Track current floor
     persistent target_floor; % Track target floor
-    
+    persistent last_update_time; % For delta time calculation
+    persistent last_update_time_reverse; % For delta time calculation
+
     if nargin < 3
         elevator_center = [27, 12.2]; % Default elevator center position
-    end
-    
-    if nargin >= 4 && ~isempty(start_position)
-        phase3_start_pos = start_position; % Initialize Phase 3 start position
     end
     
     if nargin < 6
@@ -52,21 +53,27 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
     end
     
     if nargin < 9 || isempty(door_params)
-        % Default door detection parameters if not provided
+        % Default door detection parameters if not provided (should match Control.m)
         door_params = struct();
         % Phase 1: Position Correction
         door_params.POSITION_TOLERANCE = 0.15;          % ±15cm acceptable distance error
         door_params.POSITION_ANGLE_TOLERANCE = 0.087;   % ±5 degrees acceptable heading error (radians)
         door_params.CORRECTION_TURN_SPEED = 0.3;        % rad/s for correction turns
         door_params.CORRECTION_MOVE_SPEED = 0.15;       % m/s for correction movement (slower than entry)
+        % Phase 2: Turning towards elevator
+        door_params.TURN_TOLERANCE = 0.1;               % radians (~6 degrees) - when to stop turning
+        door_params.TURN_SPEED = 0.1;                   % rad/s for Phase 2 turning
         % Phase 2.5: Door Detection
         door_params.ANGLE_TOLERANCE = 30;       % ±30 degrees cone towards elevator (initial filtering)
-        door_params.NARROW_ROI_ANGLE = 12;      % ±12 degrees for wheelchair safe passage (1.3m at 3m distance)
-        door_params.DOOR_HEIGHT_MIN = 0.3;      % Minimum height (avoid floor)
-        door_params.DOOR_HEIGHT_MAX = 2.2;      % Maximum door height
+        door_params.NARROW_ROI_ANGLE = 3.5;       % ±7 degrees for wheelchair safe passage (critical ROI)
+        door_params.DOOR_HEIGHT_MIN = 0.5;      % Minimum height (avoid floor)
+        door_params.DOOR_HEIGHT_MAX = 1.7;      % Maximum door height
         door_params.MIN_POINTS_THRESHOLD = 5;   % Minimum points needed for analysis
         door_params.DEPTH_THRESHOLD = 0.3;     % Points must be this much deeper than elevator center
-        door_params.FIXED_ELEVATOR_DISTANCE = 2.5; % Fixed elevator center distance in odometry mode (meters)
+        door_params.FIXED_ELEVATOR_DISTANCE = 2.2; % Fixed elevator center distance in odometry mode (meters)
+        % Phase 3 & 5: Movement into/out of elevator
+        door_params.MOVE_DISTANCE = 2.5;                % meters to move into elevator
+        door_params.MOVE_SPEED = 0.2;                   % m/s for forward/reverse movement
     end
     
     % Initialize persistent variables on first call
@@ -93,12 +100,17 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
     if isempty(target_floor)
         target_floor = 1; % Will be set when entering elevator
     end
-    
-    % Parameters
-    TURN_TOLERANCE = 0.1; % radians (~6 degrees)
-    MOVE_DISTANCE = 2.5;  % meters to move into elevator
-    TURN_SPEED = 0.1;     % rad/s for turning
-    MOVE_SPEED = 0.2;     % m/s for forward movement
+
+    if isempty(phase3_distance_traveled)
+        phase3_distance_traveled = 0; % Initialize distance counter
+    end
+
+
+    % Extract parameters from door_params (all parameters now centralized in Control.m)
+    TURN_TOLERANCE = door_params.TURN_TOLERANCE;  % radians (~6 degrees)
+    MOVE_DISTANCE = door_params.MOVE_DISTANCE;    % meters to move into elevator
+    TURN_SPEED = door_params.TURN_SPEED;          % rad/s for turning
+    MOVE_SPEED = door_params.MOVE_SPEED;          % m/s for forward movement
     
     % DEBUG MODE - Set to true to enable continuous door checking
     DEBUG_MODE = false;
@@ -298,25 +310,43 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                 end
                 
             else
-                % Phase 3: Move forward into elevator
+                % Phase 3: Move forward into elevator (odometry-based distance tracking)
                 result.phase = 3;
 
-                % Initialize Phase 3 start position if not set
-                if isempty(phase3_start_pos)
-                    phase3_start_pos = current_position;
-                    fprintf('Phase 3: Starting forward movement from [%.2f, %.2f]\n', ...
-                            phase3_start_pos(1), phase3_start_pos(2));
+                % Initialize Phase 3 distance if not set
+                if isempty(phase3_distance_traveled)
+                    phase3_distance_traveled = 0;
+                    fprintf('Phase 3: Starting forward movement (odometry mode)\n');
+                    fprintf('         Target distance: %.2f m\n', MOVE_DISTANCE);
                 end
 
-                % Calculate distance moved since Phase 3 started
-                distance_moved = norm(current_position - phase3_start_pos);
-                remaining_distance = MOVE_DISTANCE - distance_moved;
+                % Calculate time elapsed since last update
+                if isempty(last_update_time)
+                    dt = 0; % First iteration, no time elapsed yet
+                    last_update_time = tic; % Initialize timer
+                else
+                    dt = toc(last_update_time);
+                    last_update_time = tic; % Reset for next iteration
+                end
 
-                fprintf('Phase 3: Distance moved: %.2f m, Remaining: %.2f m\n', ...
-                        distance_moved, remaining_distance);
+                % Failsafe: Reject large dt values (prevent distance corruption)
+                if dt > 0.5
+                    fprintf('WARNING: Large dt detected (%.2fs) - setting to 0 to prevent distance corruption\n', dt);
+                    dt = 0;
+                end
+
+                % Accumulate distance based on commanded velocity (odometry)
+                % Note: We use the commanded velocity from previous iteration
+                % stored in result.V(1) if available, otherwise use MOVE_SPEED
+                phase3_distance_traveled = phase3_distance_traveled + (MOVE_SPEED * dt);
+
+                remaining_distance = MOVE_DISTANCE - phase3_distance_traveled;
+
+                fprintf('Phase 3: Distance traveled: %.2f m, Remaining: %.2f m (dt=%.3fs)\n', ...
+                        phase3_distance_traveled, remaining_distance, dt);
 
                 if remaining_distance > 0.1 % Still need to move (with 10cm tolerance)
-                    result.status = 'Moving into elevator';
+                    result.status = 'Moving into elevator (odometry)';
                     result.V(1) = MOVE_SPEED;  % Forward movement
                     result.V(2) = 0;           % No turning
 
@@ -327,7 +357,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                     sequence_timer = tic;
                     target_floor = current_floor; % For now, target = current (no floor change)
                     fprintf('Phase 3: COMPLETED! Wheelchair inside elevator.\n');
-                    fprintf('Total distance moved: %.2f m\n', distance_moved);
+                    fprintf('Total distance traveled (odometry): %.2f m\n', phase3_distance_traveled);
                     fprintf('Setting current_floor = target_floor = %d\n', target_floor);
 
                     % Trigger door close
@@ -410,18 +440,32 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
             end
             
         case 'reversing'
-            % Phase 5: Reverse out of elevator
+            % Phase 5: Reverse out of elevator (odometry-based)
             result.phase = 5;
-            result.status = 'Reversing out of elevator';
+            result.status = 'Reversing out of elevator (odometry)';
 
-            % Calculate distance moved since Phase 3 started (for tracking reverse progress)
-            if ~isempty(phase3_start_pos)
-                distance_moved = norm(current_position - phase3_start_pos);
+            % Calculate time elapsed since last update
+            if isempty(last_update_time_reverse)
+                dt = 0; % First iteration, no time elapsed yet
+                last_update_time_reverse = tic; % Initialize timer
             else
-                distance_moved = 0;
+                dt = toc(last_update_time_reverse);
+                last_update_time_reverse = tic; % Reset for next iteration
             end
 
-            if distance_moved > 0.3 % Still need to reverse out
+            % Failsafe: Reject large dt values (prevent distance corruption)
+            if dt > 0.5
+                fprintf('WARNING: Large dt detected (%.2fs) - setting to 0 to prevent distance corruption\n', dt);
+                dt = 0;
+            end
+
+            % Accumulate reverse distance (reduce the traveled distance counter)
+            phase3_distance_traveled = phase3_distance_traveled - (MOVE_SPEED * dt);
+
+            fprintf('Phase 5: Distance remaining: %.2f m (reversing at %.1f m/s)\n', ...
+                    phase3_distance_traveled, MOVE_SPEED);
+
+            if phase3_distance_traveled > 0.1 % Still need to reverse out
                 result.V(1) = -MOVE_SPEED; % Reverse movement
                 result.V(2) = 0;           % No turning
 
@@ -437,12 +481,15 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
 
                 % Reset all persistent variables for next use
                 phase1_completed = [];
-                phase3_start_pos = [];
+                phase3_distance_traveled = [];
                 elevator_sequence_state = 'normal';
                 sequence_timer = 0;
                 door_verified = false;
                 current_floor = 1;
                 target_floor = 1;
+                last_update_time = [];
+                last_update_time_reverse = [];
+
             end
     end
     
