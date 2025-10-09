@@ -33,6 +33,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
     persistent sequence_timer; % Timer for elevator sequence
     persistent current_floor; % Track current floor
     persistent target_floor; % Track target floor
+    persistent floor_input_requested; % Track if floor input was already requested
     persistent last_update_time; % For delta time calculation
     persistent last_update_time_reverse; % For delta time calculation
 
@@ -94,11 +95,15 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
     end
     
     if isempty(current_floor)
-        current_floor = 1; % Start at floor 1
+        current_floor = 4; % Start at floor 1
     end
     
     if isempty(target_floor)
         target_floor = 1; % Will be set when entering elevator
+    end
+
+    if isempty(floor_input_requested)
+        floor_input_requested = false; % Initialize flag
     end
 
     if isempty(phase3_distance_traveled)
@@ -355,7 +360,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                     % Phase 3 completed - transition to elevator simulation
                     elevator_sequence_state = 'door_closed';
                     sequence_timer = tic;
-                    target_floor = current_floor; % For now, target = current (no floor change)
+                    % target_floor = current_floor; % For now, target = current (no floor change)
                     fprintf('Phase 3: COMPLETED! Wheelchair inside elevator.\n');
                     fprintf('Total distance traveled (odometry): %.2f m\n', phase3_distance_traveled);
                     fprintf('Setting current_floor = target_floor = %d\n', target_floor);
@@ -382,6 +387,31 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
             result.V = [0; 0]; % Stay still
 
             fprintf('Phase 4: Door closed, current_floor = %d, target_floor = %d\n', current_floor, target_floor);
+
+            % Manual floor input for real experiment (only ask once)
+            if is_gazebo && ~floor_input_requested 
+                fprintf('\n========================================\n');
+                fprintf('MANUAL FLOOR INPUT REQUIRED\n');
+                fprintf('========================================\n');
+                fprintf('The robot is now inside the elevator.\n');
+                fprintf('Current floor: %d\n', current_floor);
+                fprintf('Please enter the floor number you have arrived at:\n');
+                fprintf('(Press Enter after typing the floor number)\n');
+                fprintf('========================================\n');
+
+                % Get floor input from user
+                user_floor = input('Floor number: ');
+
+                % Validate input
+                if ~isempty(user_floor) && isnumeric(user_floor) && user_floor > 0 && mod(user_floor, 1) == 0
+                    current_floor = user_floor;
+                    floor_input_requested = true; % Mark as requested, won't ask again
+                    fprintf('Floor set to: %d\n', current_floor);
+                else
+                    fprintf('Invalid input! Keeping current floor = %d\n', current_floor);
+                end
+                fprintf('========================================\n\n');
+            end
 
             % Since current_floor == target_floor, immediately proceed to door opening
             if current_floor == target_floor
@@ -487,6 +517,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                 door_verified = false;
                 current_floor = 1;
                 target_floor = 1;
+                floor_input_requested = false; % Reset for next use
                 last_update_time = [];
                 last_update_time_reverse = [];
 

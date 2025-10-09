@@ -395,9 +395,14 @@ function path = pathPlanningOccupancyGrid(start, goal, occ_matrix, resolution, m
     clearance_cells = ceil(robot_clearance * resolution) + 1;
     fprintf('Path planning using clearance: %d cells (%.2fm total)\n', clearance_cells, robot_clearance);
     inflated_map = inflateMap(occ_matrix, clearance_cells);
-    
-    % A* pathfinding
-    path_indices = astar([start_r, start_c], [goal_r, goal_c], inflated_map,debug_on);
+
+    % Calculate distance transform for obstacle cost penalty
+    % This creates a cost that's higher near obstacles, preventing wall-hugging
+    distance_matrix = bwdist(inflated_map >= 0.5);
+    fprintf('Distance transform calculated for obstacle cost penalty\n');
+
+    % A* pathfinding with obstacle cost
+    path_indices = astar([start_r, start_c], [goal_r, goal_c], inflated_map, distance_matrix, debug_on);
     
     if isempty(path_indices)
         path = [];
@@ -434,8 +439,9 @@ function inflated_map = inflateMap(occ_matrix, clearance)
     end
 end
 
-function path = astar(start, goal, obstacle_map,debug_on)
+function path = astar(start, goal, obstacle_map, distance_matrix, debug_on)
     % Simple A* implementation with detailed debugging and optional visualization
+    % Includes obstacle cost penalty to prevent wall-hugging behavior
     [rows, cols] = size(obstacle_map);
     
     % Enable/disable visualization and recording
@@ -551,14 +557,22 @@ function path = astar(start, goal, obstacle_map,debug_on)
     total_cells = rows * cols;
     fprintf('Map statistics: %d free, %d occupied, %d total (%.1f%% free)\n', ...
             free_cells, occupied_cells, total_cells, 100*free_cells/total_cells);
-    
+
+    % Normalize distance matrix for obstacle cost penalty
+    % Based on reference implementation from Astar v2
+    % Creates normalized cost: 0 (far from obstacles) to 1 (near obstacles)
+    reso = 20;  % Resolution for normalization (cells)
+    r_penalty = 2;  % Penalty radius (meters equivalent)
+    normalized_obstacle_cost = max(r_penalty*reso - distance_matrix, 0) / (r_penalty*reso - 1);
+    fprintf('Obstacle cost normalization: penalty radius = %.1f meters\n', r_penalty);
+
     % Initialize
     open_set = [start, 0, heuristic(start, goal)]; % [r, c, g_score, f_score]
     closed_set = false(rows, cols);
     came_from = zeros(rows, cols, 2);
     g_score = inf(rows, cols);
     g_score(start(1), start(2)) = 0;
-    
+
     fprintf('A* initialization complete, starting search...\n');
     
     directions = [-1,0; 1,0; 0,-1; 0,1; -1,-1; -1,1; 1,-1; 1,1];
@@ -729,9 +743,12 @@ function path = astar(start, goal, obstacle_map,debug_on)
             if closed_set(neighbor(1), neighbor(2)) || obstacle_map(neighbor(1), neighbor(2)) >= 0.5
                 continue;
             end
-            
-            tentative_g = g_score(current(1), current(2)) + costs(d);
-            
+
+            % Calculate cost with obstacle penalty (prevents wall-hugging)
+            % Reference: g_cost_neighbor = g_cost(current) + costs(d) + 5*o_cost(neighbor, distance_matrix)
+            obstacle_penalty = 5 * normalized_obstacle_cost(neighbor(1), neighbor(2));
+            tentative_g = g_score(current(1), current(2)) + costs(d) + obstacle_penalty;
+
             if tentative_g < g_score(neighbor(1), neighbor(2))
                 came_from(neighbor(1), neighbor(2), :) = current;
                 g_score(neighbor(1), neighbor(2)) = tentative_g;

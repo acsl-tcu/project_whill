@@ -187,7 +187,7 @@ classdef Estimate < handle
             
             % Path planning - moved from Control.m constructor
             BIM_data= LocationMetadata.getLocation('elevator');
-            initial_position = [25,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
+            initial_position = [27,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
             goal_position = BIM_data.astar_goal;  % Use astar_goal for path planning (final waypoint)
             
             % Calculate robot dimensions (using same constants as Control.m)
@@ -390,43 +390,7 @@ classdef Estimate < handle
                     error('No such a configured mode.')
                     %
             end
-            %
-            %     %%
-            %     Zone=[-0.15 30.00 -0.90 0.80  0.2 2
-            %           -1.30 -0.15 -0.90 5.20  0.2 2
-            %           -1.30 30.60  5.20 6.90  0.2 2
-            %           30.60 31.70  5.20 8.30  0.2 2
-            %           30.60 36.00  8.30 10.6  0.2 2];
-            %     dx =0.1;
-            %
-            %     % figure
-            %     % for i= 1:size(Zone,1)
-            %     %     plot(polyshape([Zone(i,1),Zone(i,2),Zone(i,2),Zone(i,1)],[Zone(i,3),Zone(i,3),Zone(i,4),Zone(i,4)]))
-            %     %     hold on
-            %     % end
-            %     % axis equal
-            %     % grid on
-            %     %%
-            %
-            %     if Plant.X>=Zone(1,1) && Plant.X<=Zone(1,2) && Plant.Y>=Zone(1,3) && Plant.Y<=Zone(1,4)
-            %         Limit= [Zone(1,1:2)+[-dx 0]; Zone(1,3:4)+[dx -dx]; Zone(1,5:6)];
-            %     elseif Plant.X>=Zone(2,1) && Plant.X<=Zone(2,2) && Plant.Y>=Zone(2,3) && Plant.Y<=Zone(2,4)
-            %         Limit= [Zone(2,1:2)+[dx -dx]; Zone(2,3:4)+[dx dx]; Zone(2,5:6)];
-            %     elseif Plant.X>=Zone(3,1) && Plant.X<=Zone(3,2) && Plant.Y>=Zone(3,3) && Plant.Y<=Zone(3,4)
-            %         Limit= [Zone(3,1:2)+[dx dx]; Zone(3,3:4)+[dx -dx]; Zone(3,5:6)];
-            %     elseif Plant.X>=Zone(4,1) && Plant.X<=Zone(4,2) && Plant.Y>=Zone(4,3) && Plant.Y<=Zone(4,4)
-            %         Limit= [Zone(4,1:2)+[dx -dx]; Zone(4,3:4)+[dx dx]; Zone(4,5:6)];
-            %     elseif Plant.X>=Zone(5,1) && Plant.X<=Zone(5,2) && Plant.Y>=Zone(5,3) && Plant.Y<=Zone(5,4)
-            %         Limit= [Zone(5,1:2)+[dx 0]; Zone(5,3:4)+[dx -dx]; Zone(5,5:6)];
-            %     end
-            %
-            %     % figure
-            %     % plot(polyshape([Limit(1,1),Limit(1,2),Limit(1,2),Limit(1,1)],[Limit(2,1),Limit(2,1),Limit(2,2),Limit(2,2)]))
-            %     % hold on
-            %     % axis equal
-            %     % grid on
-            %     %%
-            %
+
             %% Handle user mode requests from menu
             if isfield(Plant, 'UserModeRequest') && Plant.UserModeRequest.requested
                 user_request = Plant.UserModeRequest;
@@ -476,20 +440,12 @@ classdef Estimate < handle
             %% Phase detection for elevator control
             current_position = [Plant.X, Plant.Y];
 
-            % Check if wheelchair has passed the final waypoint
-            % Using same logic as determine_target_location_gpu.m line 6: dot(w1-w0, robot-w1) >= 0
-            waypoints = obj.sharedControlMode.getWaypoints();
-            passed_final_waypoint = false;
-
-            if ~isempty(waypoints) && size(waypoints, 1) >= 2
-                % Get last two waypoints
-                w0 = waypoints(end-1, 1:2);  % Second-to-last waypoint [x, y]
-                w1 = waypoints(end, 1:2);     % Last waypoint (final) [x, y]
-                robot = current_position;     % Current robot position [x, y]
-
-                % Check if robot has passed final waypoint: dot(w1-w0, robot-w1) >= 0
-                passed_final_waypoint = dot(w1 - w0, robot - w1) >= 0;
-            end
+            % Check if wheelchair has reached the final waypoint
+            % NOTE: Control.m is the SINGLE SOURCE OF TRUTH for target_n
+            %       Control.m updates target_n via determine_target_location() every iteration
+            %       Control.m shares target_n with us via sharedControlMode.setCurrentTargetWaypoint()
+            %       We simply check if current target == final waypoint
+            passed_final_waypoint = obj.sharedControlMode.isAtFinalWaypoint();
 
             % Check for mode transitions
             if strcmp(obj.sharedControlMode.getMode(), 'floor_change') && passed_final_waypoint
@@ -520,11 +476,15 @@ classdef Estimate < handle
             
             % Debug info for position tracking
             if mod(obj.cnt, 50) == 0 % Print every 50 iterations to avoid spam
+                waypoints = obj.sharedControlMode.getWaypoints();
+                current_target_n = obj.sharedControlMode.getCurrentTargetWaypoint();
+
                 if ~isempty(waypoints) && size(waypoints, 1) >= 1
                     final_waypoint = waypoints(end, 1:2);
                     distance_to_final = norm(current_position - final_waypoint);
-                    fprintf('[ESTIMATE] Position: [%.3f, %.3f] - Distance to final waypoint: %.2fm, Passed: %d, Mode: %s\n', ...
-                        current_position(1), current_position(2), distance_to_final, passed_final_waypoint, obj.control_phase);
+                    fprintf('[ESTIMATE] Position: [%.3f, %.3f] - Target: %d/%d, Distance to final: %.2fm, At final: %d, Mode: %s\n', ...
+                        current_position(1), current_position(2), current_target_n, size(waypoints, 1), ...
+                        distance_to_final, passed_final_waypoint, obj.control_phase);
                 else
                     fprintf('[ESTIMATE] Position: [%.3f, %.3f] - Mode: %s\n', ...
                         current_position(1), current_position(2), obj.control_phase);

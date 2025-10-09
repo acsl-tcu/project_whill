@@ -12,7 +12,7 @@ classdef Control < handle
         Obstacle_Topic1
         Obstacle_Topic2
         Obstacle_Topic3
-        Obstacle_Topic4
+        Obstacle_Topic4ini
         Obstacle_Topic5
         Obstacle_Topic6
         Obstacle_Topic7
@@ -654,6 +654,9 @@ classdef Control < handle
             tempobj_d.target_n  = gpuArray(obj.target_n);
             % px                  = gpuArray(px);
             obj.target_n        = determine_target_location(tempobj_d, px);
+
+            % Update SharedControlMode with current target waypoint
+            obj.sharedControlMode.setCurrentTargetWaypoint(obj.target_n(1,1));
             %--------------------------------------------------------------
 
             tempobj.K               = obj.K;
