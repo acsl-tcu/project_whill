@@ -1,8 +1,4 @@
-ARG DEBIAN_FRONTEND=noninteractive
-ENV DEBIAN_FRONTEND=noninteractive
-ENV TZ=Asia/Tokyo
 ARG BASE_IMAGE
-ARG ROS_DISTRO
 FROM ${BASE_IMAGE}
 
 SHELL [ "/bin/bash","-c" ]
