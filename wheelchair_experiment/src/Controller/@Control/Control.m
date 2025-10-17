@@ -196,6 +196,11 @@ classdef Control < handle
         th_target_w
         sharedControlMode  % Shared control mode handle object
         door_params       % Door detection parameters struct
+
+        % Multi-room navigation properties
+        multiRoomNavState  % Navigation state struct (from executeMultiRoomNavigation)
+        multiRoomEnabled   % Boolean flag to enable multi-room navigation
+        roomDatabasePath   % Path to room_database.json
     end
 
 
@@ -272,7 +277,14 @@ classdef Control < handle
             % Phase 3 & 5: Movement into/out of elevator
             obj.door_params.MOVE_DISTANCE = 2.5;                % meters to move into elevator
             obj.door_params.MOVE_SPEED = 0.2;                   % m/s for forward/reverse movement
-            
+
+            % Initialize multi-room navigation (disabled by default)
+            obj.multiRoomEnabled = false;
+            obj.multiRoomNavState = struct();
+            obj.multiRoomNavState.initialized = false;
+            obj.roomDatabasePath = fullfile(fileparts(mfilename('fullpath')), ...
+                                             '../../MultiRoomNav/room_database.json');
+
             obj.Vinit = rand();
             NamedConst = findAttrValue(obj,'Constant');
             obj.target_n = ones(obj.K,obj.NP)*2;
@@ -421,7 +433,12 @@ classdef Control < handle
             % Phase transition is now handled by Estimate.m
 
             % Execute control based on current mode
-            if any(strcmp(obj.sharedControlMode.getMode(), {'path_following', 'floor_change'}))&& ~(obj.target_n(1,1)==size(obj.waypoint,1))
+            if strcmp(obj.sharedControlMode.getMode(), 'multi_room_navigation')
+                % Multi-room navigation control
+                [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = obj.multiRoomNavigationControl(Position, preobs, lidar_data);
+                elevator_result = [];  % Multi-room mode handles its own door crossings
+
+            elseif any(strcmp(obj.sharedControlMode.getMode(), {'path_following', 'floor_change'}))&& ~(obj.target_n(1,1)==size(obj.waypoint,1))
                 % Normal path following control
                 [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = obj.pathFollowingControl(Position, preobs);
                 elevator_result = [];  % No elevator result in path following mode
@@ -594,7 +611,22 @@ classdef Control < handle
 
             clc;  % Clear command window
 
-            if any(strcmp(obj.sharedControlMode.getMode(), {'path_following', 'floor_change'}))
+            if strcmp(obj.sharedControlMode.getMode(), 'multi_room_navigation')
+                % Multi-room navigation mode status
+                fprintf('=== MULTI-ROOM NAVIGATION MODE ===\n');
+                fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
+                if isfield(obj.multiRoomNavState, 'mode')
+                    fprintf('Nav Mode: %s\n', obj.multiRoomNavState.mode);
+                    fprintf('Status: %s\n', obj.multiRoomNavState.status);
+                    if isfield(obj.multiRoomNavState, 'current_segment')
+                        fprintf('Segment: %d/%d\n', obj.multiRoomNavState.current_segment, ...
+                                length(obj.multiRoomNavState.waypoint_segments));
+                    end
+                end
+                fprintf('Control: V=%.3f m/s, Ω=%.3f rad/s\n', U(1), U(2));
+                fprintf('===================================\n');
+
+            elseif any(strcmp(obj.sharedControlMode.getMode(), {'path_following', 'floor_change'}))
                 % Path following mode status
                 fprintf('=== PATH FOLLOWING MODE ===\n');
                 fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
@@ -712,6 +744,62 @@ classdef Control < handle
 
             %% Extract control input
             U = uOpt.u(1).u(:,1);
+        end
+
+        function [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = multiRoomNavigationControl(obj, Position, preobs, lidar_data)
+            % Multi-room navigation control with door crossings
+            % Combines path following and door entry algorithms
+
+            % Add path to MultiRoomNav directory
+            addpath(fullfile(fileparts(mfilename('fullpath')), '../../MultiRoomNav'));
+
+            current_position = [Position.X, Position.Y];
+            current_yaw = Position.yaw;
+
+            % Initialize on first call
+            if ~obj.multiRoomNavState.initialized
+                fprintf('[CONTROL] Initializing multi-room navigation...\n');
+                % Call HybridPathPlanner (this should be called once externally before switching to this mode)
+                % For now, create placeholder state
+                obj.multiRoomNavState.initialized = false;
+                obj.multiRoomNavState.mode = 'planning';
+                obj.multiRoomNavState.status = 'Not initialized - call planMultiRoomPath first';
+                U = [0; 0];
+                % Return empty variables
+                pu = {};
+                px = {};
+                pw = {};
+                BestCost = [];
+                BestCostId = [];
+                uOpt = {};
+                fval = [];
+                removed = [];
+                return;
+            end
+
+            % Execute multi-room navigation
+            [nav_state, control_cmd] = executeMultiRoomNavigation(current_position, current_yaw, ...
+                                                                   lidar_data, obj.door_params);
+
+            % Update state
+            obj.multiRoomNavState = nav_state;
+            U = control_cmd.V;
+
+            % Check if completed
+            if nav_state.completed
+                obj.sharedControlMode.setMode('completed');
+                fprintf('=== MODE CHANGE: Multi-room navigation COMPLETED ===\n');
+            end
+
+            % Return empty variables for MPC-specific outputs
+            pu = {};
+            px = {};
+            pw = {};
+            BestCost = [];
+            BestCostId = [];
+            uOpt = {};
+            fval = [];
+            removed = [];
         end
 
     end
