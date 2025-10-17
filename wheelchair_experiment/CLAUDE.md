@@ -123,12 +123,24 @@ These files are listed in `.gitignore` to prevent accidental commits.
 
 ## Flood Fill Implementation Notes
 
-### Performance
+### ⚠️ CURRENT STATUS: NOT WORKING - DO NOT USE
+**Status:** The flood fill algorithm in `Floodfill/FloodFillROI.m` has implementation issues and is currently non-functional.
+
+**DO NOT:**
+- Use flood fill for automatic room detection
+- Integrate flood fill into `Estimate.m`
+- Rely on `Floodfill/` directory for any functionality
+
+**Alternative approach:**
+- Multi-room navigation will use **manual room graph configuration** instead
+- See `MultiRoomNav/` folder for prototype implementation
+
+### Original Implementation Notes (for reference)
 - Stack-based implementation preferred over recursive (memory efficient)
 - Limit max cells to prevent memory issues (10,000 cell limit)
 - Use grid coordinates for computation, world coordinates for display
 
-### Visualization
+### Visualization Notes
 - Paint individual cells with `scatter()` for room visualization
 - Use different colors for different rooms/areas
 - Show statistics (cell count, area in m²) for user feedback
@@ -137,17 +149,36 @@ These files are listed in `.gitignore` to prevent accidental commits.
 
 ### 🎯 Current Goals
 
-#### 1. ROI Implementation (Room-Based Point Cloud Filtering) ✅ COMPLETED
-**Status: ✅ DONE**
-- ✅ Flood fill algorithm implemented in `Floodfill/FloodFillROI.m`
-- ✅ Interactive testing tools created
-- ✅ Visualization and debugging tools ready
-- ✅ Integration point identified: `Estimate.m:558`
+#### 1. Multi-Room Navigation System 🚧 IN PROGRESS
+**Status: 🚧 PROTOTYPING**
+- Location: `MultiRoomNav/` folder
+- Approach: Manual room graph configuration (flood fill not working)
+- Goal: Enable navigation between disconnected rooms (A → B → D)
+
+**Implementation:**
+- [x] Design document created (`Reference/Multi_Room_Navigation_Design.md`)
+- [ ] Create simple 2-room prototype
+- [ ] Implement manual room graph builder
+- [ ] Test A* path stitching between rooms
+- [ ] Integrate Dijkstra high-level planner
+
+**Key Components:**
+- `RoomNode.m` - Room representation with manual boundaries
+- `DoorConnection.m` - Door/passage between rooms
+- `RoomGraph.m` - Graph structure with Dijkstra search
+- `TopologicalPlanner.m` - High-level room-to-room planning
+- Manual configuration file for room/door positions
+
+#### 2. ROI Implementation (Room-Based Point Cloud Filtering) ❌ BLOCKED
+**Status: ❌ NOT WORKING**
+- ❌ Flood fill algorithm has issues in `Floodfill/FloodFillROI.m`
+- ❌ Do not use for automatic room detection
+- ❌ Integration with `Estimate.m` postponed
 
 **Next Steps for ROI:**
-- [ ] Integrate flood fill into main `Estimate.m` (replace static ROI)
-- [ ] Test performance in real wheelchair system
-- [ ] Fine-tune parameters (distance limits, wall thresholds)
+- [ ] Debug flood fill algorithm (low priority)
+- [ ] OR use manual ROI definition as fallback
+- [ ] Test performance in real wheelchair system (when fixed)
 
 #### 2. Bounding Box Obstacle Avoidance (Replace Capsules) 🚧 IN PROGRESS
 **Status: 🚧 PLANNING**
