@@ -1,0 +1,55 @@
+{
+  "building": "10F Building",
+  "floor": 4,
+  "map_file": "../map2.mat",
+  "description": "Updated: 4th floor with tested door-to-door distances",
+  "last_updated": "2025-10-15",
+  "rooms": [
+    {
+      "id": "A",
+      "name": "Elevator",
+      "type": "office",
+      "boundaries": {
+        "x_min": 28,
+        "x_max": 39,
+        "y_min": 6.9,
+        "y_max": 13.8
+      },
+      "connections": [
+        {
+          "target_room": "B",
+          "door_position": [
+            31.1,
+            6.9
+          ],
+          "door_width": 1.5,
+          "door_type": "manual",
+          "bidirectional": true
+        }
+      ]
+    },
+    {
+      "id": "B",
+      "name": "Main Corridor",
+      "type": "corridor",
+      "boundaries": {
+        "x_min": -6.5,
+        "x_max": 84.2,
+        "y_min": -1,
+        "y_max": 6.9
+      },
+      "connections": [
+        {
+          "target_room": "A",
+          "door_position": [
+            31.1,
+            6.9
+          ],
+          "door_width": 1.5,
+          "door_type": "manual",
+          "bidirectional": true
+        }
+      ]
+    }
+  ]
+}
