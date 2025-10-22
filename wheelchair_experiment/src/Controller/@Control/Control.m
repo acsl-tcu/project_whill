@@ -532,8 +532,8 @@ classdef Control < handle
                     removed = struct('pu', [], 'px', [], 'pw', []); % Empty removed struct
                     elevator_result = [];
 
-                case 'elevator_entry'
-                    % Elevator entry control
+                case {'elevator_entry', 'door_detection'}
+                    % Elevator entry control (includes door_detection mode for testing)
                     if ~isempty(target_info.door_center)
                         elevator_center = target_info.door_center;
                     else
