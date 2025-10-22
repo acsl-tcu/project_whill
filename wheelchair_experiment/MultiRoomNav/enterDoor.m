@@ -60,19 +60,11 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
     TURN_SPEED = door_params.TURN_SPEED;
     MOVE_SPEED = door_params.MOVE_SPEED;
 
-    fprintf('\n=== ENTERING DOOR SEQUENCE (Type: %s) ===\n', door_type);
-    fprintf('Current position: [%.2f, %.2f], Yaw: %.2f rad\n', ...
-            current_position(1), current_position(2), current_yaw);
-    fprintf('Door center: [%.2f, %.2f]\n', door_center(1), door_center(2));
-    fprintf('Exit position: [%.2f, %.2f]\n', exit_position(1), exit_position(2));
-
-    % Calculate required heading to face door center
-    direction_vector = door_center - current_position;
+    % Calculate required heading to face exit position (target in next room)
+    % This ensures wheelchair is aligned towards where it needs to go, not just the door
+    direction_vector = exit_position - current_position;
     required_heading = atan2(direction_vector(2), direction_vector(1));
     heading_error = angdiff(required_heading, current_yaw);
-
-    fprintf('Required heading: %.2f rad (%.1f deg)\n', required_heading, rad2deg(required_heading));
-    fprintf('Heading error: %.2f rad (%.1f deg)\n', heading_error, rad2deg(heading_error));
 
     % Initialize result structure
     result = struct();
@@ -83,8 +75,6 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
 
     % Phase 1: Position Correction
     if ~phase1_completed
-        fprintf('Phase 1: Position correction\n');
-
         % Calculate target position (should be ~1m before door)
         % This is passed from HybridPathPlanner as the astar_goal
         target_position = current_position; % Already at astar_goal from A* planning
@@ -100,22 +90,15 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
 
         if phase1_result.completed
             phase1_completed = true;
-            fprintf('Phase 1 completed - proceeding to Phase 2 (turning)\n');
         end
 
-    % Phase 2: Turn towards door
+    % Phase 2: Turn towards exit position (target in next room)
     elseif abs(heading_error) > TURN_TOLERANCE
         result.phase = 2;
-        result.status = 'Turning towards door';
+        result.status = 'Turning towards exit position';
 
-        if heading_error > 0
-            result.V(2) = TURN_SPEED;  % Turn left (counterclockwise)
-            fprintf('Phase 2: Turning LEFT (%.1f deg remaining)\n', rad2deg(abs(heading_error)));
-        else
-            result.V(2) = -TURN_SPEED; % Turn right (clockwise)
-            fprintf('Phase 2: Turning RIGHT (%.1f deg remaining)\n', rad2deg(abs(heading_error)));
-        end
-        result.V(1) = 0; % No forward movement
+        turn_result = turnTowardsTarget(current_yaw, exit_position, current_position, TURN_SPEED, TURN_TOLERANCE);
+        result.V = turn_result.V;
 
     % Phase 2.5: Check door state
     elseif ~door_verified
@@ -123,91 +106,45 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
         result.status = 'Verifying door is passable';
         result.V = [0; 0]; % Stop while checking
 
-        fprintf('Phase 2.5: Checking door state using LiDAR...\n');
+        % Use unified door checking function
+        wheelchair_pose = [current_position, current_yaw];
+        odometry_mode = false; % Use global coordinates for enterDoor
 
-        % Extract point cloud data
-        if ~isempty(lidar_scan_data)
-            if isstruct(lidar_scan_data) && isfield(lidar_scan_data, 'xyz_global')
-                pointCloud = lidar_scan_data.xyz_global;
-            else
-                pointCloud = lidar_scan_data;
-            end
+        door_check = checkDoorPassable(lidar_scan_data, wheelchair_pose, door_center, door_type, odometry_mode, door_params);
+        result.door_state = door_check.door_state;
 
-            % Check door state
-            wheelchair_pose = [current_position, current_yaw];
-            odometry_mode = false; % Use global coordinates
-
-            if strcmp(door_type, 'elevator')
-                % Use elevator-specific door detection
-                door_state = detectElevatorDoorState(pointCloud{1}, wheelchair_pose, ...
-                                                      door_center, odometry_mode, door_params);
-            else
-                % Use general door detection (regular doors)
-                door_state = detectDoorState(pointCloud{1}, wheelchair_pose, ...
-                                             door_center, odometry_mode, door_params);
-            end
-
-            result.door_state = door_state;
-
-            if strcmp(door_state, 'open')
-                fprintf('Phase 2.5: Door verified as OPEN/PASSABLE - proceeding to Phase 3\n');
-                door_verified = true;
-            elseif strcmp(door_state, 'closed')
-                fprintf('Phase 2.5: Door is CLOSED - waiting...\n');
-                % Stay in Phase 2.5
-            else
-                fprintf('Phase 2.5: Door state UNKNOWN - proceeding with caution\n');
-                door_verified = true; % Proceed anyway
-            end
-        else
-            fprintf('Warning: No LiDAR data - assuming door is passable\n');
+        if door_check.verified
             door_verified = true;
-            result.door_state = 'unknown';
+        elseif strcmp(door_check.door_state, 'closed')
+            % Door closed - waiting
+        else
+            door_verified = true; % Proceed anyway if unknown
         end
 
     % Phase 3: Move through door to exit position
     else
         result.phase = 3;
+        result.status = 'Moving through door';
 
-        % Calculate distance to exit position
+        % Calculate target distance based on exit position
         distance_to_exit = norm(exit_position - current_position);
 
-        % Calculate time elapsed since last update (for odometry)
-        if isempty(last_update_time)
-            dt = 0;
-            last_update_time = tic;
-        else
-            dt = toc(last_update_time);
-            last_update_time = tic;
-        end
+        % Use moveDistance for odometry tracking
+        % Target distance is a reasonable fixed value (e.g., 2.0m for typical door passage)
+        TARGET_DOOR_DISTANCE = 2.0; % meters
+        move_result = moveDistance(TARGET_DOOR_DISTANCE, MOVE_SPEED, 'forward', distance_traveled, last_update_time);
 
-        % Failsafe: reject large dt values
-        if dt > 0.5
-            fprintf('WARNING: Large dt detected (%.2fs) - setting to 0\n', dt);
-            dt = 0;
-        end
+        result.V = move_result.V;
+        distance_traveled = move_result.distance_traveled;
+        last_update_time = move_result.last_update_time;
 
-        % Accumulate distance traveled
-        distance_traveled = distance_traveled + (MOVE_SPEED * dt);
-
-        fprintf('Phase 3: Distance to exit: %.2f m, Traveled: %.2f m\n', ...
-                distance_to_exit, distance_traveled);
-
-        if distance_to_exit > 0.15 % 15cm tolerance
-            result.status = 'Moving through door';
-            result.V(1) = MOVE_SPEED;  % Forward movement
-            result.V(2) = 0;           % No turning
-
-            fprintf('Phase 3: Moving FORWARD through door (%.1f m/s)\n', MOVE_SPEED);
-        else
+        % Check if we've reached the exit position (primary check)
+        if distance_to_exit <= 0.15 || move_result.completed
             % Phase 4: Completed
             result.phase = 4;
             result.status = 'Door entry completed';
             result.V = [0; 0];
             result.completed = true;
-
-            fprintf('Phase 4: COMPLETED! Passed through door.\n');
-            fprintf('Total distance traveled: %.2f m\n', distance_traveled);
 
             % Reset persistent variables for next door
             phase1_completed = [];
@@ -216,9 +153,6 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
             last_update_time = [];
         end
     end
-
-    fprintf('Command: V=[%.2f, %.2f] (linear, angular)\n', result.V(1), result.V(2));
-    fprintf('=====================================\n');
 end
 
 function angle_diff = angdiff(angle1, angle2)
@@ -252,64 +186,4 @@ function params = getDefaultDoorParams()
 
     % Phase 3: Movement through door
     params.MOVE_SPEED = 0.2;                   % m/s for forward movement
-end
-
-function door_state = detectDoorState(pointCloud, wheelchair_pose, door_center, odometry_mode, door_params)
-    % General door state detection for regular doors
-    % For now, this is a placeholder that checks if there are obstacles in the path
-    %
-    % This function should be implemented similar to detectElevatorDoorState
-    % but adapted for regular doors (different geometry, no elevator-specific logic)
-
-    fprintf('  Detecting door state (regular door)...\n');
-
-    if isempty(pointCloud) || size(pointCloud, 1) == 0
-        fprintf('  Warning: Empty point cloud - assuming door is passable\n');
-        door_state = 'unknown';
-        return;
-    end
-
-    % Extract parameters
-    ANGLE_TOLERANCE = door_params.ANGLE_TOLERANCE;
-    NARROW_ROI_ANGLE = door_params.NARROW_ROI_ANGLE;
-    DOOR_HEIGHT_MIN = door_params.DOOR_HEIGHT_MIN;
-    DOOR_HEIGHT_MAX = door_params.DOOR_HEIGHT_MAX;
-    MIN_POINTS = door_params.MIN_POINTS_THRESHOLD;
-
-    % Filter points within angular cone towards door
-    wheelchair_pos = wheelchair_pose(1:2);
-    wheelchair_yaw = wheelchair_pose(3);
-
-    % Calculate angles to each point
-    dx = pointCloud(:,1) - wheelchair_pos(1);
-    dy = pointCloud(:,2) - wheelchair_pos(2);
-    angles = atan2(dy, dx);
-    angle_diff = angdiff(angles, wheelchair_yaw);
-
-    % Filter by angle (narrow ROI for safe passage)
-    narrow_mask = abs(rad2deg(angle_diff)) <= NARROW_ROI_ANGLE;
-    narrow_points = pointCloud(narrow_mask, :);
-
-    % Filter by height (door height range)
-    if ~isempty(narrow_points)
-        height_mask = (narrow_points(:,3) >= DOOR_HEIGHT_MIN) & ...
-                      (narrow_points(:,3) <= DOOR_HEIGHT_MAX);
-        door_roi_points = narrow_points(height_mask, :);
-    else
-        door_roi_points = [];
-    end
-
-    fprintf('  Points in narrow ROI (±%d deg, height %.1f-%.1f m): %d\n', ...
-            NARROW_ROI_ANGLE, DOOR_HEIGHT_MIN, DOOR_HEIGHT_MAX, size(door_roi_points, 1));
-
-    % Decision logic
-    if size(door_roi_points, 1) < MIN_POINTS
-        % Very few or no obstacles detected in path
-        door_state = 'open';
-        fprintf('  Decision: OPEN/PASSABLE (< %d obstacle points)\n', MIN_POINTS);
-    else
-        % Significant obstacles detected
-        door_state = 'closed';
-        fprintf('  Decision: CLOSED/BLOCKED (%d obstacle points)\n', size(door_roi_points, 1));
-    end
 end

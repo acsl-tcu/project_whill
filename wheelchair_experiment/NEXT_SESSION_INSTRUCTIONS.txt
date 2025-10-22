@@ -1,0 +1,396 @@
+=============================================================================
+NEXT SESSION: Universal Path Follower Integration Instructions
+=============================================================================
+
+CURRENT STATUS:
+✅ Universal path follower implemented in PhaseManager.m
+   - Methods: update(), startTransition(), handleTransition(), completeTransition()
+   - Tracks segments, waypoints, and door/elevator transitions
+   - Single source of truth for phase decisions
+
+❌ NOT INTEGRATED YET - Estimate.m and Control.m still use old pattern
+
+PROBLEM IDENTIFIED:
+Current flow has BOTH Estimate.m and Control.m directly setting phases:
+- Estimate.m: Calls phaseManager.setPhase() in user mode handling (line 248, 256, 260, 263)
+- Control.m: Calls phaseManager.setPhase() when elevator completes (line 503)
+- This creates conflicts and redundant phase management
+
+CORRECT PATTERN:
+┌─────────────────────────────────────────────────────────────────┐
+│  PhaseManager (Decision Maker)                                  │
+│  - Makes ALL phase change decisions                             │
+│  - Single source of truth                                       │
+│  - update() method returns current phase                        │
+└─────────────────────────────────────────────────────────────────┘
+           ▲                                       ▲
+           │                                       │
+    Reports position/                       Reports when
+    waypoint progress                       action complete
+           │                                       │
+┌──────────────────────┐              ┌──────────────────────┐
+│  Estimate.m          │              │  Control.m           │
+│  (Observer)          │              │  (Actor)             │
+│  - Get phase         │              │  - Get phase         │
+│  - Do LiDAR          │              │  - Do action         │
+│  - Report to PM      │              │  - Report completion │
+└──────────────────────┘              └──────────────────────┘
+
+=============================================================================
+TASK 1: Fix Control.m Integration
+=============================================================================
+
+LOCATION: Control.m main() function (line 405-617)
+
+CURRENT CODE (WRONG):
+```matlab
+% Get PhaseManager reference from Estimate.m (passed via Plant.local)
+if isfield(Plant, 'local') && isfield(Plant.local, 'phaseManager')
+    obj.phaseManager = Plant.local.phaseManager;
+end
+
+% Determine current phase from PhaseManager
+current_phase = obj.phaseManager.getCurrentPhase();
+
+% Execute control based on current phase
+if strcmp(current_phase, 'multi_room_navigation')
+    % Multi-room navigation control
+    [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = obj.multiRoomNavigationControl(Position, preobs, lidar_data);
+    elevator_result = [];
+
+elseif any(strcmp(current_phase, {'path_following', 'floor_change'})) && ~(obj.target_n(1,1)==size(obj.waypoint,1))
+    % Normal path following control
+    [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = obj.pathFollowingControl(Position, preobs);
+    elevator_result = [];
+
+elseif any(strcmp(current_phase, {'elevator_entry', 'door_detection'}))
+    % Elevator entry control
+    elevator_result = obj.executeElevatorEntry(current_position, Position.yaw, lidar_data, door_detection_mode);
+    U = elevator_result.V;
+    % Check if elevator entry is completed
+    if isfield(elevator_result, 'completed') && elevator_result.completed
+        obj.phaseManager.setPhase('completed');  ← WRONG! Direct phase change
+        controlElevatorDoor('close');
+        fprintf('=== MODE CHANGE: Elevator entry COMPLETED ===\n');
+    end
+```
+
+NEW CODE (CORRECT):
+```matlab
+% Get PhaseManager reference from Estimate.m (passed via Plant.local)
+if isfield(Plant, 'local') && isfield(Plant.local, 'phaseManager')
+    obj.phaseManager = Plant.local.phaseManager;
+end
+
+% Get current position and waypoint index
+current_position = [Position.X, Position.Y];
+current_waypoint_idx = obj.target_n(1,1);
+
+% Update universal path follower - IT decides the phase
+[control_mode, target_info] = obj.phaseManager.update(current_position, current_waypoint_idx);
+
+% Execute control based on mode returned by PhaseManager
+switch control_mode
+    case 'path_following'
+        % Normal path following control
+        [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = obj.pathFollowingControl(Position, preobs);
+        elevator_result = [];
+
+    case 'door_entry'
+        % Door entry control
+        door_center = target_info.door_center;
+        exit_position = target_info.exit_position;
+
+        door_result = enterDoor(current_position, Position.yaw, door_center, exit_position, ...
+                               lidar_data, obj.door_params, 'regular');
+        U = door_result.V;
+
+        % Report completion to PhaseManager
+        if door_result.completed
+            obj.phaseManager.completeTransition();  ← CORRECT! Report completion
+        end
+
+        % Fill empty variables
+        pu = {}; px = {}; pw = {}; BestCost = []; BestCostId = []; uOpt = {}; fval = []; removed = [];
+        elevator_result = [];
+
+    case 'elevator_entry'
+        % Elevator entry control
+        if ~isempty(target_info.door_center)
+            elevator_center = target_info.door_center;
+        else
+            elevator_metadata = LocationMetadata.getLocation('elevator');
+            elevator_center = elevator_metadata.door_center;
+        end
+
+        elevator_result = obj.executeElevatorEntry(current_position, Position.yaw, lidar_data, door_detection_mode);
+        U = elevator_result.V;
+
+        % Report completion to PhaseManager
+        if isfield(elevator_result, 'completed') && elevator_result.completed
+            obj.phaseManager.completeTransition();  ← CORRECT! Report completion
+            controlElevatorDoor('close');
+        end
+
+        % Fill empty variables
+        pu = {}; px = {}; pw = {}; BestCost = []; BestCostId = []; uOpt = {}; fval = []; removed = [];
+
+    case 'completed'
+        % Navigation complete - stop
+        U = [0; 0];
+        pu = {}; px = {}; pw = {}; BestCost = []; BestCostId = []; uOpt = {}; fval = []; removed = [];
+        elevator_result = [];
+
+    otherwise
+        % Fallback
+        U = [0; 0];
+        pu = {}; px = {}; pw = {}; BestCost = []; BestCostId = []; uOpt = {}; fval = []; removed = [];
+        elevator_result = [];
+end
+```
+
+KEY CHANGES:
+1. Call `phaseManager.update(position, waypoint_idx)` instead of `getCurrentPhase()`
+2. Use `switch control_mode` instead of `if strcmp(current_phase, ...)`
+3. Call `phaseManager.completeTransition()` when door/elevator completes
+4. Remove `phaseManager.setPhase('completed')` - PhaseManager does this automatically
+
+=============================================================================
+TASK 2: Fix Estimate.m Integration
+=============================================================================
+
+LOCATION: Estimate.m main() function (line 230-294)
+
+CURRENT CODE (WRONG):
+```matlab
+%% Handle user mode requests from menu
+if isfield(Plant, 'UserModeRequest') && Plant.UserModeRequest.requested
+    user_request = Plant.UserModeRequest;
+
+    % Set tracking switch based on menu selection
+    if isfield(user_request, 'track_on')
+        obj.track_on = user_request.track_on;
+    end
+
+    % Delegate phase transitions to PhaseManager
+    switch user_request.new_phase
+        case 'floor_change'
+            if obj.phaseManager.isFirstTimeUse()
+                fprintf('[ESTIMATE] First-time floor_change - using initial waypoints\n');
+                obj.phaseManager.setPhase('path_following');  ← WRONG! Direct phase change
+                obj.phaseManager.markPathReplanned();
+            else
+                fprintf('[ESTIMATE] Replanning floor_change - generating new path from current position\n');
+                obj.replanPathFromCurrentPosition(Plant);
+                obj.resetAllTrackers();
+                obj.phaseManager.setPhase('path_following');  ← WRONG! Direct phase change
+            end
+
+        case 'door_detection'
+            obj.phaseManager.setPhase('door_detection');  ← WRONG! Direct phase change
+
+        case 'ndt_pose_detection'
+            obj.phaseManager.setPhase('ndt_pose_detection');  ← WRONG! Direct phase change
+    end
+end
+
+%% Phase transition checking (delegated to PhaseManager)
+current_position = [Plant.X, Plant.Y];
+current_target_n = obj.sharedControlMode.getCurrentTargetWaypoint();
+waypoints_data = obj.sharedControlMode.getWaypoints();
+...
+obj.phaseManager.checkTransitions(current_position, current_target_n, total_waypoints);  ← OLD METHOD
+obj.control_phase = obj.phaseManager.getCurrentPhase();
+```
+
+NEW CODE (CORRECT):
+```matlab
+%% Handle user mode requests from menu
+if isfield(Plant, 'UserModeRequest') && Plant.UserModeRequest.requested
+    user_request = Plant.UserModeRequest;
+
+    % Set tracking switch based on menu selection
+    if isfield(user_request, 'track_on')
+        obj.track_on = user_request.track_on;
+    end
+
+    % Handle special modes that PhaseManager doesn't manage
+    switch user_request.new_phase
+        case 'floor_change'
+            if obj.phaseManager.isFirstTimeUse()
+                fprintf('[ESTIMATE] First-time floor_change - using initial waypoints\n');
+                obj.phaseManager.markPathReplanned();
+                % Don't set phase - PhaseManager.update() will handle it
+            else
+                fprintf('[ESTIMATE] Replanning floor_change - generating new path from current position\n');
+                obj.replanPathFromCurrentPosition(Plant);
+                obj.resetAllTrackers();
+                % Don't set phase - PhaseManager.update() will handle it
+            end
+
+        case 'door_detection'
+            obj.phaseManager.setPhase('door_detection');  % Keep this - debug mode
+
+        case 'ndt_pose_detection'
+            obj.phaseManager.setPhase('ndt_pose_detection');  % Keep this - manual mode
+    end
+end
+
+%% Let PhaseManager decide phase based on current state
+current_position = [Plant.X, Plant.Y];
+current_target_n = obj.sharedControlMode.getCurrentTargetWaypoint();
+
+% Call PhaseManager.update() to let IT decide phase transitions
+% (This will be done in Control.m, but we can get the current phase here)
+obj.control_phase = obj.phaseManager.getCurrentPhase();
+```
+
+KEY CHANGES:
+1. Remove `obj.phaseManager.setPhase('path_following')` calls - let update() decide
+2. Keep special modes (door_detection, ndt_pose_detection) - these are debug/manual modes
+3. Remove `checkTransitions()` call - replaced by `update()` in Control.m
+4. Just get current phase for backward compatibility, don't make decisions
+
+=============================================================================
+TASK 3: Update PhaseManager.update() to Handle Edge Cases
+=============================================================================
+
+CURRENT ISSUE: The update() method needs to track waypoint progress within segments
+
+ADD to PhaseManager.update() (around line 375):
+```matlab
+% Track waypoint progress within current segment
+obj.current_waypoint_local = current_waypoint_idx;
+
+% Update total waypoints for current segment
+if obj.current_segment <= length(obj.waypoint_segments)
+    waypoints = obj.waypoint_segments{obj.current_segment};
+    obj.total_waypoints_segment = size(waypoints, 1);
+end
+```
+
+=============================================================================
+TASK 4: Initialize PhaseManager with Waypoints in Estimate.m Constructor
+=============================================================================
+
+LOCATION: Estimate.m constructor (line 227-238)
+
+REPLACE:
+```matlab
+% Auto-detect and enable multi-room navigation in PhaseManager
+if length(waypoint_cell_array) > 1
+    % Multi-room mode detected
+    fprintf('[ESTIMATE] Auto-detected multi-room navigation: %d segments\n', length(waypoint_cell_array));
+    obj.phaseManager.enableMultiRoom(waypoint_cell_array, room_sequence, door_info);
+    % Set phase to multi_room_navigation (not path_following)
+    obj.phaseManager.setPhase('multi_room_navigation');
+else
+    % Single-room mode
+    fprintf('[ESTIMATE] Single-room navigation: %d waypoints\n', size(waypoint_cell_array{1}, 1));
+    obj.phaseManager.setPhase('path_following');
+end
+```
+
+WITH:
+```matlab
+% Convert door_info to universal format for PhaseManager
+door_info_struct = [];
+if length(waypoint_cell_array) > 1 && ~isempty(door_info)
+    % Convert old format to new format
+    for i = 1:size(door_info.door_centers, 1)
+        door_info_struct(i).type = 'door';  % Assume doors (change to 'elevator' if needed)
+        door_info_struct(i).center = door_info.door_centers(i, :);
+        door_info_struct(i).exit = door_info.door_exit_positions(i, :);
+    end
+elseif length(waypoint_cell_array) == 1
+    % Single-room with elevator at end
+    elevator_metadata = LocationMetadata.getLocation('elevator');
+    door_info_struct = struct('type', 'elevator', ...
+                              'center', elevator_metadata.door_center, ...
+                              'exit', elevator_metadata.target_position);
+end
+
+% Initialize universal path follower
+obj.phaseManager.setWaypointsUniversal(waypoint_cell_array, room_sequence, door_info_struct);
+fprintf('[ESTIMATE] Universal path follower initialized with %d segments\n', length(waypoint_cell_array));
+```
+
+=============================================================================
+TESTING CHECKLIST
+=============================================================================
+
+After making changes, test in this order:
+
+[ ] 1. Single-room navigation → elevator
+      - Should use path_following mode
+      - Should transition to elevator_entry when reaching final waypoint
+      - Should call completeTransition() when elevator done
+      - Should end in completed state
+
+[ ] 2. Multi-room navigation with doors
+      - Should use path_following for segment 1
+      - Should transition to door_entry when segment complete
+      - Should call completeTransition() when door crossed
+      - Should return to path_following for segment 2
+      - Repeat for all segments
+
+[ ] 3. Floor change (replanning)
+      - First floor_change: should use initial waypoints
+      - Second floor_change: should replan from current position
+      - Should not cause phase conflicts
+
+[ ] 4. Manual modes (door_detection, ndt_pose_detection)
+      - Should still work as before
+      - Should not interfere with normal navigation
+
+=============================================================================
+COMMON ISSUES TO WATCH FOR
+=============================================================================
+
+1. **Waypoint index mismatch**: Control.m uses obj.target_n(1,1) which is global
+   - PhaseManager needs segment-local index
+   - May need to track both global and local indices
+
+2. **Door info format**: Old format has .door_centers array
+   - New format needs .type, .center, .exit per transition
+   - Conversion needed in Estimate.m constructor
+
+3. **Backward compatibility**: Old code uses getCurrentPhase()
+   - displayStatusMessage() still uses this
+   - Keep getCurrentPhase() method for backward compatibility
+
+4. **Transition timing**: completeTransition() must be called exactly once
+   - enterDoor/enterElevator return completed=true only once
+   - Don't call completeTransition() multiple times
+
+=============================================================================
+FILES TO MODIFY
+=============================================================================
+
+1. src/Controller/@Control/Control.m (main function, lines 405-617)
+2. src/Estimator/Estimate.m (main function, lines 230-294)
+3. src/Estimator/Estimate.m (constructor, lines 227-238)
+4. src/PhaseManager.m (update method, add waypoint tracking)
+
+=============================================================================
+SUMMARY
+=============================================================================
+
+Goal: Make PhaseManager the ONLY place that decides phase changes.
+
+Pattern:
+- Estimate.m: Observer (gets phase, reports position)
+- Control.m: Actor (gets phase, does action, reports completion)
+- PhaseManager: Decision Maker (tracks state, decides phases)
+
+Key Method: phaseManager.update(position, waypoint_idx)
+- Returns: [control_mode, target_info]
+- Replaces: getCurrentPhase() + checkTransitions()
+
+Completion Reporting: phaseManager.completeTransition()
+- Called when: enterDoor/enterElevator returns completed=true
+- Effect: Moves to next segment, returns to path_following
+
+Start with Control.m first (easier), then Estimate.m, then test.
+
+=============================================================================

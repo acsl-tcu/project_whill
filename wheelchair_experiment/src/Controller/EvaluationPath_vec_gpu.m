@@ -32,7 +32,7 @@ function [pw,remove_sample] = EvaluationPath_vec_gpu(obj,px,pu,preobs,param_FPM,
     state = vehicle_Points-[obj.Grid_Xlim(1),obj.Grid_Ylim(1)];
     Grid_Idx = [obj.Grid_Size(1) 0]+[-1 1].*floor(state(:,[2,1],:,:)./obj.Cell_Size)+[0 1];
     % �͈͊O�̏���(�ύX�K�{�F�O���b�h�͈͊O�ł���ꍇ,1�ԉE���̃C���f�b�N�X�ƂȂ�)
-    flag_out = any(Grid_Idx<[0 0] | Grid_Idx>[obj.Grid_Size(1) obj.Grid_Size(2)],2);
+    flag_out = any(Grid_Idx<=[0 0] | Grid_Idx>[obj.Grid_Size(1) obj.Grid_Size(2)],2);
     Grid_Idx = ~flag_out.*Grid_Idx + flag_out.*obj.Grid_Size;
     % sub2ind�Ő��`�C���f�b�N�X�ɕϊ�
     Grid_Idx_linear = sub2ind(obj.Grid_Size, (Grid_Idx(:, 1,:,:)), Grid_Idx(:, 2,:,:));

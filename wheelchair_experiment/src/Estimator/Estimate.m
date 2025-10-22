@@ -159,7 +159,10 @@ classdef Estimate < handle
         elevator_center         % Elevator center position [x, y]
         control_phase           % Current control phase: 'path_following', 'elevator_entry', or 'floor_change'
         sharedControlMode       % Shared control mode handle object
-        
+
+        % Universal phase manager
+        phaseManager            % PhaseManager object for centralized phase transitions
+
         % Tracking control switch
         track_on                % Boolean switch to enable/disable LiDAR processing and tracking
 
@@ -177,17 +180,20 @@ classdef Estimate < handle
             
             % Initialize shared control mode
             obj.sharedControlMode = sharedControlMode; % Store shared control mode object
-            
-            % Initialize phase detection
+
+            % Initialize universal phase manager
+            obj.phaseManager = PhaseManager(sharedControlMode);
+
+            % Initialize phase detection (backward compatibility)
             % obj.elevator_center = [27, 9.3]; % Elevator center position (same as Control.m)
             obj.control_phase = 'floor_change'; % Start in floor change mode to allow elevator entry
-            
+
             % Initialize tracking switch (default enabled)
             obj.track_on = true;
             
             % Path planning - moved from Control.m constructor
             BIM_data= LocationMetadata.getLocation('elevator');
-            initial_position = [27,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
+            initial_position = [0,0]; %set custom initial and goal positions if needed but if you want the default leave it as []
             goal_position = BIM_data.astar_goal;  % Use astar_goal for path planning (final waypoint)
             
             % Calculate robot dimensions (using same constants as Control.m)
@@ -196,41 +202,97 @@ classdef Estimate < handle
             wheel_len_front = 0.76;         % wheel_len_front from Control.m
             robot_width = wheel_width * 2;  % Total width = 0.55m
             robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
-            safety_margin = 0.35;
+            safety_margin = 0.0;
             %% 
             %% 
 
-            % Ask user to select waypoint method (interactive or A*)
-            waypoint = selectWaypointMethod(initial_position, goal_position, robot_width, robot_length, safety_margin);
-            
+            % Ask user to select waypoint method (interactive, A*, or multi-room)
+            % Returns: waypoint_cell_array - {segment1, segment2, ...}
+            [waypoint_cell_array, room_sequence, door_info] = selectWaypointMethod(...
+                initial_position, goal_position, robot_width, robot_length, safety_margin);
+
+            % DEBUG: Check waypoint data before storing
+            fprintf('\n[ESTIMATE DEBUG] Waypoint data from selectWaypointMethod:\n');
+            fprintf('  Type: %s\n', class(waypoint_cell_array));
+            fprintf('  Is cell: %d\n', iscell(waypoint_cell_array));
+            fprintf('  Number of segments: %d\n', length(waypoint_cell_array));
+            for seg = 1:length(waypoint_cell_array)
+                fprintf('  Segment %d: %dx%d waypoints\n', seg, size(waypoint_cell_array{seg}, 1), size(waypoint_cell_array{seg}, 2));
+            end
+            fprintf('\n');
+
             % Store waypoints in SharedControlMode for Control.m to access
-            obj.sharedControlMode.setWaypoints(waypoint);
+            obj.sharedControlMode.setWaypoints(waypoint_cell_array);
+
+            % Convert door_info to universal format for PhaseManager
+            door_info_struct = [];
+            final_goal_type = 'room';  % Default: reaching final waypoint completes mission
+
+            if length(waypoint_cell_array) > 1 && ~isempty(door_info)
+                % Multi-room mode: convert old format to new format
+                for i = 1:size(door_info.door_centers, 1)
+                    door_info_struct(i).type = 'door';  % Assume doors (change to 'elevator' if needed)
+                    door_info_struct(i).center = door_info.door_centers(i, :);
+                    door_info_struct(i).exit = door_info.door_exit_positions(i, :);
+                end
+
+                % Check if last transition is an elevator
+                if ~isempty(door_info_struct) && strcmp(door_info_struct(end).type, 'elevator')
+                    final_goal_type = 'elevator';
+                end
+            elseif length(waypoint_cell_array) == 1
+                % Single-room mode: add elevator at end
+                elevator_metadata = LocationMetadata.getLocation('elevator');
+                door_info_struct = struct('type', 'elevator', ...
+                                          'center', elevator_metadata.door_center, ...
+                                          'exit', elevator_metadata.target_position);
+                final_goal_type = 'elevator';  % Single-room always ends with elevator
+            end
+
+            % Initialize universal path follower with final goal type
+            obj.phaseManager.setWaypointsUniversal(waypoint_cell_array, room_sequence, door_info_struct, final_goal_type);
+            fprintf('[ESTIMATE] Universal path follower initialized with %d segments (final goal: %s)\n', ...
+                    length(waypoint_cell_array), final_goal_type);
             
             % Plot the generated path for visualization (world coordinates)
             try
                 % Load map for visualization
                 map_data = load('map2.mat');
                 map_obj = map_data.map;
-                
+
                 figure('Name', 'Generated Path Visualization', 'Position', [100, 100, 900, 600]);
                 hold on;
-                
+
                 % Show occupancy grid in world coordinates
                 show(map_obj);
-                
-                % Plot generated waypoints
-                plot(waypoint(:,1), waypoint(:,2), 'ro-', 'LineWidth', 2, 'MarkerSize', 8);
-                plot(waypoint(1,1), waypoint(1,2), 'gs', 'MarkerSize', 12, 'LineWidth', 3);
-                plot(waypoint(end,1), waypoint(end,2), 'rs', 'MarkerSize', 12, 'LineWidth', 3);
-                
+
+                % Plot all segments with different colors
+                colors = {'red', 'blue', [0 0.5 0], [1 0.5 0], [0.5 0 0.5], [0 0.8 0.8]};
+                for seg_idx = 1:length(waypoint_cell_array)
+                    segment = waypoint_cell_array{seg_idx};
+                    color_idx = mod(seg_idx - 1, length(colors)) + 1;
+                    plot(segment(:,1), segment(:,2), 'o-', 'Color', colors{color_idx}, ...
+                         'LineWidth', 2, 'MarkerSize', 6, 'DisplayName', sprintf('Segment %d', seg_idx));
+                end
+
+                % Mark start and goal
+                first_segment = waypoint_cell_array{1};
+                last_segment = waypoint_cell_array{end};
+                plot(first_segment(1,1), first_segment(1,2), 'gs', 'MarkerSize', 15, 'LineWidth', 3, 'DisplayName', 'Start');
+                plot(last_segment(end,1), last_segment(end,2), 'rs', 'MarkerSize', 15, 'LineWidth', 3, 'DisplayName', 'Goal');
+
                 xlabel('X (m)');
                 ylabel('Y (m)');
-                title('Generated Path in World Coordinates');
-                legend('Occupancy Grid', 'Waypoints', 'Start', 'Goal', 'Location', 'best');
+                if length(waypoint_cell_array) > 1
+                    title(sprintf('Multi-Room Path: %d Segments', length(waypoint_cell_array)));
+                else
+                    title('Single-Room Path');
+                end
+                legend('Location', 'best');
                 grid on;
                 axis equal;
                 hold off;
-                
+
                 fprintf('Estimate: Path visualization plotted in world coordinates\n');
             catch ME
                 fprintf('Estimate: Could not create path visualization: %s\n', ME.message);
@@ -399,95 +461,93 @@ classdef Estimate < handle
                 % Set tracking switch based on menu selection
                 if isfield(user_request, 'track_on')
                     obj.track_on = user_request.track_on;
-
                 end
-                
+
+                % Handle special modes that PhaseManager doesn't manage
                 switch user_request.new_phase
                     case 'floor_change'
-                        % Check if this is the first time using the system
-                        if obj.sharedControlMode.isFirstTimeUse()
-                            % First time - just set mode, use existing waypoints
-                            obj.sharedControlMode.setMode('floor_change');
-                            
+                        % CRITICAL FIX: Use PhaseManager.isFirstTimeUse() instead of SharedControlMode
+                        % This fixes the bug where multi_room_navigation incorrectly set is_first_use = false
+                        if obj.phaseManager.isFirstTimeUse()
+                            % First time - just mark replanned, let update() decide phase
+                            fprintf('[ESTIMATE] First-time floor_change - using initial waypoints\n');
+                            obj.phaseManager.markPathReplanned();
+                            % Don't set phase - PhaseManager.update() will handle it in Control.m
                         else
                             % Not first time - replan path from current position and reset trackers
-                            
-                            
-                            % Replan path from current position
+                            fprintf('[ESTIMATE] Replanning floor_change - generating new path from current position\n');
                             obj.replanPathFromCurrentPosition(Plant);
-                            
-                            % Reset all trackers
                             obj.resetAllTrackers();
-                            
-                            obj.sharedControlMode.setMode('floor_change');
-                            
+                            % Don't set phase - PhaseManager.update() will handle it in Control.m
                         end
-                        
+
+                    case 'navigation_only'
+                        % Navigation-only mode: Continue with existing path, just disable tracking
+                        fprintf('[ESTIMATE] Navigation-only mode activated - LiDAR tracking disabled\n');
+                        % obj.track_on already set to false above (line 463)
+                        % Don't change phase - let PhaseManager continue with current navigation plan
+
+                        % Force final goal to 'elevator' for Mode 4 testing
+                        obj.phaseManager.setFinalGoalType('elevator');
+                        fprintf('[ESTIMATE] Mode 4: Final goal forced to ELEVATOR for testing\n');
+
                     case 'door_detection'
-                        obj.sharedControlMode.setMode('door_detection');
-                        
-                        
+                        obj.phaseManager.setPhase('door_detection');  % Keep this - debug mode
+
                     case 'ndt_pose_detection'
-                        obj.sharedControlMode.setMode('ndt_pose_detection');
-                        
-                        
-                        
+                        obj.phaseManager.setPhase('ndt_pose_detection');  % Keep this - manual mode
+
                     otherwise
                         fprintf('[ESTIMATE] Unknown user mode request: %s\n', user_request.new_phase);
                 end
             end
-            
-            %% Phase detection for elevator control
-            current_position = [Plant.X, Plant.Y];
 
-            % Check if wheelchair has reached the final waypoint
-            % NOTE: Control.m is the SINGLE SOURCE OF TRUTH for target_n
-            %       Control.m updates target_n via determine_target_location() every iteration
-            %       Control.m shares target_n with us via sharedControlMode.setCurrentTargetWaypoint()
-            %       We simply check if current target == final waypoint
-            passed_final_waypoint = obj.sharedControlMode.isAtFinalWaypoint();
+            %% Let PhaseManager decide phase based on current state
+            % Phase transitions are now handled by PhaseManager.update() in Control.m
+            % Just get current phase for backward compatibility
+            obj.control_phase = obj.phaseManager.getCurrentPhase();
 
-            % Check for mode transitions
-            if strcmp(obj.sharedControlMode.getMode(), 'floor_change') && passed_final_waypoint
-                % Transition from floor_change to elevator entry when final waypoint is passed
-                obj.sharedControlMode.setMode('elevator_entry');
-                obj.control_phase = 'elevator_entry';
-                fprintf('[ESTIMATE] MODE CHANGE: Final waypoint passed at [%.3f, %.3f] - Switching to ELEVATOR_ENTRY\n', ...
-                        current_position(1), current_position(2));
-
-            elseif strcmp(obj.sharedControlMode.getMode(), 'door_detection')
-                % Door detection mode: immediately switch to elevator_entry for debug
-                obj.control_phase = 'elevator_entry';
-
-            end
-            
             %% NDT Pose Detection Mode - Continuous pose broadcasting
-            if strcmp(obj.sharedControlMode.getMode(), 'ndt_pose_detection')
+            % FIXED: Use PhaseManager.getCurrentPhase() instead of SharedControlMode.getMode()
+            if strcmp(obj.phaseManager.getCurrentPhase(), 'ndt_pose_detection')
                 % Convert yaw from radians to degrees for better readability
                 yaw_degrees = Plant.yaw * 180 / pi;
-                
+
                 % Broadcast current pose continuously (every iteration)
                 fprintf('[NDT_POSE] X: %8.3f m | Y: %8.3f m | Z: %8.3f m | Yaw: %7.2f° | Time: %.2f s\n', ...
                     Plant.X, Plant.Y, Plant.Z, yaw_degrees, Plant.T);
-                
+
                 % Continue with normal processing (don't skip)
                 obj.control_phase = 'ndt_pose_detection';
             end
             
-            % Debug info for position tracking
+            % Debug info for position tracking (rewritten for new architecture)
             if mod(obj.cnt, 50) == 0 % Print every 50 iterations to avoid spam
-                waypoints = obj.sharedControlMode.getWaypoints();
-                current_target_n = obj.sharedControlMode.getCurrentTargetWaypoint();
+                % Get current position from Plant
+                debug_position = [Plant.X, Plant.Y];
 
-                if ~isempty(waypoints) && size(waypoints, 1) >= 1
-                    final_waypoint = waypoints(end, 1:2);
-                    distance_to_final = norm(current_position - final_waypoint);
-                    fprintf('[ESTIMATE] Position: [%.3f, %.3f] - Target: %d/%d, Distance to final: %.2fm, At final: %d, Mode: %s\n', ...
-                        current_position(1), current_position(2), current_target_n, size(waypoints, 1), ...
-                        distance_to_final, passed_final_waypoint, obj.control_phase);
+                % Get waypoint info from SharedControlMode (just for printing, not for phase management)
+                debug_waypoints_data = obj.sharedControlMode.getWaypoints();
+                debug_current_target_n = obj.sharedControlMode.getCurrentTargetWaypoint();
+
+                if iscell(debug_waypoints_data)
+                    debug_waypoints = obj.sharedControlMode.getCurrentSegmentWaypoints();
+                    if isempty(debug_waypoints)
+                        debug_waypoints = debug_waypoints_data{1};
+                    end
                 else
-                    fprintf('[ESTIMATE] Position: [%.3f, %.3f] - Mode: %s\n', ...
-                        current_position(1), current_position(2), obj.control_phase);
+                    debug_waypoints = debug_waypoints_data;
+                end
+
+                if ~isempty(debug_waypoints) && size(debug_waypoints, 1) >= 1
+                    final_waypoint = debug_waypoints(end, 1:2);
+                    distance_to_final = norm(debug_position - final_waypoint);
+                    fprintf('[ESTIMATE] Position: [%.3f, %.3f] - Target: %d/%d, Distance to final: %.2fm, Phase: %s\n', ...
+                        debug_position(1), debug_position(2), debug_current_target_n, size(debug_waypoints, 1), ...
+                        distance_to_final, obj.phaseManager.getCurrentPhase());
+                else
+                    fprintf('[ESTIMATE] Position: [%.3f, %.3f] - Phase: %s\n', ...
+                        debug_position(1), debug_position(2), obj.phaseManager.getCurrentPhase());
                 end
             end
 
@@ -565,9 +625,10 @@ classdef Estimate < handle
             end
 
             %% result.localに各変数を保存
+            result.local.phaseManager = obj.phaseManager; % Pass PhaseManager reference to Control.m
             result.local.boundingBoxes = boundingBoxes;  % LiDAR bounding boxes for controller
             result.local.delta = delta;
-            result.local.control_phase = obj.control_phase; % Pass control phase to Control.m
+            result.local.control_phase = obj.phaseManager.getCurrentPhase(); % Pass current phase to Control.m (from PhaseManager)
             result.local.xyz_global = {xyz_global}; % Pass global xyz data for door detection (as cell array)
             result.local.xyz_local = {xyz_local}; % Keep local xyz for reference if needed (as cell array)
             
@@ -714,12 +775,36 @@ classdef Estimate < handle
             
             % Plot waypoints (only once, when cnt == 1, or when waypoints change)
             if obj.cnt == 1
-                waypoints = obj.sharedControlMode.getWaypoints();
-                if ~isempty(waypoints)
-                    % Plot all waypoints as track points
-                    waypoint_z = zeros(size(waypoints, 1), 1); % Set Z to 0 for waypoints
-                    waypoint_vel = zeros(size(waypoints, 1), 3); % No velocity for waypoints
-                    obj.waypointP.plotTrack([waypoints, waypoint_z], waypoint_vel);
+                waypoint_cell_array = obj.sharedControlMode.getWaypoints();
+                fprintf('[ESTIMATE] Plotting waypoints at cnt=1\n');
+                fprintf('  Waypoint data type: %s\n', class(waypoint_cell_array));
+                fprintf('  Is cell array: %d\n', iscell(waypoint_cell_array));
+                fprintf('  Length: %d\n', length(waypoint_cell_array));
+
+                if ~isempty(waypoint_cell_array) && iscell(waypoint_cell_array)
+                    % Concatenate all segments for theater plot
+                    all_waypoints = [];
+                    for seg_idx = 1:length(waypoint_cell_array)
+                        segment = waypoint_cell_array{seg_idx};
+                        fprintf('  Segment %d size: %dx%d\n', seg_idx, size(segment, 1), size(segment, 2));
+                        if ~isempty(segment) && size(segment, 2) >= 2
+                            all_waypoints = [all_waypoints; segment];
+                        else
+                            fprintf('  WARNING: Segment %d is empty or malformed!\n', seg_idx);
+                        end
+                    end
+
+                    if ~isempty(all_waypoints)
+                        % Plot all waypoints as track points
+                        waypoint_z = zeros(size(all_waypoints, 1), 1); % Set Z to 0 for waypoints
+                        waypoint_vel = zeros(size(all_waypoints, 1), 3); % No velocity for waypoints
+                        obj.waypointP.plotTrack([all_waypoints, waypoint_z], waypoint_vel);
+                        fprintf('  ✓ Plotted %d total waypoints in theater plot\n', size(all_waypoints, 1));
+                    else
+                        fprintf('  ✗ No valid waypoints to plot (all_waypoints is empty)\n');
+                    end
+                else
+                    fprintf('  ✗ Waypoint cell array is empty or not a cell!\n');
                 end
             end
             
@@ -1456,8 +1541,8 @@ classdef Estimate < handle
                 waypoint = [current_position; 30.0, 12.5]; % Current -> elevator center
             end
             
-            % Update waypoints in SharedControlMode
-            obj.sharedControlMode.setWaypoints(waypoint);
+            % Update waypoints in SharedControlMode (wrap in cell array for single-room mode)
+            obj.sharedControlMode.setWaypoints({waypoint});
             fprintf('[ESTIMATE] Updated SharedControlMode with %d new waypoints\n', size(waypoint, 1));
         end
         

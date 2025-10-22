@@ -189,12 +189,14 @@ classdef Control < handle
     end
     properties
         waypoint
+        waypoint_all_segments  % Cell array containing all waypoint segments for multi-room nav
         selectZone
         NoEntryZone
         ZoneNum
         V_ref
         th_target_w
         sharedControlMode  % Shared control mode handle object
+        phaseManager      % PhaseManager object reference (from Estimate.m)
         door_params       % Door detection parameters struct
 
         % Multi-room navigation properties
@@ -221,22 +223,67 @@ classdef Control < handle
             fprintf('=================================\n');
             
             % Get waypoints from SharedControlMode (path planning now done in Estimate.m)
+            % Waypoints are now stored as cell array {segment1, segment2, ...}
             if sharedControlMode.hasWaypoints()
-                obj.waypoint = sharedControlMode.getWaypoints();
-                fprintf('Control: Using waypoints from Estimate.m (%d points)\n', size(obj.waypoint, 1));
-                
-                % Generate V_ref based on waypoints (same logic as PathSetting functions)
+                % DEBUG: Check SharedControlMode object state BEFORE calling getWaypoints
+                fprintf('\n[CONTROL PRE-DEBUG] BEFORE getWaypoints() call:\n');
+                fprintf('  sharedControlMode class: %s\n', class(sharedControlMode));
+                fprintf('  sharedControlMode is handle: %d\n', isa(sharedControlMode, 'handle'));
+
+                waypoint_cell_array = sharedControlMode.getWaypoints();
+
+                % DEBUG: Check waypoint data received in Control
+                fprintf('\n[CONTROL DEBUG] Waypoint data from SharedControlMode:\n');
+                fprintf('  Type: %s\n', class(waypoint_cell_array));
+                fprintf('  Is cell: %d\n', iscell(waypoint_cell_array));
+                fprintf('  Length: %d\n', length(waypoint_cell_array));
+                fprintf('  Size: %s\n', mat2str(size(waypoint_cell_array)));
+                fprintf('  ndims: %d\n', ndims(waypoint_cell_array));
+
+                % Check if it's actually a numeric array instead of cell array
+                if ~iscell(waypoint_cell_array)
+                    fprintf('  *** ERROR: waypoint_cell_array is NOT a cell array! ***\n');
+                    fprintf('  *** It is a %s with value: %s ***\n', class(waypoint_cell_array), mat2str(waypoint_cell_array));
+                end
+
+                % Only loop if it's actually a cell array
+                if iscell(waypoint_cell_array)
+                    for seg = 1:length(waypoint_cell_array)
+                        fprintf('  Segment %d: %dx%d waypoints\n', seg, size(waypoint_cell_array{seg}, 1), size(waypoint_cell_array{seg}, 2));
+                    end
+                end
+                fprintf('\n');
+
+                % Extract first segment for initial control
+                obj.waypoint = waypoint_cell_array{1};  % Nx2 matrix for Control to use
+                fprintf('[CONTROL DEBUG] Extracted obj.waypoint: %dx%d\n\n', size(obj.waypoint, 1), size(obj.waypoint, 2));
+
+                % Store ALL waypoint segments for plotting (to be saved to NamedConst)
+                obj.waypoint_all_segments = waypoint_cell_array;
+
+                % Detect multi-room mode automatically
+                if length(waypoint_cell_array) > 1
+                    fprintf('Control: Multi-room mode AUTO-DETECTED (%d segments)\n', length(waypoint_cell_array));
+                    obj.multiRoomEnabled = true;
+                else
+                    fprintf('Control: Single-room mode (%d waypoints)\n', size(obj.waypoint, 1));
+                    obj.multiRoomEnabled = false;
+                end
+
+                % Generate V_ref based on first segment waypoints
                 obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
                 if size(obj.waypoint,1) >= 2
-                    obj.V_ref(end-1) = 0.5;  % Slow down before goal
+                    obj.V_ref(end-5:end-1) = 0.3;  % Slow down before goal
                 end
                 if size(obj.waypoint,1) >= 1
-                    obj.V_ref(end) = 0.5;      % Stop at goal
+                    obj.V_ref(end) = 0.2;      % Stop at goal
                 end
             else
                 % Fallback to simple default waypoints if none available
                 obj.waypoint = [28.9, 6; 30, 12]; % Basic start->elevator path
+                obj.waypoint_all_segments = {obj.waypoint}; % Single segment
                 obj.V_ref = [0.5; 0]; % Default velocities
+                obj.multiRoomEnabled = false;
                 fprintf('Control: Using fallback waypoints (%d points)\n', size(obj.waypoint, 1));
             end
             
@@ -254,7 +301,7 @@ classdef Control < handle
             obj.v_old = 0.5;
             obj.t_old = 0.2;
             obj.sharedControlMode = sharedControlMode;  % Store shared control mode object
-            obj.sharedControlMode.getMode();  % Initialize shared control mode
+            obj.phaseManager = [];  % Will be set by Estimate.m via Plant.local
 
             % Door detection parameters - centralized configuration
             obj.door_params = struct();
@@ -262,13 +309,13 @@ classdef Control < handle
             obj.door_params.POSITION_TOLERANCE = 0.15;          % ±15cm acceptable distance error
             obj.door_params.POSITION_ANGLE_TOLERANCE = 0.087;   % ±5 degrees acceptable heading error (radians)
             obj.door_params.CORRECTION_TURN_SPEED = 0.3;        % rad/s for correction turns
-            obj.door_params.CORRECTION_MOVE_SPEED = 0.15;       % m/s for correction movement (slower than entry)
+            obj.door_params.CORRECTION_MOVE_SPEED = 0.4;       % m/s for correction movement (slower than entry)
             % Phase 2: Turning towards elevator
             obj.door_params.TURN_TOLERANCE = 0.1;               % radians (~6 degrees) - when to stop turning
             obj.door_params.TURN_SPEED = 0.1;                   % rad/s for Phase 2 turning
             % Phase 2.5: Door Detection
             obj.door_params.ANGLE_TOLERANCE = 30;       % ±30 degrees cone towards elevator (initial filtering)
-            obj.door_params.NARROW_ROI_ANGLE = 3.5;       % ±7 degrees for wheelchair safe passage (critical ROI)
+            obj.door_params.NARROW_ROI_ANGLE = 4;       % ±7 degrees for wheelchair safe passage (critical ROI)
             obj.door_params.DOOR_HEIGHT_MIN = 0.5;      % Minimum height (avoid floor)
             obj.door_params.DOOR_HEIGHT_MAX = 1.7;      % Maximum door height
             obj.door_params.MIN_POINTS_THRESHOLD = 5;   % Minimum points needed for analysis
@@ -335,7 +382,8 @@ classdef Control < handle
             NamedConst.autoware         = autoware;
             NamedConst.sensor           = sensor;
             NamedConst.param_FPM        = obj.param_FPM;
-            NamedConst.waypoint         = obj.waypoint;
+            NamedConst.waypoint         = obj.waypoint;  % First segment only (for backwards compat)
+            NamedConst.waypoint_all_segments = obj.waypoint_all_segments;  % ALL segments for plotting
             NamedConst.selectZone       = obj.selectZone;
             NamedConst.NoEntryZone      = obj.NoEntryZone;
             NamedConst.ZoneNum          = obj.ZoneNum;
@@ -362,19 +410,18 @@ classdef Control < handle
         end
         function result = main(obj, Plant)
             tic
+            % Get PhaseManager reference from Estimate.m (passed via Plant.local)
+            if isfield(Plant, 'local') && isfield(Plant.local, 'phaseManager')
+                obj.phaseManager = Plant.local.phaseManager;
+            end
+
             % Extract data from estimator
             if isfield(Plant, 'local') && isfield(Plant.local, 'boundingBoxes')
                 obj.boundingBoxes = Plant.local.boundingBoxes;
             else
                 obj.boundingBoxes = {};
             end
-            % Check for door detection mode from SharedControlMode
-            door_detection_mode = false;
-            if strcmp(obj.sharedControlMode.getMode(), 'door_detection')
-                door_detection_mode = true;
-                fprintf('[CONTROL] Door detection debug mode activated - will bypass to Phase 1.5\n');
-            end
-            
+
             % Extract both local and global xyz data for door detection
             xyz_global = [];
             xyz_local = [];
@@ -386,12 +433,12 @@ classdef Control < handle
                     xyz_local = Plant.local.xyz_local;
                 end
             end
-            
+
             % Combine both coordinate systems for elevator function
             lidar_data = struct();
             lidar_data.xyz_global = xyz_global;
             lidar_data.xyz_local = xyz_local;
-            
+
             % Initialize door (close it) only on first iteration
             if obj.count == 1
                 controlElevatorDoor('close');
@@ -425,82 +472,164 @@ classdef Control < handle
             end
             %------------------------------------------------------------------------
 
-            %% State-based control system
+            %% State-based control system with universal path follower
             goal_position = obj.waypoint(end, :); % Final waypoint
             current_position = [Position.X, Position.Y];
             goal_distance = norm(current_position - goal_position);
+            current_waypoint_idx = obj.target_n(1,1);
 
-            % Phase transition is now handled by Estimate.m
+            % Update universal path follower - IT decides the phase
+            [control_mode, target_info] = obj.phaseManager.update(current_position, current_waypoint_idx);
 
-            % Execute control based on current mode
-            if strcmp(obj.sharedControlMode.getMode(), 'multi_room_navigation')
-                % Multi-room navigation control
-                [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = obj.multiRoomNavigationControl(Position, preobs, lidar_data);
-                elevator_result = [];  % Multi-room mode handles its own door crossings
+            % Execute control based on mode returned by PhaseManager
+            switch control_mode
+                case 'path_following'
+                    % Normal path following control
+                    [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = obj.pathFollowingControl(Position, preobs);
+                    elevator_result = [];
 
-            elseif any(strcmp(obj.sharedControlMode.getMode(), {'path_following', 'floor_change'}))&& ~(obj.target_n(1,1)==size(obj.waypoint,1))
-                % Normal path following control
-                [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = obj.pathFollowingControl(Position, preobs);
-                elevator_result = [];  % No elevator result in path following mode
+                case 'door_entry'
+                    % Door entry control
+                    door_center = target_info.door_center;
+                    exit_position = target_info.exit_position;
 
-            elseif any(strcmp(obj.sharedControlMode.getMode(), {'elevator_entry', 'door_detection'}))
-                % Elevator entry control
-                elevator_result = obj.executeElevatorEntry(current_position, Position.yaw, lidar_data, door_detection_mode);
-                U = elevator_result.V;
-                % Check if elevator entry is completed
-                if isfield(elevator_result, 'completed') && elevator_result.completed
-                    obj.sharedControlMode.setMode('completed');
-                    controlElevatorDoor('close');
-                    fprintf('=== MODE CHANGE: Elevator entry COMPLETED ===\n');
-                end
-                % Fill empty variables for result.local
-                pu = {};
-                px = {};
-                pw = {};
-                BestCost = [];
-                BestCostId = [];
-                uOpt = {};
-                fval =[];
-                removed =[];
-            elseif strcmp(obj.sharedControlMode.getMode(), 'ndt_pose_detection')
-                % NDT Pose Detection Mode - Manual control only
-                fprintf('[CONTROL] NDT Pose Detection mode: Autonomous control disabled - manual control active\n');
-                
-                % Set zero velocity for autonomous control (manual control takes over)
-                U = [0; 0]; % Let manual joystick/controls handle movement
-                
-                % Fill empty variables for result.local
-                pu = {};
-                px = {};
-                pw = {};
-                BestCost = [];
-                BestCostId = [];
-                uOpt = {};
-                fval = [];
-                removed = [];
-                elevator_result = [];
+                    door_result = enterDoor(current_position, Position.yaw, door_center, exit_position, ...
+                                           lidar_data, obj.door_params, 'regular');
+                    U = door_result.V;
 
+                    % Report completion to PhaseManager
+                    if door_result.completed
+                        obj.phaseManager.completeTransition();
 
+                        % Update to next segment's waypoints
+                        new_waypoints = obj.phaseManager.getCurrentSegmentWaypoints();
+                        if ~isempty(new_waypoints)
+                            obj.waypoint = new_waypoints;
 
-            else
-                % Default: stop the wheelchair
-                U = [0; 0];
-                elevator_result = [];  % No elevator result in stopped mode
-                % Fill empty variables for result.local
-                pu = {};
-                px = {};
-                pw = {};
-                BestCost = [];
-                BestCostId = [];
-                uOpt = {};
-                fval = [];
-                removed = [];
+                            % Reset target_n to point to first waypoint (correct dimensions: [K, NP])
+                            obj.target_n = ones(obj.K, obj.NP);
+
+                            % Regenerate V_ref for new segment waypoints
+                            obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
+                            if size(obj.waypoint,1) >= 2
+                                obj.V_ref(end-1) = 0.5;  % Slow down before goal
+                            end
+                            if size(obj.waypoint,1) >= 1
+                                obj.V_ref(end) = 0.5;      % Stop at goal
+                            end
+
+                            % Regenerate target heading array
+                            obj.th_target_w = get_th_target(obj.waypoint);
+
+                            fprintf('[CONTROL] Loaded new segment waypoints (%d waypoints)\n', size(obj.waypoint, 1));
+                        end
+                    end
+
+                    % Fill empty variables with proper structure for plotting
+                    pu = {}; px = {}; pw = {}; BestCost = []; BestCostId = [];
+                    uOpt = struct('u', []); % Empty uOpt struct (not empty cell)
+                    fval = [];
+                    removed = struct('pu', [], 'px', [], 'pw', []); % Empty removed struct
+                    elevator_result = [];
+
+                case 'elevator_entry'
+                    % Elevator entry control
+                    if ~isempty(target_info.door_center)
+                        elevator_center = target_info.door_center;
+                    else
+                        elevator_metadata = LocationMetadata.getLocation('elevator');
+                        elevator_center = elevator_metadata.door_center;
+                    end
+
+                    % Check for door detection mode (debug mode)
+                    door_detection_mode = strcmp(obj.phaseManager.getCurrentPhase(), 'door_detection');
+
+                    elevator_result = obj.executeElevatorEntry(current_position, Position.yaw, lidar_data, door_detection_mode);
+                    U = elevator_result.V;
+
+                    % Report completion to PhaseManager
+                    if isfield(elevator_result, 'completed') && elevator_result.completed
+                        obj.phaseManager.completeTransition();
+                        controlElevatorDoor('close');
+
+                        % Update to next segment's waypoints
+                        new_waypoints = obj.phaseManager.getCurrentSegmentWaypoints();
+                        if ~isempty(new_waypoints)
+                            obj.waypoint = new_waypoints;
+
+                            % Reset target_n to point to first waypoint (correct dimensions: [K, NP])
+                            obj.target_n = ones(obj.K, obj.NP);
+
+                            % Regenerate V_ref for new segment waypoints
+                            obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
+                            if size(obj.waypoint,1) >= 2
+                                obj.V_ref(end-1) = 0.5;  % Slow down before goal
+                            end
+                            if size(obj.waypoint,1) >= 1
+                                obj.V_ref(end) = 0.5;      % Stop at goal
+                            end
+
+                            % Regenerate target heading array
+                            obj.th_target_w = get_th_target(obj.waypoint);
+
+                            fprintf('[CONTROL] Loaded new segment waypoints (%d waypoints)\n', size(obj.waypoint, 1));
+                        end
+                    end
+
+                    % Fill empty variables with proper structure for plotting
+                    pu = {}; px = {}; pw = {}; BestCost = []; BestCostId = [];
+                    uOpt = struct('u', []); % Empty uOpt struct (not empty cell)
+                    fval = [];
+                    removed = struct('pu', [], 'px', [], 'pw', []); % Empty removed struct
+
+                case 'ndt_pose_detection'
+                    % NDT Pose Detection Mode - Manual control only
+                    fprintf('[CONTROL] NDT Pose Detection mode: Autonomous control disabled - manual control active\n');
+                    U = [0; 0]; % Let manual joystick/controls handle movement
+                    pu = {}; px = {}; pw = {}; BestCost = []; BestCostId = [];
+                    uOpt = struct('u', []); % Empty uOpt struct (not empty cell)
+                    fval = [];
+                    removed = struct('pu', [], 'px', [], 'pw', []); % Empty removed struct
+                    elevator_result = [];
+
+                case 'completed'
+                    % Navigation complete - stop
+                    U = [0; 0];
+                    pu = {}; px = {}; pw = {}; BestCost = []; BestCostId = [];
+                    uOpt = struct('u', []); % Empty uOpt struct (not empty cell)
+                    fval = [];
+                    removed = struct('pu', [], 'px', [], 'pw', []); % Empty removed struct
+                    elevator_result = [];
+
+                otherwise
+                    % Fallback - stop
+                    U = [0; 0];
+                    pu = {}; px = {}; pw = {}; BestCost = []; BestCostId = [];
+                    uOpt = struct('u', []); % Empty uOpt struct (not empty cell)
+                    fval = [];
+                    removed = struct('pu', [], 'px', [], 'pw', []); % Empty removed struct
+                    elevator_result = [];
             end
 
             % Check for updated waypoints from Estimate.m (dynamic replanning) - only when flagged
             if obj.sharedControlMode.areWaypointsUpdated()
-                obj.waypoint = obj.sharedControlMode.getWaypoints();
-                
+                waypoint_cell_array = obj.sharedControlMode.getWaypoints();
+
+                % Extract first segment
+                obj.waypoint = waypoint_cell_array{1};
+
+                % Reset target_n to point to first waypoint (correct dimensions: [K, NP])
+                obj.target_n = ones(obj.K, obj.NP);
+
+                % Update multi-room mode detection
+                if length(waypoint_cell_array) > 1
+                    obj.multiRoomEnabled = true;
+                    fprintf('[CONTROL] Updated to multi-room path (%d segments)\n', length(waypoint_cell_array));
+                else
+                    obj.multiRoomEnabled = false;
+                    fprintf('[CONTROL] Updated to single-room path (%d waypoints)\n', size(obj.waypoint, 1));
+                end
+
                 % Regenerate V_ref for new waypoints (same logic as constructor)
                 obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
                 if size(obj.waypoint,1) >= 2
@@ -509,11 +638,12 @@ classdef Control < handle
                 if size(obj.waypoint,1) >= 1
                     obj.V_ref(end) = 0.5;      % Stop at goal
                 end
-                
+
+                % Regenerate target heading array
+                obj.th_target_w = get_th_target(obj.waypoint);
+
                 % Clear the update flag
                 obj.sharedControlMode.clearWaypointUpdateFlag();
-                
-                fprintf('[CONTROL] Updated to new waypoints from Estimate.m (%d points)\n', size(obj.waypoint, 1));
             end
             
             % Display status message for current mode
@@ -534,7 +664,7 @@ classdef Control < handle
             result.local.fval = fval;
 
             % Handle BestCostId indexing for different modes
-            if strcmp(obj.sharedControlMode.getMode(), 'path_following') && ~isempty(BestCostId)
+            if strcmp(control_mode, 'path_following') && ~isempty(BestCostId)
                 result.local.Bestpx = {px(:,:,BestCostId)};
                 result.local.Bestpu = {pu(:,:,BestCostId)};
             else
@@ -549,7 +679,7 @@ classdef Control < handle
             result.local.Position_X = Position.X;
             result.local.Position_Y = Position.Y;
             result.local.Position_yaw = Position.yaw;
-            result.local.control_mode = obj.sharedControlMode.getMode(); % Pass control mode to Estimate
+            result.local.control_mode = control_mode; % Pass control mode to Estimate (from PhaseManager)
             result.local.BB = {obj.boundingBoxes}; % Save bounding boxes for plotting
 
 
@@ -611,7 +741,10 @@ classdef Control < handle
 
             clc;  % Clear command window
 
-            if strcmp(obj.sharedControlMode.getMode(), 'multi_room_navigation')
+            % Get current phase from PhaseManager
+            current_phase = obj.phaseManager.getCurrentPhase();
+
+            if strcmp(current_phase, 'multi_room_navigation')
                 % Multi-room navigation mode status
                 fprintf('=== MULTI-ROOM NAVIGATION MODE ===\n');
                 fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
@@ -626,7 +759,7 @@ classdef Control < handle
                 fprintf('Control: V=%.3f m/s, Ω=%.3f rad/s\n', U(1), U(2));
                 fprintf('===================================\n');
 
-            elseif any(strcmp(obj.sharedControlMode.getMode(), {'path_following', 'floor_change'}))
+            elseif any(strcmp(current_phase, {'path_following', 'floor_change'}))
                 % Path following mode status
                 fprintf('=== PATH FOLLOWING MODE ===\n');
                 fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
@@ -635,7 +768,24 @@ classdef Control < handle
                 fprintf('Target Waypoint: %d/%d\n', obj.target_n(1,1), size(obj.waypoint,1));
                 fprintf('==========================\n');
 
-            elseif any(strcmp(obj.sharedControlMode.getMode(), {'elevator_entry', 'door_detection'}))
+            elseif strcmp(current_phase, 'door_entry')
+                % Door entry/crossing mode status
+                fprintf('=== DOOR CROSSING MODE ===\n');
+                fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
+                fprintf('Status: Navigating through door\n');
+                fprintf('Control: V=%.3f m/s, Ω=%.3f rad/s\n', U(1), U(2));
+
+                % Display door center if available from PhaseManager
+                transition_info = obj.phaseManager.getTransitionInfo();
+                if ~isempty(transition_info) && isfield(transition_info, 'door_center')
+                    fprintf('Door Center: [%.2f, %.2f]\n', transition_info.door_center(1), transition_info.door_center(2));
+                end
+                if ~isempty(transition_info) && isfield(transition_info, 'exit_position')
+                    fprintf('Exit Target: [%.2f, %.2f]\n', transition_info.exit_position(1), transition_info.exit_position(2));
+                end
+                fprintf('==========================\n');
+
+            elseif any(strcmp(current_phase, {'elevator_entry', 'door_detection'}))
                 % Elevator entry mode status
                 elevator_metadata = LocationMetadata.getLocation('elevator');
                 fprintf('=== ELEVATOR ENTRY MODE ===\n');
@@ -645,8 +795,9 @@ classdef Control < handle
                 end
                 fprintf('Control: V=%.3f m/s, Ω=%.3f rad/s\n', U(1), U(2));
                 fprintf('Elevator Center: [%.1d, %.1d]\n', elevator_metadata.door_center(1), elevator_metadata.door_center(2));
-                
-            elseif strcmp(obj.sharedControlMode.getMode(), 'ndt_pose_detection')
+                fprintf('===========================\n');
+
+            elseif strcmp(current_phase, 'ndt_pose_detection')
                 % NDT Pose Detection mode status
                 fprintf('=== NDT POSE DETECTION MODE ===\n');
                 fprintf('** MANUAL CONTROL ACTIVE **\n');
@@ -787,7 +938,7 @@ classdef Control < handle
 
             % Check if completed
             if nav_state.completed
-                obj.sharedControlMode.setMode('completed');
+                obj.phaseManager.setPhase('completed');
                 fprintf('=== MODE CHANGE: Multi-room navigation COMPLETED ===\n');
             end
 

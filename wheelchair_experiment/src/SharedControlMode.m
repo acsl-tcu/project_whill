@@ -1,67 +1,108 @@
 classdef SharedControlMode < handle
-    % SharedControlMode - Handle class for sharing control_mode between Control and Estimate
-    % This allows both modules to access the same control_mode value
-    % Control can update it, Estimate can read it
-    
+    % SharedControlMode - Handle class for sharing waypoint data between Control and Estimate
+    % This class is a DATA CONTAINER ONLY - it does NOT track phase/mode state
+    % Phase/mode state is managed by PhaseManager (single source of truth)
+
     properties
-        control_mode    % Current control mode (e.g., 'path_following', 'elevator_entry', etc.)
-        waypoint        % Shared waypoints between Estimate and Control
-        is_first_use    % Track if this is the very first time any mode is selected
+        waypoint        % Shared waypoints: cell array {segment1, segment2, ...}
         waypoint_updated % Flag to indicate waypoints have been updated
         current_target_n % Current target waypoint number (from Control.m obj.target_n)
-        total_waypoints  % Total number of waypoints
+        total_waypoints  % Total number of waypoints in current segment
+        current_segment  % Current segment index (for multi-room navigation)
+        total_segments   % Total number of segments
     end
     
     methods
-        function obj = SharedControlMode(initial_mode)
-            % Constructor - initialize with default or provided mode
-            if nargin < 1
-                obj.control_mode = 'path_following'; % Default mode
-            else
-                obj.control_mode = initial_mode;
-            end
-            obj.waypoint = []; % Initialize empty waypoints
-            obj.is_first_use = true; % This is the first time using the system
+        function obj = SharedControlMode(~)
+            % Constructor - initialize waypoint data
+            % NOTE: This class no longer tracks phase/mode - use PhaseManager instead
+            obj.waypoint = {}; % Initialize empty cell array
             obj.waypoint_updated = false; % No updates initially
             obj.current_target_n = 1; % Start at first waypoint
             obj.total_waypoints = 0; % No waypoints initially
+            obj.current_segment = 1; % Start at first segment
+            obj.total_segments = 0; % No segments initially
         end
         
-        function setMode(obj, new_mode)
-            % Update the control mode
-            obj.control_mode = new_mode;
-            
-            % Mark that the system has been used (no longer first time)
-            obj.is_first_use = false;
-        end
-        
-        function mode = getMode(obj)
-            % Get the current control mode
-            mode = obj.control_mode;
-        end
-        
-        function setWaypoints(obj, waypoint)
-            % Update the shared waypoints and mark as updated
-            obj.waypoint = waypoint;
-            obj.total_waypoints = size(waypoint, 1); % Update total count when waypoints change
+        function setWaypoints(obj, waypoint_cell_array)
+            % Update the shared waypoints (cell array) and mark as updated
+            % Input: waypoint_cell_array - {segment1, segment2, ...}
+
+            % DEBUG: Check what's being stored
+            fprintf('\n[SHARED DEBUG] setWaypoints() called:\n');
+            fprintf('  Input type: %s\n', class(waypoint_cell_array));
+            fprintf('  Is cell: %d\n', iscell(waypoint_cell_array));
+            fprintf('  Length: %d\n', length(waypoint_cell_array));
+            if iscell(waypoint_cell_array) && ~isempty(waypoint_cell_array)
+                for i = 1:length(waypoint_cell_array)
+                    fprintf('  Segment %d size: %dx%d\n', i, size(waypoint_cell_array{i}, 1), size(waypoint_cell_array{i}, 2));
+                end
+            end
+
+            obj.waypoint = waypoint_cell_array;
+
+            % DEBUG: Verify what was stored
+            fprintf('  Stored obj.waypoint type: %s\n', class(obj.waypoint));
+            fprintf('  Stored obj.waypoint length: %d\n', length(obj.waypoint));
+            if iscell(obj.waypoint) && ~isempty(obj.waypoint)
+                fprintf('  Stored segment 1 size: %dx%d\n', size(obj.waypoint{1}, 1), size(obj.waypoint{1}, 2));
+            end
+            fprintf('\n');
+
+            obj.total_segments = length(waypoint_cell_array);
+            obj.current_segment = 1; % Reset to first segment
+
+            % Update total waypoints for first segment
+            if ~isempty(waypoint_cell_array) && ~isempty(waypoint_cell_array{1})
+                obj.total_waypoints = size(waypoint_cell_array{1}, 1);
+            else
+                obj.total_waypoints = 0;
+            end
+
             obj.waypoint_updated = true; % Flag that waypoints have been updated
         end
-        
+
         function waypoint = getWaypoints(obj)
-            % Get the current waypoints
+            % Get the full waypoint cell array
+
+            % DEBUG: Check what's being retrieved
+            fprintf('\n[SHARED DEBUG] getWaypoints() called:\n');
+            fprintf('  obj.waypoint type: %s\n', class(obj.waypoint));
+            fprintf('  obj.waypoint length: %d\n', length(obj.waypoint));
+            if iscell(obj.waypoint) && ~isempty(obj.waypoint)
+                fprintf('  obj.waypoint{1} size: %dx%d\n', size(obj.waypoint{1}, 1), size(obj.waypoint{1}, 2));
+            end
+
             waypoint = obj.waypoint;
+
+            % DEBUG: Check what's being returned
+            fprintf('  Returning type: %s\n', class(waypoint));
+            fprintf('  Returning length: %d\n', length(waypoint));
+            if iscell(waypoint) && ~isempty(waypoint)
+                fprintf('  Returning segment 1 size: %dx%d\n', size(waypoint{1}, 1), size(waypoint{1}, 2));
+            end
+            fprintf('\n');
         end
-        
+
+        function segment = getCurrentSegmentWaypoints(obj)
+            % Get waypoints for current segment
+            if obj.current_segment > 0 && obj.current_segment <= length(obj.waypoint)
+                segment = obj.waypoint{obj.current_segment};
+            else
+                segment = [];
+            end
+        end
+
         function has_waypoints = hasWaypoints(obj)
             % Check if waypoints are available
-            has_waypoints = ~isempty(obj.waypoint);
+            has_waypoints = ~isempty(obj.waypoint) && length(obj.waypoint) > 0;
         end
-        
-        function is_first = isFirstTimeUse(obj)
-            % Check if this is the very first time using the system
-            is_first = obj.is_first_use;
+
+        function is_multi = isMultiRoom(obj)
+            % Check if multi-room navigation (more than 1 segment)
+            is_multi = length(obj.waypoint) > 1;
         end
-        
+
         function is_updated = areWaypointsUpdated(obj)
             % Check if waypoints have been updated since last check
             is_updated = obj.waypoint_updated;

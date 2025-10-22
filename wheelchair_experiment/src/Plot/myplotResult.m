@@ -324,7 +324,18 @@ function [collision_flag] = myplotResult(DATAPath)
         for j = 1:NamedConst.NP
             pRemovedSample(j) = plot(NaN,NaN,'Color',[0.7 0.7 0.7],'LineWidth',1); hold on;
         end
-        plot(NamedConst.waypoint(:,1),NamedConst.waypoint(:,2),'k--o','LineWidth',1 ); hold on;
+
+        % Plot all waypoint segments (multi-room navigation support)
+        if isfield(NamedConst, 'waypoint_all_segments') && ~isempty(NamedConst.waypoint_all_segments)
+            % Plot each segment with same style
+            for seg_idx = 1:length(NamedConst.waypoint_all_segments)
+                segment_wp = NamedConst.waypoint_all_segments{seg_idx};
+                plot(segment_wp(:,1), segment_wp(:,2), 'k--o', 'LineWidth', 1); hold on;
+            end
+        else
+            % Fallback to single waypoint array (backwards compatibility)
+            plot(NamedConst.waypoint(:,1), NamedConst.waypoint(:,2), 'k--o', 'LineWidth', 1); hold on;
+        end
 
         pWheelchairSAM =plot(polyshape(),'FaceColor','r','FaceAlpha',0.2,'EdgeColor', 'none'); hold on;
         pWheelchair = plot(polyshape(),'FaceColor','#0072BD'); hold on;
@@ -368,8 +379,40 @@ function [collision_flag] = myplotResult(DATAPath)
 
         time = text(NaN,NaN,'','FontSize',20,'Interpreter', 'Latex','BackgroundColor',[1 1 1],'EdgeColor',[0 0 0]);
 
+        fprintf('[myplotResult] Starting animation with %d frames\n', length(DATA.T)-2);
+        skipped_frames = 0;
+        plotted_frames = 0;
+
         for count = 2:length(DATA.T)-2
         % for count = 2:10
+            % Debug: Check if critical data exists for this frame
+            has_uOpt = isfield(USER, 'uOpt') && length(USER.uOpt) >= count-1 && ~isempty(USER.uOpt{count-1});
+            has_removed = isfield(USER, 'removed') && length(USER.removed) >= count-1;
+
+            % Skip frame if essential path planning data is missing
+            if ~has_uOpt
+                if mod(skipped_frames, 10) == 0  % Print every 10th skip to avoid spam
+                    fprintf('[myplotResult] Frame %d (t=%.2fs): Skipping - no uOpt data (likely door/transition phase)\n', count, DATA.T(count));
+                end
+                skipped_frames = skipped_frames + 1;
+
+                % Still update video with static frame if needed
+                if num_frame*(1/writerObj.FrameRate) <= DATA.T(count)
+                    frame = getframe(fig999);
+                    while num_frame*(1/writerObj.FrameRate) <= DATA.T(count)
+                        writeVideo(writerObj, frame);
+                        num_frame = num_frame + 1;
+                    end
+                end
+                continue;  % Skip to next iteration
+            end
+
+            % Print progress every 50 frames
+            if mod(count, 50) == 0
+                fprintf('[myplotResult] Processing frame %d/%d (t=%.2fs, skipped=%d, plotted=%d)\n', ...
+                    count, length(DATA.T)-2, DATA.T(count), skipped_frames, plotted_frames);
+            end
+
             % --Plot wall------------------------------------
             % for i = 1:4
             %     if wall(1,i)==Inf
@@ -410,16 +453,23 @@ function [collision_flag] = myplotResult(DATAPath)
             %     ShowErrorEllipse2(USER.covpredict{count,1},USER.statpredict{count,1});
             % end
             %--Horizon of Sample------------------------------------------
-            if count ~= 2 && size(USER.removed(count-1).px,3)<size(USER.removed(count-2).px,3)
-                for j = size(USER.removed(count-1).px,3)+1:size(USER.removed(count-2).px,3)
-                    set(pRemovedSample(j),'XData',NaN,'YData',NaN);
+            % Plot removed samples if available
+            if has_removed && ~isempty(USER.removed(count-1).px)
+                try
+                    if count ~= 2 && length(USER.removed) >= count-2 && size(USER.removed(count-1).px,3)<size(USER.removed(count-2).px,3)
+                        for j = size(USER.removed(count-1).px,3)+1:size(USER.removed(count-2).px,3)
+                            set(pRemovedSample(j),'XData',NaN,'YData',NaN);
+                        end
+                    end
+                    for j = 1:size(USER.removed(count-1).px,3)
+                        % grey
+                        % set(pRemovedSample(j),'XData',USER.removed(count-1).px(1,:,j),'YData',USER.removed(count-1).px(2,:,j));
+                        % Colorful
+                        set(pRemovedSample(j),'XData',USER.removed(count-1).px(1,:,j),'YData',USER.removed(count-1).px(2,:,j),'Color',[Color_map(ceil(USER.removed(count-1).pw(1,j)),:),0.4]);
+                    end
+                catch ME
+                    fprintf('[myplotResult] Frame %d: Warning - Could not plot removed samples: %s\n', count, ME.message);
                 end
-            end
-            for j = 1:size(USER.removed(count-1).px,3)
-                % grey
-                % set(pRemovedSample(j),'XData',USER.removed(count-1).px(1,:,j),'YData',USER.removed(count-1).px(2,:,j));
-                % Colorful
-                set(pRemovedSample(j),'XData',USER.removed(count-1).px(1,:,j),'YData',USER.removed(count-1).px(2,:,j),'Color',[Color_map(ceil(USER.removed(count-1).pw(1,j)),:),0.4]);
             end
             %---------------------------------------------------
 
@@ -514,15 +564,55 @@ function [collision_flag] = myplotResult(DATAPath)
                end
            end
 
-            
-            set(pBest,'XData',USER.uOpt{count-1}.u(1).x(1,:),'YData',USER.uOpt{count-1}.u(1).x(2,:));
-            set(pBest2,'XData',USER.uOpt{count-1}.u(1).x(1,:),'YData',USER.uOpt{count-1}.u(1).x(2,:));
+
+            % Plot optimal path trajectory (with error handling)
+            try
+                % Verify uOpt structure is valid
+                if isfield(USER.uOpt{count-1}, 'u') && ~isempty(USER.uOpt{count-1}.u) && ...
+                   isfield(USER.uOpt{count-1}.u(1), 'x') && size(USER.uOpt{count-1}.u(1).x, 1) >= 2
+
+                    % Verify path synchronization with wheelchair position
+                    path_start_x = USER.uOpt{count-1}.u(1).x(1,1);
+                    path_start_y = USER.uOpt{count-1}.u(1).x(2,1);
+                    wheelchair_x = DATA.X(count);
+                    wheelchair_y = DATA.Y(count);
+                    distance_error = norm([wheelchair_x - path_start_x, wheelchair_y - path_start_y]);
+
+                    % Debug: Print synchronization info periodically
+                    if mod(count, 200) == 0 || distance_error > 0.5
+                        if distance_error > 0.5
+                            error_msg = '⚠️ LARGE ERROR!';
+                        else
+                            error_msg = '✓';
+                        end
+                        fprintf('[myplotResult] Frame %d (t=%.2fs): Path sync check\n', count, DATA.T(count));
+                        fprintf('  Wheelchair pos: (%.3f, %.3f)\n', wheelchair_x, wheelchair_y);
+                        fprintf('  MPC path start: (%.3f, %.3f)\n', path_start_x, path_start_y);
+                        fprintf('  Distance error: %.3f m %s\n', distance_error, error_msg);
+                    end
+
+                    set(pBest,'XData',USER.uOpt{count-1}.u(1).x(1,:),'YData',USER.uOpt{count-1}.u(1).x(2,:));
+                    set(pBest2,'XData',USER.uOpt{count-1}.u(1).x(1,:),'YData',USER.uOpt{count-1}.u(1).x(2,:));
+                else
+                    % Clear path plots if data is invalid
+                    set(pBest,'XData',NaN,'YData',NaN);
+                    set(pBest2,'XData',NaN,'YData',NaN);
+                    fprintf('[myplotResult] Frame %d: Warning - uOpt exists but has invalid structure\n', count);
+                end
+            catch ME
+                fprintf('[myplotResult] Frame %d: Error plotting uOpt trajectory: %s\n', count, ME.message);
+                set(pBest,'XData',NaN,'YData',NaN);
+                set(pBest2,'XData',NaN,'YData',NaN);
+            end
+
             % ax.XLim = [0 8];
             % ax.YLim = [-2 2];
             ax.YLim = [y-4 y+4];
             ax.XLim = [x-8 x+8];
             str = ['$$t =$$ ',num2str(DATA.T(count),'%.2f'),' s'];
             set(time,'String',str,'Position',[ax.XLim(1,1) + 0.2,ax.YLim(1,2) - 0.2,0])
+
+            plotted_frames = plotted_frames + 1;
             
 
             %-- get frames as images --%
@@ -551,6 +641,15 @@ function [collision_flag] = myplotResult(DATAPath)
             
             drawnow limitrate;
         end
+
+        % Print final summary
+        fprintf('\n[myplotResult] Animation complete!\n');
+        fprintf('  Total frames: %d\n', length(DATA.T)-2);
+        fprintf('  Plotted frames: %d\n', plotted_frames);
+        fprintf('  Skipped frames: %d (%.1f%%)\n', skipped_frames, 100*skipped_frames/(length(DATA.T)-2));
+        fprintf('  Total video frames written: %d\n', num_frame);
+        fprintf('  Video duration: %.2f seconds\n', num_frame/writerObj.FrameRate);
+
         close(writerObj);
     end
 

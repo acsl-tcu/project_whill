@@ -45,10 +45,10 @@ function [exit_requested, mode_change] = wheelchairModeMenu()
     fprintf('\n=== WHEELCHAIR CONTROL MENU ===\n');
     fprintf('Current simulation is running...\n');
     fprintf('Choose an option:\n');
-    fprintf('1. Set Floor Change Mode (allows elevator entry)\n');
+    fprintf('1. Set Floor Change Mode (replan path to elevator with LiDAR)\n');
     fprintf('2. Door Detection Debug Mode (bypass to Phase 1.5)\n');
     fprintf('3. NDT Pose Detection Mode (manual control + continuous pose broadcast)\n');
-    fprintf('4. Set Floor Change Mode WITHOUT Estimator (navigation only)\n');
+    fprintf('4. Navigation-Only Mode (continue path WITHOUT LiDAR - testing MPC only)\n');
     fprintf('5. Exit Simulation\n');
     fprintf('================================\n');
     
@@ -95,11 +95,12 @@ function [exit_requested, mode_change] = wheelchairModeMenu()
             mode_change.track_on = false; % Disable tracking
             
         case 4
-            % Floor Change Mode WITHOUT Estimator
-            fprintf('\n[MENU] Setting wheelchair to FLOOR_CHANGE mode WITHOUT ESTIMATOR\n');
-            fprintf('This will enable path following but disable LiDAR processing and tracking.\n');
+            % Navigation-Only Mode (No LiDAR/Estimator)
+            fprintf('\n[MENU] Setting wheelchair to NAVIGATION-ONLY mode\n');
+            fprintf('This will continue navigation but disable LiDAR processing and tracking.\n');
+            fprintf('Wheelchair will follow pre-planned path to elevator without obstacle detection.\n');
             mode_change.requested = true;
-            mode_change.new_phase = 'floor_change';
+            mode_change.new_phase = 'navigation_only';  % Special mode: just disable tracking
             mode_change.door_detection_mode = false;
             mode_change.track_on = false; % Disable tracking
             

@@ -28,14 +28,15 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
     
     persistent phase1_completed; % Track if Phase 1 position correction is done
     persistent phase3_distance_traveled; % Track accumulated distance in Phase 3 (odometry-based)
+    persistent phase5_distance_traveled; % Track accumulated distance in Phase 5 reverse (separate from Phase 3)
     persistent door_verified; % Track if door has been verified (check only once)
     persistent elevator_sequence_state; % Track elevator simulation state
     persistent sequence_timer; % Timer for elevator sequence
     persistent current_floor; % Track current floor
     persistent target_floor; % Track target floor
     persistent floor_input_requested; % Track if floor input was already requested
-    persistent last_update_time; % For delta time calculation
-    persistent last_update_time_reverse; % For delta time calculation
+    persistent last_update_time; % For delta time calculation (Phase 3 forward)
+    persistent last_update_time_reverse; % For delta time calculation (Phase 5 reverse)
 
     if nargin < 3
         elevator_center = [27, 12.2]; % Default elevator center position
@@ -107,7 +108,11 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
     end
 
     if isempty(phase3_distance_traveled)
-        phase3_distance_traveled = 0; % Initialize distance counter
+        phase3_distance_traveled = 0; % Initialize distance counter for Phase 3 forward movement
+    end
+
+    if isempty(phase5_distance_traveled)
+        phase5_distance_traveled = 0; % Initialize distance counter for Phase 5 reverse movement
     end
 
 
@@ -180,16 +185,9 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                 result.phase = 2;
                 result.status = 'Turning towards elevator';
 
-                % Determine turn direction (positive = counterclockwise, negative = clockwise)
-                if heading_error > 0
-                    result.V(2) = TURN_SPEED;  % Turn left (counterclockwise)
-                    fprintf('Phase 2: Turning LEFT (%.1f deg remaining)\n', rad2deg(abs(heading_error)));
-                else
-                    result.V(2) = -TURN_SPEED; % Turn right (clockwise)
-                    fprintf('Phase 2: Turning RIGHT (%.1f deg remaining)\n', rad2deg(abs(heading_error)));
-                end
-
-                result.V(1) = 0; % No forward movement during turning
+                fprintf('Phase 2: Turning towards elevator\n');
+                turn_result = turnTowardsTarget(current_yaw, elevator_center, current_position, TURN_SPEED, TURN_TOLERANCE);
+                result.V = turn_result.V;
                 
             elseif ~door_verified || DEBUG_MODE
                 % Phase 2.5: Check door state using LiDAR
@@ -209,114 +207,49 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                     result.status = 'Verifying elevator door is open';
                     fprintf('Phase 2.5: Checking elevator door state using LiDAR...\n');
                 end
-                
+
                 result.V = [0; 0]; % Stop while checking door
-                
-                % Extract point cloud data (both global and local coordinates available)
-                if nargin >= 5 && ~isempty(lidar_scan_data)
-                    % Check if lidar_scan_data is a struct with both coordinate systems
-                    if isstruct(lidar_scan_data) && isfield(lidar_scan_data, 'xyz_global') && isfield(lidar_scan_data, 'xyz_local')
-                        % Use global coordinates for map-based detection (default)
-                        pointCloud_global = lidar_scan_data.xyz_global;
-                        pointCloud_local = lidar_scan_data.xyz_local;
-                        
-                        % Use coordinate system based on odometry_mode parameter
-                        if odometry_mode
-                            % Use local coordinates (odometry mode)
-                            if ~isempty(pointCloud_local)
-                                pointCloud = pointCloud_local;
-                                fprintf('Using ODOMETRY MODE (local coordinates) - Parameter: odometry_mode = true\n');
-                            else
-                                pointCloud = [];
-                                fprintf('Warning: Odometry mode requested but no local coordinate data available\n');
-                            end
-                        else
-                            % Use global coordinates (map mode) 
-                            if ~isempty(pointCloud_global)
-                                pointCloud = pointCloud_global;
-                                fprintf('Using MAP MODE (global coordinates) - Parameter: odometry_mode = false\n');
-                            else
-                                pointCloud = [];
-                                fprintf('Warning: Map mode requested but no global coordinate data available\n');
-                            end
-                        end
-                        
-                        if DEBUG_MODE
-                            if odometry_mode
-                                fprintf('DEBUG: Using LOCAL coordinate point cloud data (odometry mode)\n');
-                                fprintf('DEBUG: Local point cloud: %d points\n', size(pointCloud_local, 1));
-                            else
-                                fprintf('DEBUG: Using GLOBAL coordinate point cloud data (map mode)\n');
-                                fprintf('DEBUG: Global point cloud: %d points\n', size(pointCloud_global, 1));
-                            end
-                            
-                            if size(pointCloud, 1) > 0
-                                fprintf('DEBUG: Point cloud range - X:[%.2f, %.2f], Y:[%.2f, %.2f], Z:[%.2f, %.2f]\n', ...
-                                    min(pointCloud(:,1)), max(pointCloud(:,1)), ...
-                                    min(pointCloud(:,2)), max(pointCloud(:,2)), ...
-                                    min(pointCloud(:,3)), max(pointCloud(:,3)));
-                            end
-                        end
-                    else
-                        % Fallback: assume it's global xyz data directly (legacy mode)
-                        if odometry_mode
-                            fprintf('Warning: Odometry mode requested but structured data not available\n');
-                            pointCloud = [];
+
+                % Use unified door checking function
+                wheelchair_pose = [current_position, current_yaw];
+
+                if DEBUG_MODE
+                    % In debug mode, call the original debug function directly
+                    if nargin >= 5 && ~isempty(lidar_scan_data)
+                        if isstruct(lidar_scan_data) && isfield(lidar_scan_data, 'xyz_global')
+                            pointCloud = lidar_scan_data.xyz_global;
                         else
                             pointCloud = lidar_scan_data;
-                            fprintf('Using legacy GLOBAL coordinate point cloud data\n');
                         end
-                        
-                        pointCloud_global = pointCloud;
-                        pointCloud_local = [];
-                        
-                        if DEBUG_MODE
-                            fprintf('DEBUG: Using legacy coordinate point cloud data\n');
-                            if ~isempty(pointCloud)
-                                fprintf('DEBUG: Received point cloud with %d points\n', size(pointCloud, 1));
-                            end
+                        if iscell(pointCloud)
+                            pointCloud = pointCloud{1};
                         end
+                        door_state = debugElevatorDoorDetection(pointCloud, wheelchair_pose, elevator_center, DEBUG_MODE, odometry_mode, door_params);
+                    else
+                        door_state = 'unknown';
                     end
-                else
-                    pointCloud = [];
-                    pointCloud_global = [];
-                    pointCloud_local = [];
-                    fprintf('Warning: No LiDAR xyz data available for door detection\n');
-                end
-                
-                % Check door state
-                wheelchair_pose = [current_position, current_yaw];
-                if DEBUG_MODE
-                    door_state = debugElevatorDoorDetection(pointCloud{1}, wheelchair_pose, elevator_center, DEBUG_MODE, odometry_mode, door_params);
-                else
-                    door_state = detectElevatorDoorState(pointCloud{1}, wheelchair_pose, elevator_center, odometry_mode, door_params);
-                end
-                
-                % Handle results based on mode
-                if DEBUG_MODE
-                    fprintf('DEBUG: Door state = %s (staying in Phase 2.5 for continuous checking)\n', door_state);
                     result.door_state = door_state;
                     door_verified = false; % Keep checking in debug mode
                 else
-                    % Normal mode: proceed based on door state
-                    if strcmp(door_state, 'open')
+                    % Normal mode: use unified door checking function
+                    door_check = checkDoorPassable(lidar_scan_data, wheelchair_pose, elevator_center, 'elevator', odometry_mode, door_params);
+                    result.door_state = door_check.door_state;
+
+                    if door_check.verified
                         fprintf('Phase 2.5: Door verified as OPEN - proceeding to Phase 3\n');
-                        door_verified = true; % Mark as verified, won't check again
-                        result.door_state = door_state;
-                    elseif strcmp(door_state, 'closed')
+                        door_verified = true;
+                    elseif strcmp(door_check.door_state, 'closed')
                         fprintf('Phase 2.5: Door is CLOSED - waiting...\n');
-                        result.door_state = door_state;
-                        % Stay in Phase 2.5 (don't set door_verified = true)
                     else
                         fprintf('Phase 2.5: Door state UNKNOWN - proceeding with caution\n');
                         door_verified = true; % Proceed even if unknown
-                        result.door_state = door_state;
                     end
                 end
                 
             else
                 % Phase 3: Move forward into elevator (odometry-based distance tracking)
                 result.phase = 3;
+                result.status = 'Moving into elevator (odometry)';
 
                 % Initialize Phase 3 distance if not set
                 if isempty(phase3_distance_traveled)
@@ -325,42 +258,17 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                     fprintf('         Target distance: %.2f m\n', MOVE_DISTANCE);
                 end
 
-                % Calculate time elapsed since last update
-                if isempty(last_update_time)
-                    dt = 0; % First iteration, no time elapsed yet
-                    last_update_time = tic; % Initialize timer
-                else
-                    dt = toc(last_update_time);
-                    last_update_time = tic; % Reset for next iteration
-                end
+                fprintf('Phase 3: Moving into elevator\n');
+                move_result = moveDistance(MOVE_DISTANCE, MOVE_SPEED, 'forward', phase3_distance_traveled, last_update_time);
 
-                % Failsafe: Reject large dt values (prevent distance corruption)
-                if dt > 0.5
-                    fprintf('WARNING: Large dt detected (%.2fs) - setting to 0 to prevent distance corruption\n', dt);
-                    dt = 0;
-                end
+                result.V = move_result.V;
+                phase3_distance_traveled = move_result.distance_traveled;
+                last_update_time = move_result.last_update_time;
 
-                % Accumulate distance based on commanded velocity (odometry)
-                % Note: We use the commanded velocity from previous iteration
-                % stored in result.V(1) if available, otherwise use MOVE_SPEED
-                phase3_distance_traveled = phase3_distance_traveled + (MOVE_SPEED * dt);
-
-                remaining_distance = MOVE_DISTANCE - phase3_distance_traveled;
-
-                fprintf('Phase 3: Distance traveled: %.2f m, Remaining: %.2f m (dt=%.3fs)\n', ...
-                        phase3_distance_traveled, remaining_distance, dt);
-
-                if remaining_distance > 0.1 % Still need to move (with 10cm tolerance)
-                    result.status = 'Moving into elevator (odometry)';
-                    result.V(1) = MOVE_SPEED;  % Forward movement
-                    result.V(2) = 0;           % No turning
-
-                    fprintf('Phase 3: Moving FORWARD into elevator (%.1f m/s)\n', MOVE_SPEED);
-                else
+                if move_result.completed
                     % Phase 3 completed - transition to elevator simulation
                     elevator_sequence_state = 'door_closed';
                     sequence_timer = tic;
-                    % target_floor = current_floor; % For now, target = current (no floor change)
                     fprintf('Phase 3: COMPLETED! Wheelchair inside elevator.\n');
                     fprintf('Total distance traveled (odometry): %.2f m\n', phase3_distance_traveled);
                     fprintf('Setting current_floor = target_floor = %d\n', target_floor);
@@ -455,6 +363,8 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                     fprintf('Phase 4: LiDAR confirmed door is OPEN - ready to reverse\n');
                     % Transition to reversing state
                     elevator_sequence_state = 'reversing';
+                    phase5_distance_traveled = 0; % Reset distance for Phase 5 reverse movement
+                    last_update_time_reverse = []; % Reset timer for Phase 5
                     sequence_timer = tic;
                 else
                     fprintf('Phase 4: LiDAR detects door state: %s - waiting for open...\n', door_state);
@@ -465,6 +375,8 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                 elapsed_time = toc(sequence_timer);
                 if elapsed_time > 2.0
                     elevator_sequence_state = 'reversing';
+                    phase5_distance_traveled = 0; % Reset distance for Phase 5 reverse movement
+                    last_update_time_reverse = []; % Reset timer for Phase 5
                     sequence_timer = tic;
                 end
             end
@@ -474,33 +386,17 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
             result.phase = 5;
             result.status = 'Reversing out of elevator (odometry)';
 
-            % Calculate time elapsed since last update
-            if isempty(last_update_time_reverse)
-                dt = 0; % First iteration, no time elapsed yet
-                last_update_time_reverse = tic; % Initialize timer
-            else
-                dt = toc(last_update_time_reverse);
-                last_update_time_reverse = tic; % Reset for next iteration
-            end
+            fprintf('Phase 5: Reversing out of elevator\n');
+            % Use moveDistance with 'reverse' direction
+            % Target: reverse the same distance we moved forward in Phase 3
+            % Start from 0 and accumulate to phase3_distance_traveled
+            move_result = moveDistance(phase3_distance_traveled, MOVE_SPEED, 'reverse', phase5_distance_traveled, last_update_time_reverse);
 
-            % Failsafe: Reject large dt values (prevent distance corruption)
-            if dt > 0.5
-                fprintf('WARNING: Large dt detected (%.2fs) - setting to 0 to prevent distance corruption\n', dt);
-                dt = 0;
-            end
+            result.V = move_result.V;
+            phase5_distance_traveled = move_result.distance_traveled;
+            last_update_time_reverse = move_result.last_update_time;
 
-            % Accumulate reverse distance (reduce the traveled distance counter)
-            phase3_distance_traveled = phase3_distance_traveled - (MOVE_SPEED * dt);
-
-            fprintf('Phase 5: Distance remaining: %.2f m (reversing at %.1f m/s)\n', ...
-                    phase3_distance_traveled, MOVE_SPEED);
-
-            if phase3_distance_traveled > 0.1 % Still need to reverse out
-                result.V(1) = -MOVE_SPEED; % Reverse movement
-                result.V(2) = 0;           % No turning
-
-                fprintf('Phase 5: Reversing OUT of elevator (%.1f m/s)\n', -MOVE_SPEED);
-            else
+            if move_result.completed
                 % Phase 6: Simulation completed
                 result.phase = 6;
                 result.status = 'Elevator simulation completed';
@@ -512,15 +408,15 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                 % Reset all persistent variables for next use
                 phase1_completed = [];
                 phase3_distance_traveled = [];
+                phase5_distance_traveled = [];
                 elevator_sequence_state = 'normal';
                 sequence_timer = 0;
                 door_verified = false;
                 current_floor = 1;
                 target_floor = 1;
-                floor_input_requested = false; % Reset for next use
+                floor_input_requested = false;
                 last_update_time = [];
                 last_update_time_reverse = [];
-
             end
     end
     

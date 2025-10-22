@@ -149,6 +149,41 @@ These files are listed in `.gitignore` to prevent accidental commits.
 
 ### 🎯 Current Goals
 
+#### 0. URGENT: Architecture Bug Fix - PhaseManager vs SharedControlMode Redundancy 🔥 CRITICAL
+**Status: 🐛 BUG IDENTIFIED**
+
+**Problem Found:**
+- PhaseManager and SharedControlMode both track modes/phases causing conflicts
+- Bug at `Estimate.m:233`: `setPhase('multi_room_navigation')` → calls `SharedControlMode.setMode()` → sets `is_first_use = false`
+- Later when user triggers 'floor_change', `isFirstTimeUse()` returns false → incorrectly triggers path replanning
+- **Root cause**: Redundant state tracking between two classes
+
+**TODO (Priority Order):**
+- [ ] **Make PhaseManager the single source of truth for all phase/mode state**
+  - Remove `control_mode`, `is_first_use` from SharedControlMode
+  - Keep only waypoint data in SharedControlMode (waypoint cell array, target_n, etc.)
+  - Move all mode/phase queries to PhaseManager
+  - Update all `sharedControlMode.getMode()` calls to use `phaseManager.getCurrentPhase()`
+  - Update all `sharedControlMode.setMode()` calls to use `phaseManager.setPhase()`
+
+- [ ] **Fix the `is_first_use` logic to work correctly**
+  - Move `is_first_use` tracking to PhaseManager
+  - Fix the 'floor_change' check at `Estimate.m:451-461` to properly detect first-time vs replan scenarios
+  - Ensure multi-room navigation doesn't incorrectly set `is_first_use = false`
+
+**Files to Modify:**
+- `src/SharedControlMode.m` - Remove mode tracking, keep only waypoint data
+- `src/PhaseManager.m` - Add `is_first_use` property and logic
+- `src/Estimator/Estimate.m` - Update all mode queries to use PhaseManager
+- `src/Controller/@Control/Control.m` - Update all mode queries to use PhaseManager
+
+**Expected Result:**
+- Clean separation: SharedControlMode = data container, PhaseManager = state machine
+- No more redundant state tracking
+- `is_first_use` logic works correctly for both single-room and multi-room navigation
+
+---
+
 #### 1. Multi-Room Navigation System 🚧 IN PROGRESS
 **Status: 🚧 PROTOTYPING**
 - Location: `MultiRoomNav/` folder
