@@ -1,0 +1,84 @@
+{
+  "building": "10F Building",
+  "floor": 4,
+  "map_file": "../map2.mat",
+  "description": "4th floor room layout with centralized door database",
+  "last_updated": "2025-10-15",
+  "version": 2,
+
+  "rooms": [
+    {
+      "id": "A",
+      "name": "Elevator",
+      "type": "office",
+      "boundaries": {
+        "x_min": 28,
+        "x_max": 39,
+        "y_min": 6.9,
+        "y_max": 13.8
+      }
+    },
+    {
+      "id": "B",
+      "name": "Main Corridor",
+      "type": "corridor",
+      "boundaries": {
+        "x_min": -6.5,
+        "x_max": 84.2,
+        "y_min": -1,
+        "y_max": 6.9
+      }
+    }
+  ],
+
+  "doors": [
+    {
+      "id": "door_AB",
+      "name": "Office to Main Corridor",
+      "position": [31.1, 6.9],
+      "width": 1.5,
+      "connects": ["A", "B"],
+      "door_type": "manual",
+      "bidirectional": true,
+      "astar_goal_from_A": [31.1, 7.9],
+      "astar_goal_from_B": [31.1, 5.9],
+      "notes": "Main corridor entrance - A* stops 1m before door"
+    },
+    {
+      "id": "door_BC",
+      "name": "Main to East Wing",
+      "position": [22, 6],
+      "width": 1.5,
+      "connects": ["B", "C"],
+      "door_type": "manual",
+      "bidirectional": true,
+      "astar_goal_from_B": [21, 6],
+      "astar_goal_from_C": [23, 6],
+      "notes": "Connects to east wing - A* stops 1m before door"
+    },
+    {
+      "id": "door_BD",
+      "name": "Corridor to Elevator",
+      "position": [15, 4],
+      "width": 2.0,
+      "connects": ["B", "D"],
+      "door_type": "automatic",
+      "bidirectional": true,
+      "astar_goal_from_B": [15, 5],
+      "astar_goal_from_D": [15, 3],
+      "notes": "Elevator entrance - wide door - A* stops 1m before door"
+    },
+    {
+      "id": "door_CD",
+      "name": "East Wing to Elevator",
+      "position": [26, 4],
+      "width": 1.8,
+      "connects": ["C", "D"],
+      "door_type": "automatic",
+      "bidirectional": true,
+      "astar_goal_from_C": [26, 5],
+      "astar_goal_from_D": [26, 3],
+      "notes": "Alternative elevator access - A* stops 1m before door"
+    }
+  ]
+}
