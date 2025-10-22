@@ -323,6 +323,37 @@ classdef PhaseManager < handle
             exit_position = obj.door_exit_positions(obj.current_door, :);
         end
 
+        function transition_info = getTransitionInfo(obj)
+            % Get current transition information
+            %
+            % Returns struct with transition info or empty if not at a transition
+            %
+            % Outputs:
+            %   transition_info - struct with fields:
+            %       .door_center - [x, y] door/elevator center
+            %       .exit_position - [x, y] exit position
+            %       .type - 'door' or 'elevator'
+            %   Returns empty struct if not at a transition
+
+            transition_info = struct();
+
+            % Check if we are currently at a transition
+            if ~obj.at_transition || obj.current_transition <= 0
+                return;
+            end
+
+            % Get transition info from door_info array
+            if obj.current_transition <= length(obj.door_info)
+                transition = obj.door_info(obj.current_transition);
+                transition_info.door_center = transition.center;
+                transition_info.exit_position = transition.exit;
+                transition_info.type = transition.type;
+            else
+                % No transition info available - return empty
+                return;
+            end
+        end
+
         function is_first = isFirstTimeUse(obj)
             % Check if this is the first time the system is being used
             % Returns true if user has never triggered a mode change (e.g., 'floor_change')
