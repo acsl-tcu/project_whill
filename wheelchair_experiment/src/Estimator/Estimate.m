@@ -166,6 +166,12 @@ classdef Estimate < handle
         % Tracking control switch
         track_on                % Boolean switch to enable/disable LiDAR processing and tracking
 
+        % Mission planning parameters (stored until mode selected)
+        initial_position        % Starting position for mission planning
+        initial_goal_position   % Default goal position (elevator astar_goal)
+        waypoint_method_choice  % User's waypoint method choice ('1' or '2')
+        robot_params            % Robot dimensions and parameters
+
 
 
 
@@ -211,25 +217,17 @@ classdef Estimate < handle
             fprintf('  2 - Automatic A* pathfinding (multi-room, auto-detects single/multi) [default]\n');
             user_choice = input('Enter choice (1/2) [default: 2]: ', 's');
 
-            %% NEW ARCHITECTURE: PhaseManager owns mission planning
-            robot_params = struct();
-            robot_params.width = robot_width;
-            robot_params.length = robot_length;
-            robot_params.safety_margin = safety_margin;
-            robot_params.user_choice = user_choice;  % Pass user choice to PhaseManager
+            %% Store parameters for mission planning (will be called after mode selection)
+            obj.initial_position = initial_position;
+            obj.initial_goal_position = goal_position;
+            obj.waypoint_method_choice = user_choice;
+            obj.robot_params = struct();
+            obj.robot_params.width = robot_width;
+            obj.robot_params.length = robot_length;
+            obj.robot_params.safety_margin = safety_margin;
 
-            % Prepare goal data (use goal_position from BIM_data.astar_goal)
-            goal_data = struct();
-            goal_data.center = goal_position;  % Use astar_goal as the final goal position
-
-            % PhaseManager plans entire mission (waypoints + action sequence)
-            obj.phaseManager.planMission(initial_position, 'elevator', goal_data, robot_params);
-
-            % Extract waypoints for SharedControlMode (backward compatibility)
-            waypoint_cell_array = obj.phaseManager.waypoint_segments;
-            obj.sharedControlMode.setWaypoints(waypoint_cell_array);
-
-            fprintf('[ESTIMATE] Mission planning complete via PhaseManager\n');
+            fprintf('[ESTIMATE] Waypoint method selected. Waiting for mode selection...\n');
+            fprintf('[ESTIMATE] Action sequence will be planned after mode is chosen.\n');
 
             % Plot the generated path for visualization (world coordinates)
             try
@@ -446,10 +444,25 @@ classdef Estimate < handle
                         % CRITICAL FIX: Use PhaseManager.isFirstTimeUse() instead of SharedControlMode
                         % This fixes the bug where multi_room_navigation incorrectly set is_first_use = false
                         if obj.phaseManager.isFirstTimeUse()
-                            % First time - just mark replanned, let update() decide phase
-                            fprintf('[ESTIMATE] First-time floor_change - using initial waypoints\n');
+                            % First time - plan mission NOW with elevator as goal
+                            fprintf('[ESTIMATE] First-time floor_change - planning mission with ELEVATOR goal\n');
+
+                            % Prepare goal data
+                            goal_data = struct();
+                            goal_data.center = obj.initial_goal_position;
+
+                            % Add user choice to robot params
+                            obj.robot_params.user_choice = obj.waypoint_method_choice;
+
+                            % Plan mission with elevator as final goal
+                            obj.phaseManager.planMission(obj.initial_position, 'elevator', goal_data, obj.robot_params);
+
+                            % Extract waypoints for SharedControlMode (backward compatibility)
+                            waypoint_cell_array = obj.phaseManager.waypoint_segments;
+                            obj.sharedControlMode.setWaypoints(waypoint_cell_array);
+
                             obj.phaseManager.markPathReplanned();
-                            % Don't set phase - PhaseManager.update() will handle it in Control.m
+                            fprintf('[ESTIMATE] Mission planned based on floor_change mode\n');
                         else
                             % Not first time - replan path from current position and reset trackers
                             fprintf('[ESTIMATE] Replanning floor_change - generating new path from current position\n');
