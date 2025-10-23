@@ -33,6 +33,8 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
     persistent door_verified;     % Track if door has been verified open
     persistent distance_traveled; % Track odometry-based distance in Phase 3
     persistent last_update_time;  % For delta time calculation
+    persistent door_wait_start_time;  % Track when we started waiting at door
+    persistent door_wait_elapsed;     % Total elapsed time waiting at door
 
     % Initialize persistent variables
     if isempty(phase1_completed)
@@ -43,6 +45,10 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
     end
     if isempty(distance_traveled)
         distance_traveled = 0;
+    end
+    if isempty(door_wait_start_time)
+        door_wait_start_time = tic;
+        door_wait_elapsed = 0;
     end
 
     % Set default door_type
@@ -104,7 +110,9 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
     elseif ~door_verified
         result.phase = 2.5;
         result.status = 'Verifying door is passable';
-        result.V = [0; 0]; % Stop while checking
+
+        % Update elapsed waiting time
+        door_wait_elapsed = toc(door_wait_start_time);
 
         % Use unified door checking function
         wheelchair_pose = [current_position, current_yaw];
@@ -117,10 +125,23 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
             fprintf('Door detected as OPEN - waiting 2 seconds before moving forward...\n');
             pause(2); % Wait 2 seconds after detecting door is open
             door_verified = true;
+            result.V = [0; 0]; % Stop after detection
         elseif strcmp(door_check.door_state, 'closed')
-            % Door closed - waiting
+            % Door closed - use idle motion to trigger door sensor
+            fprintf('Door CLOSED - performing idle motion to trigger sensor (%.1fs elapsed)...\n', door_wait_elapsed);
+
+            % Generate idle motion commands
+            idle_params = struct();
+            idle_params.IDLE_SPEED = 0.05;       % 5 cm/s
+            idle_params.MOTION_DURATION = 1.0;   % 1 second per motion
+            idle_params.PAUSE_DURATION = 0.5;    % 0.5 second pause
+
+            idle_result = idleMotionForDoorSensor(door_wait_elapsed, idle_params);
+            result.V = idle_result.V;
+            result.status = sprintf('Phase 2.5: %s', idle_result.status);
         else
             door_verified = true; % Proceed anyway if unknown
+            result.V = [0; 0];
         end
 
     % Phase 3: Move through door to exit position
@@ -153,6 +174,8 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
             door_verified = [];
             distance_traveled = [];
             last_update_time = [];
+            door_wait_start_time = [];
+            door_wait_elapsed = [];
         end
     end
 end
