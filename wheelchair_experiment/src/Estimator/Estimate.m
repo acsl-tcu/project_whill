@@ -228,6 +228,9 @@ classdef Estimate < handle
             door_info_struct = [];
             final_goal_type = 'room';  % Default: reaching final waypoint completes mission
 
+            % Always get elevator metadata (needed for action sequence planning)
+            elevator_metadata = LocationMetadata.getLocation('elevator');
+
             if length(waypoint_cell_array) > 1 && ~isempty(door_info)
                 % Multi-room mode: convert old format to new format
                 for i = 1:size(door_info.door_centers, 1)
@@ -242,7 +245,6 @@ classdef Estimate < handle
                 end
             elseif length(waypoint_cell_array) == 1
                 % Single-room mode: add elevator at end
-                elevator_metadata = LocationMetadata.getLocation('elevator');
                 door_info_struct = struct('type', 'elevator', ...
                                           'center', elevator_metadata.door_center, ...
                                           'exit', elevator_metadata.target_position);
