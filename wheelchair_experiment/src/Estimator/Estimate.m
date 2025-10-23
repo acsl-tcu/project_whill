@@ -198,66 +198,32 @@ classdef Estimate < handle
             
             % Calculate robot dimensions (using same constants as Control.m)
             wheel_width = 0.55/2;           % wheel_width from Control.m
-            wheel_len_rear = 0.35;          % wheel_len_rear from Control.m  
+            wheel_len_rear = 0.35;          % wheel_len_rear from Control.m
             wheel_len_front = 0.76;         % wheel_len_front from Control.m
             robot_width = wheel_width * 2;  % Total width = 0.55m
             robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
             safety_margin = 0.0;
-            %% 
-            %% 
 
-            % Ask user to select waypoint method (interactive, A*, or multi-room)
-            % Returns: waypoint_cell_array - {segment1, segment2, ...}
-            [waypoint_cell_array, room_sequence, door_info] = selectWaypointMethod(...
-                initial_position, goal_position, robot_width, robot_length, safety_margin);
+            %% NEW ARCHITECTURE: PhaseManager owns mission planning
+            % Prepare robot parameters
+            robot_params = struct();
+            robot_params.width = robot_width;
+            robot_params.length = robot_length;
+            robot_params.safety_margin = safety_margin;
 
-            % DEBUG: Check waypoint data before storing
-            fprintf('\n[ESTIMATE DEBUG] Waypoint data from selectWaypointMethod:\n');
-            fprintf('  Type: %s\n', class(waypoint_cell_array));
-            fprintf('  Is cell: %d\n', iscell(waypoint_cell_array));
-            fprintf('  Number of segments: %d\n', length(waypoint_cell_array));
-            for seg = 1:length(waypoint_cell_array)
-                fprintf('  Segment %d: %dx%d waypoints\n', seg, size(waypoint_cell_array{seg}, 1), size(waypoint_cell_array{seg}, 2));
-            end
-            fprintf('\n');
+            % Prepare goal data
+            elevator_metadata = LocationMetadata.getLocation('elevator');
+            goal_data = struct();
+            goal_data.center = elevator_metadata.door_center;
 
-            % Store waypoints in SharedControlMode for Control.m to access
+            % PhaseManager plans entire mission (waypoints + action sequence)
+            obj.phaseManager.planMission(initial_position, 'elevator', goal_data, robot_params);
+
+            % Extract waypoints for SharedControlMode (backward compatibility)
+            waypoint_cell_array = obj.phaseManager.waypoint_segments;
             obj.sharedControlMode.setWaypoints(waypoint_cell_array);
 
-            % Convert door_info to universal format for PhaseManager
-            door_info_struct = [];
-            final_goal_type = 'room';  % Default: reaching final waypoint completes mission
-
-            % Always get elevator metadata (needed for action sequence planning)
-            elevator_metadata = LocationMetadata.getLocation('elevator');
-
-            if length(waypoint_cell_array) > 1 && ~isempty(door_info)
-                % Multi-room mode: convert old format to new format
-                for i = 1:size(door_info.door_centers, 1)
-                    door_info_struct(i).type = 'door';  % Assume doors (change to 'elevator' if needed)
-                    door_info_struct(i).center = door_info.door_centers(i, :);
-                    door_info_struct(i).exit = door_info.door_exit_positions(i, :);
-                end
-
-                % Check if last transition is an elevator
-                if ~isempty(door_info_struct) && strcmp(door_info_struct(end).type, 'elevator')
-                    final_goal_type = 'elevator';
-                end
-            elseif length(waypoint_cell_array) == 1
-                % Single-room mode: add elevator at end
-                door_info_struct = struct('type', 'elevator', ...
-                                          'center', elevator_metadata.door_center, ...
-                                          'exit', elevator_metadata.target_position);
-                final_goal_type = 'elevator';  % Single-room always ends with elevator
-            end
-
-            % Initialize universal path follower with final goal type
-            obj.phaseManager.setWaypointsUniversal(waypoint_cell_array, room_sequence, door_info_struct, final_goal_type);
-            fprintf('[ESTIMATE] Universal path follower initialized with %d segments (final goal: %s)\n', ...
-                    length(waypoint_cell_array), final_goal_type);
-
-            % TEST: Generate action sequence (output only, doesn't affect navigation)
-            obj.testActionSequencePlanner(initial_position, final_goal_type, elevator_metadata);
+            fprintf('[ESTIMATE] Mission planning complete via PhaseManager\n');
 
             % Plot the generated path for visualization (world coordinates)
             try

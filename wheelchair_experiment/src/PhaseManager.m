@@ -681,6 +681,146 @@ classdef PhaseManager < handle
         end
 
         %% ==============================================================
+        %  MISSION PLANNING - Unified waypoint generation + action sequence
+        %  ==============================================================
+
+        function planMission(obj, start_position, goal_type, goal_data, robot_params)
+            % planMission - Complete mission planning: waypoints + action sequence
+            %
+            % This is the MAIN entry point for navigation planning.
+            % Replaces old flow: selectWaypointMethod → setWaypoints → planActionSequence
+            %
+            % Inputs:
+            %   start_position - [x, y] starting position
+            %   goal_type - 'elevator', 'room', or 'position'
+            %   goal_data - Goal-specific data (struct with .center for elevator, etc.)
+            %   robot_params - struct with:
+            %       .width, .length, .safety_margin
+            %       .room_database_path (optional, for multi-room)
+            %
+            % Side effects:
+            %   - Generates waypoints (calls HybridPathPlanner or A*)
+            %   - Stores waypoints in obj.waypoint_segments
+            %   - Generates action_sequence
+            %   - Stores in obj.action_sequence
+            %   - Sets obj.action_sequence_active = true
+
+            fprintf('\n╔══════════════════════════════════════════════════╗\n');
+            fprintf('║         PHASE MANAGER - MISSION PLANNING         ║\n');
+            fprintf('╚══════════════════════════════════════════════════╝\n\n');
+
+            % Determine if multi-room or single-room based on goal
+            fprintf('Start: [%.2f, %.2f]\n', start_position(1), start_position(2));
+            fprintf('Goal Type: %s\n', goal_type);
+
+            % Default room database path
+            if ~isfield(robot_params, 'room_database_path')
+                robot_params.room_database_path = fullfile(fileparts(mfilename('fullpath')), ...
+                    '../MultiRoomNav/room_database.json');
+            end
+
+            % Check if room database exists (determines multi-room capability)
+            room_db_exists = exist(robot_params.room_database_path, 'file');
+
+            if room_db_exists
+                fprintf('Room database: Found\n');
+                fprintf('Planning mode: Auto-detect (single or multi-room)\n\n');
+
+                % Try multi-room planning
+                [waypoint_segments, room_sequence, door_info] = obj.planMultiRoomPath(...
+                    start_position, goal_data, robot_params);
+
+                if length(waypoint_segments) > 1
+                    fprintf('→ Multi-room path generated\n\n');
+                else
+                    fprintf('→ Single-room path (start and goal in same room)\n\n');
+                end
+            else
+                fprintf('Room database: Not found\n');
+                fprintf('Planning mode: Single-room only\n\n');
+
+                % Single-room A* planning
+                [waypoint_segments, room_sequence, door_info] = obj.planSingleRoomPath(...
+                    start_position, goal_data, robot_params);
+            end
+
+            % Store waypoints in PhaseManager
+            obj.waypoint_segments = waypoint_segments;
+            obj.room_sequence = room_sequence;
+            obj.door_info = door_info;
+            obj.total_segments = length(waypoint_segments);
+
+            % Initialize segment tracking
+            obj.current_segment = 1;
+            obj.current_waypoint_local = 1;
+            if obj.total_segments > 0
+                obj.total_waypoints_segment = size(waypoint_segments{1}, 1);
+            end
+
+            % Set final goal type
+            if strcmp(goal_type, 'elevator')
+                obj.final_goal_type = 'elevator';
+            else
+                obj.final_goal_type = 'room';
+            end
+
+            fprintf('═══════════════════════════════════════════════════\n');
+            fprintf('Mission Planning Complete:\n');
+            fprintf('  Segments: %d\n', obj.total_segments);
+            fprintf('  Rooms: %s\n', strjoin(room_sequence, ' → '));
+            fprintf('  Final Goal: %s\n', obj.final_goal_type);
+            fprintf('═══════════════════════════════════════════════════\n\n');
+
+            % Generate action sequence (TODO: integrate with waypoint generation)
+            % For now, just note that it exists
+            obj.action_sequence_active = false;  % Not yet using action sequence execution
+        end
+
+        function [waypoint_segments, room_sequence, door_info] = planMultiRoomPath(obj, start_position, goal_data, robot_params)
+            % planMultiRoomPath - Generate multi-room path using HybridPathPlanner
+            %
+            % Calls: generateMultiRoomPath → HybridPathPlanner
+
+            % Add MultiRoomNav to path
+            multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
+            addpath(multiroom_path);
+
+            % Determine goal position based on goal type
+            if isstruct(goal_data) && isfield(goal_data, 'center')
+                goal_position = goal_data.center;
+            else
+                goal_position = goal_data;  % Assume it's a position
+            end
+
+            % Call generateMultiRoomPath
+            [~, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(...
+                start_position, goal_position, ...
+                robot_params.width, robot_params.length, robot_params.safety_margin);
+        end
+
+        function [waypoint_segments, room_sequence, door_info] = planSingleRoomPath(obj, start_position, goal_data, robot_params)
+            % planSingleRoomPath - Generate single-room A* path
+            %
+            % Calls: PathSetting_AStar
+
+            % Determine goal position
+            if isstruct(goal_data) && isfield(goal_data, 'center')
+                goal_position = goal_data.center;
+            else
+                goal_position = goal_data;
+            end
+
+            % Call A* planner
+            [waypoints, ~, ~, ~, ~] = PathSetting_AStar(start_position, goal_position, ...
+                robot_params.width, robot_params.length, robot_params.safety_margin);
+
+            % Wrap in cell array
+            waypoint_segments = {waypoints};
+            room_sequence = {'Unknown'};
+            door_info = struct('door_centers', [], 'door_exit_positions', []);
+        end
+
+        %% ==============================================================
         %  ACTION SEQUENCE PLANNER - New systematic approach
         %  ==============================================================
 
