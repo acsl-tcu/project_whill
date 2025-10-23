@@ -711,18 +711,19 @@ classdef PhaseManager < handle
                     '../MultiRoomNav/room_database.json');
             end
 
-            room_graph = [];
-            if exist(robot_params.room_database_path, 'file')
-                fprintf('STEP 1: Loading room database...\n');
-                multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
-                addpath(multiroom_path);
+            % STEP 1: Load room database (required for path planning)
+            fprintf('STEP 1: Loading room database...\n');
+            multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
+            addpath(multiroom_path);
 
-                db = RoomDatabase(robot_params.room_database_path);
-                room_graph = db.buildGraph();
-                fprintf('  ✓ Loaded %d rooms\n\n', length(db.rooms_data));
-            else
-                fprintf('STEP 1: No room database found (single-room mode)\n\n');
+            if ~exist(robot_params.room_database_path, 'file')
+                error('Room database not found: %s\nMulti-room planner requires room_database.json', ...
+                      robot_params.room_database_path);
             end
+
+            db = RoomDatabase(robot_params.room_database_path);
+            room_graph = db.buildGraph();
+            fprintf('  ✓ Loaded %d rooms\n\n', length(db.rooms_data));
 
             % STEP 2: Plan action sequence (high-level blueprint)
             fprintf('STEP 2: Planning action sequence...\n');
@@ -759,50 +760,6 @@ classdef PhaseManager < handle
             fprintf('═══════════════════════════════════════════════════\n\n');
 
             obj.action_sequence_active = true;
-        end
-
-        function [waypoint_segments, room_sequence, door_info] = planMultiRoomPath(obj, start_position, goal_data, robot_params)
-            % planMultiRoomPath - Generate multi-room path using HybridPathPlanner
-            %
-            % Calls: generateMultiRoomPath → HybridPathPlanner
-
-            % Add MultiRoomNav to path
-            multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
-            addpath(multiroom_path);
-
-            % Determine goal position based on goal type
-            if isstruct(goal_data) && isfield(goal_data, 'center')
-                goal_position = goal_data.center;
-            else
-                goal_position = goal_data;  % Assume it's a position
-            end
-
-            % Call generateMultiRoomPath
-            [~, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(...
-                start_position, goal_position, ...
-                robot_params.width, robot_params.length, robot_params.safety_margin);
-        end
-
-        function [waypoint_segments, room_sequence, door_info] = planSingleRoomPath(obj, start_position, goal_data, robot_params)
-            % planSingleRoomPath - Generate single-room A* path
-            %
-            % Calls: PathSetting_AStar
-
-            % Determine goal position
-            if isstruct(goal_data) && isfield(goal_data, 'center')
-                goal_position = goal_data.center;
-            else
-                goal_position = goal_data;
-            end
-
-            % Call A* planner
-            [waypoints, ~, ~, ~, ~] = PathSetting_AStar(start_position, goal_position, ...
-                robot_params.width, robot_params.length, robot_params.safety_margin);
-
-            % Wrap in cell array
-            waypoint_segments = {waypoints};
-            room_sequence = {'Unknown'};
-            door_info = struct('door_centers', [], 'door_exit_positions', []);
         end
 
         %% ==============================================================
