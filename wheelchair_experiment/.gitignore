@@ -10,3 +10,7 @@ data/
 
 # Video files
 astar_visualization*.avi
+
+# Main test/development scripts
+main_astar.m
+main.m
