@@ -53,6 +53,11 @@ classdef PhaseManager < handle
         total_doors             % Total number of doors
         door_centers            % Array of door center positions
         door_exit_positions     % Array of door exit positions
+
+        % Action Sequence Planner (NEW)
+        action_sequence         % Cell array of action structs defining the mission plan
+        current_action_index    % Current action being executed (index into action_sequence)
+        action_sequence_active  % Boolean: is action sequence mode active?
     end
 
     methods
@@ -99,6 +104,11 @@ classdef PhaseManager < handle
             obj.total_doors = 0;
             obj.door_centers = [];
             obj.door_exit_positions = [];
+
+            % Initialize action sequence planner
+            obj.action_sequence = {};
+            obj.current_action_index = 0;
+            obj.action_sequence_active = false;
 
             fprintf('[PHASE MANAGER] Universal Path Follower Initialized\n');
         end
@@ -668,6 +678,290 @@ classdef PhaseManager < handle
             end
 
             fprintf('===========================\n\n');
+        end
+
+        %% ==============================================================
+        %  ACTION SEQUENCE PLANNER - New systematic approach
+        %  ==============================================================
+
+        function action_sequence = planActionSequence(obj, start_position, goal_type, goal_data, room_graph)
+            % planActionSequence - Create systematic action sequence from start to goal
+            %
+            % This function analyzes the start position, goal, and room connectivity
+            % to generate a complete action sequence that the robot should execute.
+            %
+            % Inputs:
+            %   start_position - [x, y] current wheelchair position
+            %   goal_type - String: 'elevator', 'room', or 'position'
+            %   goal_data - Goal-specific data:
+            %       For 'elevator': struct with .center [x,y]
+            %       For 'room': string room_id (e.g., 'A', 'B')
+            %       For 'position': [x, y] target position
+            %   room_graph - (Optional) RoomGraph object with room/door connectivity
+            %
+            % Outputs:
+            %   action_sequence - Cell array of action structs, each with:
+            %       .type - 'path_follow', 'door_entry', 'elevator_entry'
+            %       .start_room - Starting room ID
+            %       .end_room - Ending room ID (for path_follow)
+            %       .waypoints - Nx2 waypoint array (for path_follow)
+            %       .door_center - [x, y] (for door_entry)
+            %       .door_exit - [x, y] (for door_entry)
+            %       .elevator_center - [x, y] (for elevator_entry)
+            %       .description - Human-readable description
+            %
+            % Example:
+            %   % Start in room A, goal is elevator
+            %   goal.center = [27.0, 12.2];
+            %   seq = phaseManager.planActionSequence([30, 6], 'elevator', goal, roomGraph);
+            %   % Returns: {path_follow_1, door_entry_1, path_follow_2, elevator_entry}
+
+            fprintf('\n=== ACTION SEQUENCE PLANNER ===\n');
+            fprintf('Start Position: [%.2f, %.2f]\n', start_position(1), start_position(2));
+            fprintf('Goal Type: %s\n', goal_type);
+
+            % Initialize action sequence
+            action_sequence = {};
+
+            % Determine start room (find which room contains start_position)
+            if nargin >= 5 && ~isempty(room_graph)
+                start_room = obj.findRoomAtPosition(start_position, room_graph);
+            else
+                start_room = 'unknown';
+            end
+
+            fprintf('Start Room: %s\n', start_room);
+
+            % Plan based on goal type
+            switch goal_type
+                case 'elevator'
+                    % Goal is to reach elevator
+                    elevator_center = goal_data.center;
+                    fprintf('Goal: Elevator at [%.2f, %.2f]\n', elevator_center(1), elevator_center(2));
+
+                    % Determine elevator room
+                    if nargin >= 5 && ~isempty(room_graph)
+                        elevator_room = obj.findRoomAtPosition(elevator_center, room_graph);
+                    else
+                        elevator_room = 'unknown';
+                    end
+
+                    fprintf('Elevator Room: %s\n', elevator_room);
+
+                    % Check if we're in the same room as elevator
+                    if strcmp(start_room, elevator_room)
+                        % Same room - direct path to elevator
+                        action_sequence = obj.createSingleRoomElevatorSequence(start_position, elevator_center, start_room);
+                    else
+                        % Different rooms - multi-room navigation required
+                        action_sequence = obj.createMultiRoomElevatorSequence(start_position, elevator_center, ...
+                                                                              start_room, elevator_room, room_graph);
+                    end
+
+                case 'room'
+                    % Goal is to reach a specific room
+                    target_room = goal_data;
+                    fprintf('Goal: Room %s\n', target_room);
+
+                    if strcmp(start_room, target_room)
+                        fprintf('Already in target room - no navigation needed\n');
+                        action_sequence = {};
+                    else
+                        % Navigate from start_room to target_room
+                        action_sequence = obj.createRoomToRoomSequence(start_position, start_room, target_room, room_graph);
+                    end
+
+                case 'position'
+                    % Goal is to reach a specific position
+                    target_position = goal_data;
+                    fprintf('Goal: Position [%.2f, %.2f]\n', target_position(1), target_position(2));
+
+                    % Determine which room contains target
+                    if nargin >= 5 && ~isempty(room_graph)
+                        target_room = obj.findRoomAtPosition(target_position, room_graph);
+                    else
+                        target_room = 'unknown';
+                    end
+
+                    if strcmp(start_room, target_room)
+                        % Same room - direct path
+                        action_sequence = obj.createSingleRoomPathSequence(start_position, target_position, start_room);
+                    else
+                        % Multi-room path required
+                        action_sequence = obj.createMultiRoomPathSequence(start_position, target_position, ...
+                                                                          start_room, target_room, room_graph);
+                    end
+
+                otherwise
+                    error('Invalid goal_type: %s. Must be ''elevator'', ''room'', or ''position''', goal_type);
+            end
+
+            % Print action sequence summary
+            fprintf('\n--- Generated Action Sequence ---\n');
+            for i = 1:length(action_sequence)
+                action = action_sequence{i};
+                fprintf('%d. [%s] %s\n', i, upper(action.type), action.description);
+            end
+            fprintf('Total Actions: %d\n', length(action_sequence));
+            fprintf('================================\n\n');
+        end
+
+        function room_id = findRoomAtPosition(obj, position, room_graph)
+            % Find which room contains the given position
+            %
+            % Returns room ID string, or 'unknown' if not in any room
+
+            if isempty(room_graph)
+                room_id = 'unknown';
+                return;
+            end
+
+            % TODO: Implement room boundary checking
+            % For now, return 'unknown' - this will be implemented when integrating with RoomGraph
+            room_id = 'unknown';
+            fprintf('  [findRoomAtPosition] Position check not yet implemented\n');
+        end
+
+        function action_sequence = createSingleRoomElevatorSequence(obj, start_pos, elevator_center, room_id)
+            % Create action sequence for elevator in same room
+            %
+            % Sequence: path_follow → elevator_entry
+
+            action_sequence = {};
+
+            % Action 1: Path follow to elevator approach position
+            action1 = struct();
+            action1.type = 'path_follow';
+            action1.start_room = room_id;
+            action1.end_room = room_id;
+            action1.waypoints = [];  % Will be computed by A* later
+            action1.goal_position = elevator_center;  % A* goal
+            action1.description = sprintf('Path follow in room %s to elevator', room_id);
+            action_sequence{end+1} = action1;
+
+            % Action 2: Enter elevator
+            action2 = struct();
+            action2.type = 'elevator_entry';
+            action2.elevator_center = elevator_center;
+            action2.description = 'Enter elevator';
+            action_sequence{end+1} = action2;
+        end
+
+        function action_sequence = createMultiRoomElevatorSequence(obj, start_pos, elevator_center, start_room, elevator_room, room_graph)
+            % Create action sequence for elevator in different room
+            %
+            % Sequence: path_follow_1 → door → path_follow_2 → ... → elevator_entry
+
+            action_sequence = {};
+
+            % TODO: Use room_graph to find path from start_room to elevator_room
+            % For now, create a placeholder sequence
+            fprintf('  [Multi-room to elevator] Requires room graph integration\n');
+
+            % Placeholder: assume single door between rooms
+            action1 = struct();
+            action1.type = 'path_follow';
+            action1.start_room = start_room;
+            action1.end_room = start_room;
+            action1.waypoints = [];
+            action1.goal_position = [];  % Door approach position
+            action1.description = sprintf('Path follow in room %s to door', start_room);
+            action_sequence{end+1} = action1;
+
+            action2 = struct();
+            action2.type = 'door_entry';
+            action2.door_center = [];  % Will be filled from room_graph
+            action2.door_exit = [];
+            action2.description = sprintf('Cross door from %s to %s', start_room, elevator_room);
+            action_sequence{end+1} = action2;
+
+            action3 = struct();
+            action3.type = 'path_follow';
+            action3.start_room = elevator_room;
+            action3.end_room = elevator_room;
+            action3.waypoints = [];
+            action3.goal_position = elevator_center;
+            action3.description = sprintf('Path follow in room %s to elevator', elevator_room);
+            action_sequence{end+1} = action3;
+
+            action4 = struct();
+            action4.type = 'elevator_entry';
+            action4.elevator_center = elevator_center;
+            action4.description = 'Enter elevator';
+            action_sequence{end+1} = action4;
+        end
+
+        function action_sequence = createSingleRoomPathSequence(obj, start_pos, target_pos, room_id)
+            % Create action sequence for target position in same room
+            %
+            % Sequence: path_follow
+
+            action_sequence = {};
+
+            action1 = struct();
+            action1.type = 'path_follow';
+            action1.start_room = room_id;
+            action1.end_room = room_id;
+            action1.waypoints = [];  % Will be computed by A*
+            action1.goal_position = target_pos;
+            action1.description = sprintf('Path follow in room %s to target', room_id);
+            action_sequence{end+1} = action1;
+        end
+
+        function action_sequence = createMultiRoomPathSequence(obj, start_pos, target_pos, start_room, target_room, room_graph)
+            % Create action sequence for target position in different room
+            %
+            % Sequence: path_follow_1 → door → path_follow_2 → ...
+
+            action_sequence = {};
+
+            % TODO: Use room_graph to find path
+            fprintf('  [Multi-room path] Requires room graph integration\n');
+
+            % Placeholder sequence
+            action_sequence = {};
+        end
+
+        function action_sequence = createRoomToRoomSequence(obj, start_pos, start_room, target_room, room_graph)
+            % Create action sequence to navigate from one room to another
+            %
+            % Sequence: path_follow_1 → door_1 → path_follow_2 → door_2 → ...
+
+            action_sequence = {};
+
+            % TODO: Use Dijkstra on room_graph to find room sequence
+            fprintf('  [Room-to-room] Requires room graph integration\n');
+
+            % Placeholder
+            action_sequence = {};
+        end
+
+        function printActionSequence(obj)
+            % Print current action sequence (for debugging)
+
+            if ~obj.action_sequence_active || isempty(obj.action_sequence)
+                fprintf('No active action sequence\n');
+                return;
+            end
+
+            fprintf('\n=== ACTION SEQUENCE STATUS ===\n');
+            fprintf('Active: %s\n', mat2str(obj.action_sequence_active));
+            fprintf('Current Action: %d/%d\n', obj.current_action_index, length(obj.action_sequence));
+            fprintf('\n');
+
+            for i = 1:length(obj.action_sequence)
+                action = obj.action_sequence{i};
+                marker = ' ';
+                if i == obj.current_action_index
+                    marker = '→';
+                elseif i < obj.current_action_index
+                    marker = '✓';
+                end
+
+                fprintf('%s %d. [%s] %s\n', marker, i, upper(action.type), action.description);
+            end
+
+            fprintf('==============================\n\n');
         end
     end
 end
