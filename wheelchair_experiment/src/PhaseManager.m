@@ -745,60 +745,75 @@ classdef PhaseManager < handle
             end
 
             % Option 2: A* pathfinding (multi-room planner)
-            % STEP 1: Load room database (required for A* path planning)
-            if ~isfield(robot_params, 'room_database_path')
-                robot_params.room_database_path = fullfile(fileparts(mfilename('fullpath')), ...
-                    '../MultiRoomNav/room_database.json');
-            end
+            % Use existing generateMultiRoomPath which handles everything correctly
+            fprintf('STEP 1: Running multi-room path planner (Dijkstra + A*)...\n');
 
-            fprintf('STEP 1: Loading room database...\n');
             multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
             addpath(multiroom_path);
 
-            if ~exist(robot_params.room_database_path, 'file')
-                error('Room database not found: %s\nMulti-room planner requires room_database.json', ...
-                      robot_params.room_database_path);
-            end
+            % Call generateMultiRoomPath to get waypoint segments, room sequence, and doors
+            [~, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(...
+                start_position, goal_data.center, ...
+                robot_params.width, robot_params.length, robot_params.safety_margin);
 
-            db = RoomDatabase(robot_params.room_database_path);
-            room_graph = db.buildGraph();
-            fprintf('  ✓ Loaded %d rooms\n\n', length(db.rooms_data));
+            fprintf('  ✓ Generated %d segments across rooms: %s\n\n', ...
+                    length(waypoint_segments), strjoin(room_sequence, ' → '));
 
-            % STEP 2: Plan action sequence (high-level blueprint)
-            fprintf('STEP 2: Planning action sequence...\n');
-            obj.action_sequence = obj.planActionSequence(start_position, goal_type, goal_data, room_graph);
-            fprintf('  ✓ Generated %d actions\n\n', length(obj.action_sequence));
+            % STEP 2: Build action sequence from waypoint segments
+            fprintf('STEP 2: Building action sequence from path segments...\n');
+            obj.action_sequence = {};
 
-            % STEP 3: Generate waypoints for all path_follow actions
-            fprintf('STEP 3: Pre-generating waypoints for path_follow actions...\n');
-            for i = 1:length(obj.action_sequence)
-                action = obj.action_sequence{i};
+            for seg_idx = 1:length(waypoint_segments)
+                % Add path_follow action
+                action = struct();
+                action.type = 'path_follow';
+                action.start_room = room_sequence{seg_idx};
+                action.end_room = room_sequence{min(seg_idx+1, length(room_sequence))};
+                action.waypoints = waypoint_segments{seg_idx};
+                action.start_position = waypoint_segments{seg_idx}(1, :);
+                action.goal_position = waypoint_segments{seg_idx}(end, :);
+                action.description = sprintf('Path follow in room %s (%d waypoints)', ...
+                                             action.start_room, size(action.waypoints, 1));
+                obj.action_sequence{end+1} = action;
 
-                if strcmp(action.type, 'path_follow')
-                    fprintf('  Action %d: Generating waypoints... ', i);
-
-                    % Generate waypoints using A*
-                    [waypoints, ~, ~, ~, ~] = PathSetting_AStar(...
-                        action.start_position, action.goal_position, ...
-                        robot_params.width, robot_params.length, robot_params.safety_margin);
-
-                    obj.action_sequence{i}.waypoints = waypoints;
-                    fprintf('✓ %d waypoints\n', size(waypoints, 1));
+                % Add door_entry action if not last segment
+                if seg_idx < length(waypoint_segments)
+                    door_action = struct();
+                    door_action.type = 'door_entry';
+                    door_action.door_center = door_info.door_centers(seg_idx, :);
+                    door_action.door_exit = door_info.door_exit_positions(seg_idx, :);
+                    door_action.description = sprintf('Cross door from %s to %s', ...
+                                                      room_sequence{seg_idx}, room_sequence{seg_idx+1});
+                    obj.action_sequence{end+1} = door_action;
                 end
             end
-            fprintf('\n');
 
-            % STEP 4: Store for backward compatibility with old system
+            % Add elevator_entry if goal is elevator
+            if strcmp(goal_type, 'elevator')
+                elev_action = struct();
+                elev_action.type = 'elevator_entry';
+                elev_action.elevator_center = goal_data.center;
+                elev_action.description = 'Enter elevator';
+                obj.action_sequence{end+1} = elev_action;
+            end
+
+            fprintf('  ✓ Created %d actions\n\n', length(obj.action_sequence));
+
+            % STEP 3: Store for backward compatibility with old system
             obj.extractWaypointsFromActions();  % Convert to waypoint_segments format
 
             fprintf('═══════════════════════════════════════════════════\n');
             fprintf('Mission Planning Complete:\n');
             fprintf('  Actions: %d\n', length(obj.action_sequence));
+            fprintf('  Rooms: %s\n', strjoin(room_sequence, ' → '));
             fprintf('  Waypoint Segments: %d\n', obj.total_segments);
             fprintf('  Final Goal: %s\n', obj.final_goal_type);
             fprintf('═══════════════════════════════════════════════════\n\n');
 
             obj.action_sequence_active = true;
+
+            % Print action sequence for debugging
+            obj.printActionSequence();
         end
 
         %% ==============================================================
@@ -1061,29 +1076,26 @@ classdef PhaseManager < handle
         function printActionSequence(obj)
             % Print current action sequence (for debugging)
 
-            if ~obj.action_sequence_active || isempty(obj.action_sequence)
-                fprintf('No active action sequence\n');
+            if isempty(obj.action_sequence)
+                fprintf('No action sequence generated\n');
                 return;
             end
 
-            fprintf('\n=== ACTION SEQUENCE STATUS ===\n');
-            fprintf('Active: %s\n', mat2str(obj.action_sequence_active));
-            fprintf('Current Action: %d/%d\n', obj.current_action_index, length(obj.action_sequence));
-            fprintf('\n');
+            fprintf('\n=== ACTION SEQUENCE ===\n');
 
             for i = 1:length(obj.action_sequence)
                 action = obj.action_sequence{i};
                 marker = ' ';
-                if i == obj.current_action_index
+                if obj.action_sequence_active && obj.current_action_index == i
                     marker = '→';
-                elseif i < obj.current_action_index
+                elseif obj.action_sequence_active && i < obj.current_action_index
                     marker = '✓';
                 end
 
                 fprintf('%s %d. [%s] %s\n', marker, i, upper(action.type), action.description);
             end
 
-            fprintf('==============================\n\n');
+            fprintf('=======================\n\n');
         end
 
         function extractWaypointsFromActions(obj)
