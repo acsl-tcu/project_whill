@@ -211,10 +211,9 @@ classdef Estimate < handle
             robot_params.length = robot_length;
             robot_params.safety_margin = safety_margin;
 
-            % Prepare goal data
-            elevator_metadata = LocationMetadata.getLocation('elevator');
+            % Prepare goal data (use goal_position from BIM_data.astar_goal)
             goal_data = struct();
-            goal_data.center = elevator_metadata.door_center;
+            goal_data.center = goal_position;  % Use astar_goal as the final goal position
 
             % PhaseManager plans entire mission (waypoints + action sequence)
             obj.phaseManager.planMission(initial_position, 'elevator', goal_data, robot_params);
