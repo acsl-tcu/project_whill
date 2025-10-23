@@ -255,7 +255,7 @@ classdef Estimate < handle
                     length(waypoint_cell_array), final_goal_type);
 
             % TEST: Generate action sequence (output only, doesn't affect navigation)
-            obj.testActionSequencePlanner(Plant, final_goal_type, elevator_metadata);
+            obj.testActionSequencePlanner(initial_position, final_goal_type, elevator_metadata);
 
             % Plot the generated path for visualization (world coordinates)
             try
@@ -1574,14 +1574,14 @@ classdef Estimate < handle
 
         end
 
-        function testActionSequencePlanner(obj, Plant, final_goal_type, elevator_metadata)
+        function testActionSequencePlanner(obj, initial_position, final_goal_type, elevator_metadata)
             % testActionSequencePlanner - Test action sequence planner (output only)
             %
             % This method calls planActionSequence() to demonstrate the action sequence
             % generation without affecting the actual navigation system.
             %
             % Inputs:
-            %   Plant - Plant object with current position
+            %   initial_position - [x, y] starting position
             %   final_goal_type - 'elevator', 'room', or 'position'
             %   elevator_metadata - LocationMetadata for elevator
 
@@ -1591,8 +1591,8 @@ classdef Estimate < handle
             fprintf('╚════════════════════════════════════════════════════════════╝\n');
             fprintf('\n');
 
-            % Get current position
-            start_position = [Plant.X, Plant.Y];
+            % Use provided initial position
+            start_position = initial_position;
 
             % Prepare goal data based on final_goal_type
             switch final_goal_type
