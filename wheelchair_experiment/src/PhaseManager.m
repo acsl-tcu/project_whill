@@ -685,95 +685,80 @@ classdef PhaseManager < handle
         %  ==============================================================
 
         function planMission(obj, start_position, goal_type, goal_data, robot_params)
-            % planMission - Complete mission planning: waypoints + action sequence
+            % planMission - Complete mission planning: action sequence + waypoints
             %
-            % This is the MAIN entry point for navigation planning.
-            % Replaces old flow: selectWaypointMethod → setWaypoints → planActionSequence
+            % NEW APPROACH:
+            % 1. Plan action sequence FIRST (high-level blueprint)
+            % 2. Generate waypoints for each path_follow action
+            % 3. Store waypoints in actions
             %
             % Inputs:
             %   start_position - [x, y] starting position
             %   goal_type - 'elevator', 'room', or 'position'
             %   goal_data - Goal-specific data (struct with .center for elevator, etc.)
-            %   robot_params - struct with:
-            %       .width, .length, .safety_margin
-            %       .room_database_path (optional, for multi-room)
-            %
-            % Side effects:
-            %   - Generates waypoints (calls HybridPathPlanner or A*)
-            %   - Stores waypoints in obj.waypoint_segments
-            %   - Generates action_sequence
-            %   - Stores in obj.action_sequence
-            %   - Sets obj.action_sequence_active = true
+            %   robot_params - struct with .width, .length, .safety_margin
 
             fprintf('\n╔══════════════════════════════════════════════════╗\n');
             fprintf('║         PHASE MANAGER - MISSION PLANNING         ║\n');
             fprintf('╚══════════════════════════════════════════════════╝\n\n');
 
-            % Determine if multi-room or single-room based on goal
             fprintf('Start: [%.2f, %.2f]\n', start_position(1), start_position(2));
-            fprintf('Goal Type: %s\n', goal_type);
+            fprintf('Goal Type: %s\n\n', goal_type);
 
-            % Default room database path
+            % STEP 1: Load room graph (if available)
             if ~isfield(robot_params, 'room_database_path')
                 robot_params.room_database_path = fullfile(fileparts(mfilename('fullpath')), ...
                     '../MultiRoomNav/room_database.json');
             end
 
-            % Check if room database exists (determines multi-room capability)
-            room_db_exists = exist(robot_params.room_database_path, 'file');
+            room_graph = [];
+            if exist(robot_params.room_database_path, 'file')
+                fprintf('STEP 1: Loading room database...\n');
+                multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
+                addpath(multiroom_path);
 
-            if room_db_exists
-                fprintf('Room database: Found\n');
-                fprintf('Planning mode: Auto-detect (single or multi-room)\n\n');
+                db = RoomDatabase(robot_params.room_database_path);
+                room_graph = db.buildGraph();
+                fprintf('  ✓ Loaded %d rooms\n\n', length(db.rooms_data));
+            else
+                fprintf('STEP 1: No room database found (single-room mode)\n\n');
+            end
 
-                % Try multi-room planning
-                [waypoint_segments, room_sequence, door_info] = obj.planMultiRoomPath(...
-                    start_position, goal_data, robot_params);
+            % STEP 2: Plan action sequence (high-level blueprint)
+            fprintf('STEP 2: Planning action sequence...\n');
+            obj.action_sequence = obj.planActionSequence(start_position, goal_type, goal_data, room_graph);
+            fprintf('  ✓ Generated %d actions\n\n', length(obj.action_sequence));
 
-                if length(waypoint_segments) > 1
-                    fprintf('→ Multi-room path generated\n\n');
-                else
-                    fprintf('→ Single-room path (start and goal in same room)\n\n');
+            % STEP 3: Generate waypoints for all path_follow actions
+            fprintf('STEP 3: Pre-generating waypoints for path_follow actions...\n');
+            for i = 1:length(obj.action_sequence)
+                action = obj.action_sequence{i};
+
+                if strcmp(action.type, 'path_follow')
+                    fprintf('  Action %d: Generating waypoints... ', i);
+
+                    % Generate waypoints using A*
+                    [waypoints, ~, ~, ~, ~] = PathSetting_AStar(...
+                        action.start_position, action.goal_position, ...
+                        robot_params.width, robot_params.length, robot_params.safety_margin);
+
+                    obj.action_sequence{i}.waypoints = waypoints;
+                    fprintf('✓ %d waypoints\n', size(waypoints, 1));
                 end
-            else
-                fprintf('Room database: Not found\n');
-                fprintf('Planning mode: Single-room only\n\n');
-
-                % Single-room A* planning
-                [waypoint_segments, room_sequence, door_info] = obj.planSingleRoomPath(...
-                    start_position, goal_data, robot_params);
             end
+            fprintf('\n');
 
-            % Store waypoints in PhaseManager
-            obj.waypoint_segments = waypoint_segments;
-            obj.room_sequence = room_sequence;
-            obj.door_info = door_info;
-            obj.total_segments = length(waypoint_segments);
-
-            % Initialize segment tracking
-            obj.current_segment = 1;
-            obj.current_waypoint_local = 1;
-            if obj.total_segments > 0
-                obj.total_waypoints_segment = size(waypoint_segments{1}, 1);
-            end
-
-            % Set final goal type
-            if strcmp(goal_type, 'elevator')
-                obj.final_goal_type = 'elevator';
-            else
-                obj.final_goal_type = 'room';
-            end
+            % STEP 4: Store for backward compatibility with old system
+            obj.extractWaypointsFromActions();  % Convert to waypoint_segments format
 
             fprintf('═══════════════════════════════════════════════════\n');
             fprintf('Mission Planning Complete:\n');
-            fprintf('  Segments: %d\n', obj.total_segments);
-            fprintf('  Rooms: %s\n', strjoin(room_sequence, ' → '));
+            fprintf('  Actions: %d\n', length(obj.action_sequence));
+            fprintf('  Waypoint Segments: %d\n', obj.total_segments);
             fprintf('  Final Goal: %s\n', obj.final_goal_type);
             fprintf('═══════════════════════════════════════════════════\n\n');
 
-            % Generate action sequence (TODO: integrate with waypoint generation)
-            % For now, just note that it exists
-            obj.action_sequence_active = false;  % Not yet using action sequence execution
+            obj.action_sequence_active = true;
         end
 
         function [waypoint_segments, room_sequence, door_info] = planMultiRoomPath(obj, start_position, goal_data, robot_params)
@@ -974,8 +959,9 @@ classdef PhaseManager < handle
             action1.type = 'path_follow';
             action1.start_room = room_id;
             action1.end_room = room_id;
-            action1.waypoints = [];  % Will be computed by A* later
-            action1.goal_position = elevator_center;  % A* goal
+            action1.start_position = start_pos;  % For A* generation
+            action1.goal_position = elevator_center;  % For A* generation
+            action1.waypoints = [];  % Will be filled in planMission()
             action1.description = sprintf('Path follow in room %s to elevator', room_id);
             action_sequence{end+1} = action1;
 
@@ -1102,6 +1088,55 @@ classdef PhaseManager < handle
             end
 
             fprintf('==============================\n\n');
+        end
+
+        function extractWaypointsFromActions(obj)
+            % extractWaypointsFromActions - Convert action_sequence to waypoint_segments
+            %
+            % For backward compatibility with old PhaseManager.update() system
+            % Extracts waypoints from path_follow actions into waypoint_segments
+
+            obj.waypoint_segments = {};
+            obj.room_sequence = {};
+            obj.door_info = struct('type', {}, 'center', {}, 'exit', {});
+
+            for i = 1:length(obj.action_sequence)
+                action = obj.action_sequence{i};
+
+                if strcmp(action.type, 'path_follow')
+                    % Add waypoints to segments
+                    obj.waypoint_segments{end+1} = action.waypoints;
+
+                    % Track room
+                    if isfield(action, 'start_room') && ~isempty(action.start_room)
+                        if isempty(obj.room_sequence) || ~strcmp(obj.room_sequence{end}, action.start_room)
+                            obj.room_sequence{end+1} = action.start_room;
+                        end
+                    end
+
+                elseif strcmp(action.type, 'door_entry')
+                    % Store door info
+                    door_idx = length(obj.door_info) + 1;
+                    obj.door_info(door_idx).type = 'door';
+                    obj.door_info(door_idx).center = action.door_center;
+                    obj.door_info(door_idx).exit = action.door_exit;
+
+                elseif strcmp(action.type, 'elevator_entry')
+                    % Store elevator as final transition
+                    door_idx = length(obj.door_info) + 1;
+                    obj.door_info(door_idx).type = 'elevator';
+                    obj.door_info(door_idx).center = action.elevator_center;
+                    obj.door_info(door_idx).exit = [];  % No exit for elevator
+                    obj.final_goal_type = 'elevator';
+                end
+            end
+
+            obj.total_segments = length(obj.waypoint_segments);
+            obj.current_segment = 1;
+            obj.current_waypoint_local = 1;
+            if obj.total_segments > 0
+                obj.total_waypoints_segment = size(obj.waypoint_segments{1}, 1);
+            end
         end
     end
 end
