@@ -1496,31 +1496,49 @@ classdef Estimate < handle
         
         function replanPathFromCurrentPosition(obj, Plant)
             % Replan path using current wheelchair position as start
-            fprintf('[ESTIMATE] Replanning path from current position [%.2f, %.2f]\n', Plant.X, Plant.Y);
-            
-            current_position = [Plant.X, Plant.Y]; % Current wheelchair position
-            goal_position = []; % Default goal (will use elevator)
-            
-            % Calculate robot dimensions (same as constructor)
-            wheel_width = 0.55/2;           % wheel_width from Control.m
-            wheel_len_rear = 0.35;          % wheel_len_rear from Control.m  
-            wheel_len_front = 0.76;         % wheel_len_front from Control.m
-            robot_width = wheel_width * 3;  % Total width = 0.55m (need to check again)
-            robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
-            
-            % Try A* pathfinding first, fallback to original if it fails
-            try
-                [waypoint, ~, ~, ~, ~] = PathSetting_AStar(current_position, goal_position, robot_width, robot_length);
-                fprintf('[ESTIMATE] A* replanning SUCCESS: Generated %d waypoints from [%.2f, %.2f]\n', size(waypoint, 1), current_position(1), current_position(2));
-            catch ME
-                fprintf('[ESTIMATE] A* replanning FAILED (%s), using simple fallback path\n', ME.message);
-                % Simple fallback: current position -> elevator
-                waypoint = [current_position; 30.0, 12.5]; % Current -> elevator center
-            end
-            
-            % Update waypoints in SharedControlMode (wrap in cell array for single-room mode)
-            obj.sharedControlMode.setWaypoints({waypoint});
-            fprintf('[ESTIMATE] Updated SharedControlMode with %d new waypoints\n', size(waypoint, 1));
+            % Uses PhaseManager.planMission() to generate action sequence with elevator as goal
+
+            fprintf('\n');
+            fprintf('[ESTIMATE] ═══════════════════════════════════════\n');
+            fprintf('[ESTIMATE] REPLANNING from current position\n');
+            fprintf('[ESTIMATE] Current: [%.2f, %.2f]\n', Plant.X, Plant.Y);
+            fprintf('[ESTIMATE] Goal: ELEVATOR\n');
+            fprintf('[ESTIMATE] ═══════════════════════════════════════\n');
+
+            current_position = [Plant.X, Plant.Y];
+
+            % Get elevator metadata
+            BIM_data = LocationMetadata.getLocation('elevator');
+            goal_position = BIM_data.astar_goal;  % Use astar_goal as target
+
+            % Prepare robot parameters
+            wheel_width = 0.55/2;
+            wheel_len_rear = 0.35;
+            wheel_len_front = 0.76;
+            robot_width = wheel_width * 2;
+            robot_length = wheel_len_rear + wheel_len_front;
+            safety_margin = 0.0;
+
+            robot_params = struct();
+            robot_params.width = robot_width;
+            robot_params.length = robot_length;
+            robot_params.safety_margin = safety_margin;
+            robot_params.user_choice = '2';  % Use A* planning (option 2)
+
+            % Prepare goal data
+            goal_data = struct();
+            goal_data.center = goal_position;
+
+            % PhaseManager replans entire mission with new action sequence
+            obj.phaseManager.planMission(current_position, 'elevator', goal_data, robot_params);
+
+            % Extract waypoints for SharedControlMode (backward compatibility)
+            waypoint_cell_array = obj.phaseManager.waypoint_segments;
+            obj.sharedControlMode.setWaypoints(waypoint_cell_array);
+
+            fprintf('[ESTIMATE] ═══════════════════════════════════════\n');
+            fprintf('[ESTIMATE] Replanning complete\n');
+            fprintf('[ESTIMATE] ═══════════════════════════════════════\n\n');
         end
         
         function resetAllTrackers(obj)
