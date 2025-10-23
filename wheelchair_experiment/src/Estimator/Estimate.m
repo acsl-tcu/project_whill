@@ -204,12 +204,19 @@ classdef Estimate < handle
             robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
             safety_margin = 0.0;
 
+            %% User selects waypoint method
+            fprintf('\n=== WAYPOINT SELECTION ===\n');
+            fprintf('Select waypoint generation method:\n');
+            fprintf('  1 - Interactive manual waypoint selection\n');
+            fprintf('  2 - Automatic A* pathfinding (multi-room, auto-detects single/multi) [default]\n');
+            user_choice = input('Enter choice (1/2) [default: 2]: ', 's');
+
             %% NEW ARCHITECTURE: PhaseManager owns mission planning
-            % Prepare robot parameters
             robot_params = struct();
             robot_params.width = robot_width;
             robot_params.length = robot_length;
             robot_params.safety_margin = safety_margin;
+            robot_params.user_choice = user_choice;  % Pass user choice to PhaseManager
 
             % Prepare goal data (use goal_position from BIM_data.astar_goal)
             goal_data = struct();

@@ -18,10 +18,9 @@ function [waypoint, room_sequence, door_info] = selectWaypointMethod(initial_pos
     fprintf('\n=== WAYPOINT SELECTION ===\n');
     fprintf('Select waypoint generation method:\n');
     fprintf('  1 - Interactive manual waypoint selection\n');
-    fprintf('  2 - Automatic A* pathfinding (single room) [default]\n');
-    fprintf('  3 - Multi-room navigation with door crossing\n');
+    fprintf('  2 - Automatic A* pathfinding (multi-room, auto-detects single/multi) [default]\n');
 
-    user_choice = input('Enter choice (1/2/3) [default: 2]: ', 's');
+    user_choice = input('Enter choice (1/2) [default: 2]: ', 's');
 
     % Initialize outputs
     room_sequence = {};
@@ -35,36 +34,24 @@ function [waypoint, room_sequence, door_info] = selectWaypointMethod(initial_pos
 
             if isempty(waypoint_matrix)
                 fprintf('No waypoints selected. Falling back to A* pathfinding...\n');
-                waypoint_matrix = generateAStarPath(initial_position, goal_position, robot_width, robot_length, safety_margin);
+                % Fallback to multi-room planner
+                [~, waypoint, room_sequence, door_info] = generateMultiRoomPath(...
+                    initial_position, goal_position, robot_width, robot_length, safety_margin);
             else
                 fprintf('Estimate: Using custom waypoints (%d points)\n', size(waypoint_matrix, 1));
+                % Wrap in cell array for unified structure
+                waypoint = {waypoint_matrix};
             end
 
-            % Wrap in cell array for unified structure
-            waypoint = {waypoint_matrix};
-            fprintf('Single-room mode: 1 segment with %d waypoints\n', size(waypoint_matrix, 1));
-
-        case '3'
-            % Multi-room navigation
-            fprintf('\n=== MULTI-ROOM NAVIGATION MODE ===\n');
-            [waypoint_first, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(...
+        otherwise % '2' or empty (default)
+            % Automatic A* pathfinding (multi-room, auto-detects single/multi)
+            fprintf('Using automatic A* pathfinding (multi-room planner)...\n');
+            [~, waypoint, room_sequence, door_info] = generateMultiRoomPath(...
                 initial_position, goal_position, robot_width, robot_length, safety_margin);
 
-            % Use the cell array directly (generateMultiRoomPath will be updated to return cell + door_info)
-            waypoint = waypoint_segments;
-            fprintf('Multi-room path generated:\n');
+            fprintf('Path generated:\n');
             fprintf('  Room sequence: %s\n', strjoin(room_sequence, ' → '));
             fprintf('  Number of segments: %d\n', length(waypoint));
-            fprintf('  Segment 1: %d waypoints\n', size(waypoint{1}, 1));
-
-        otherwise % '2' or empty (default)
-            % Automatic A* pathfinding (single room)
-            fprintf('Using automatic A* pathfinding (single room)...\n');
-            waypoint_matrix = generateAStarPath(initial_position, goal_position, robot_width, robot_length, safety_margin);
-
-            % Wrap in cell array for unified structure
-            waypoint = {waypoint_matrix};
-            fprintf('Single-room mode: 1 segment with %d waypoints\n', size(waypoint_matrix, 1));
     end
 
     fprintf('==========================\n\n');

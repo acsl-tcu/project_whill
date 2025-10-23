@@ -705,13 +705,52 @@ classdef PhaseManager < handle
             fprintf('Start: [%.2f, %.2f]\n', start_position(1), start_position(2));
             fprintf('Goal Type: %s\n\n', goal_type);
 
-            % STEP 1: Load room graph (if available)
+            % Check user choice
+            user_choice = '2';  % Default to A* planning
+            if isfield(robot_params, 'user_choice')
+                user_choice = robot_params.user_choice;
+            end
+
+            % Handle manual waypoint selection (option 1)
+            if strcmp(user_choice, '1')
+                fprintf('STEP 1: Opening interactive waypoint selection...\n');
+                waypoint_matrix = interactiveWaypointSelection();
+
+                if isempty(waypoint_matrix)
+                    fprintf('  No waypoints selected. Falling back to A* pathfinding...\n\n');
+                    user_choice = '2';  % Fallback to option 2
+                else
+                    fprintf('  ✓ Selected %d manual waypoints\n\n', size(waypoint_matrix, 1));
+                    % Create simple action sequence with manual waypoints
+                    action1 = struct();
+                    action1.type = 'path_follow';
+                    action1.start_room = 'manual';
+                    action1.end_room = 'manual';
+                    action1.start_position = start_position;
+                    action1.goal_position = goal_data.center;
+                    action1.waypoints = waypoint_matrix;
+                    action1.description = 'Manual waypoint following';
+
+                    action2 = struct();
+                    action2.type = 'elevator_entry';
+                    action2.elevator_center = goal_data.center;
+                    action2.description = 'Enter elevator';
+
+                    obj.action_sequence = {action1, action2};
+                    obj.extractWaypointsFromActions();
+                    obj.action_sequence_active = true;
+                    fprintf('Manual waypoint mode activated\n');
+                    return;  % Skip the rest of planning
+                end
+            end
+
+            % Option 2: A* pathfinding (multi-room planner)
+            % STEP 1: Load room database (required for A* path planning)
             if ~isfield(robot_params, 'room_database_path')
                 robot_params.room_database_path = fullfile(fileparts(mfilename('fullpath')), ...
                     '../MultiRoomNav/room_database.json');
             end
 
-            % STEP 1: Load room database (required for path planning)
             fprintf('STEP 1: Loading room database...\n');
             multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
             addpath(multiroom_path);
