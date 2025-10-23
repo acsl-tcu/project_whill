@@ -193,7 +193,7 @@ classdef Estimate < handle
             
             % Path planning - moved from Control.m constructor
             BIM_data= LocationMetadata.getLocation('elevator');
-            initial_position = [0,0]; %set custom initial and goal positions if needed but if you want the default leave it as []
+            initial_position = [21,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
             goal_position = BIM_data.astar_goal;  % Use astar_goal for path planning (final waypoint)
             
             % Calculate robot dimensions (using same constants as Control.m)
@@ -253,7 +253,10 @@ classdef Estimate < handle
             obj.phaseManager.setWaypointsUniversal(waypoint_cell_array, room_sequence, door_info_struct, final_goal_type);
             fprintf('[ESTIMATE] Universal path follower initialized with %d segments (final goal: %s)\n', ...
                     length(waypoint_cell_array), final_goal_type);
-            
+
+            % TEST: Generate action sequence (output only, doesn't affect navigation)
+            obj.testActionSequencePlanner(Plant, final_goal_type, elevator_metadata);
+
             % Plot the generated path for visualization (world coordinates)
             try
                 % Load map for visualization
@@ -1567,10 +1570,92 @@ classdef Estimate < handle
             
             % Reset new track candidates
             obj.newTrackCandidates = struct('Obs', {}, 'Count', {}, 'Buffer', {});
-            
-            
+
+
         end
-        
+
+        function testActionSequencePlanner(obj, Plant, final_goal_type, elevator_metadata)
+            % testActionSequencePlanner - Test action sequence planner (output only)
+            %
+            % This method calls planActionSequence() to demonstrate the action sequence
+            % generation without affecting the actual navigation system.
+            %
+            % Inputs:
+            %   Plant - Plant object with current position
+            %   final_goal_type - 'elevator', 'room', or 'position'
+            %   elevator_metadata - LocationMetadata for elevator
+
+            fprintf('\n');
+            fprintf('╔════════════════════════════════════════════════════════════╗\n');
+            fprintf('║  ACTION SEQUENCE PLANNER TEST (OUTPUT ONLY - NO EFFECT)  ║\n');
+            fprintf('╚════════════════════════════════════════════════════════════╝\n');
+            fprintf('\n');
+
+            % Get current position
+            start_position = [Plant.X, Plant.Y];
+
+            % Prepare goal data based on final_goal_type
+            switch final_goal_type
+                case 'elevator'
+                    % Goal is elevator
+                    goal_data = struct();
+                    goal_data.center = elevator_metadata.door_center;
+                    goal_type = 'elevator';
+
+                    fprintf('Test Scenario: Navigate from [%.2f, %.2f] to ELEVATOR at [%.2f, %.2f]\n\n', ...
+                            start_position(1), start_position(2), ...
+                            goal_data.center(1), goal_data.center(2));
+
+                case 'room'
+                    % Goal is a specific room (placeholder)
+                    goal_data = 'B';  % Example: navigate to room B
+                    goal_type = 'room';
+
+                    fprintf('Test Scenario: Navigate from [%.2f, %.2f] to ROOM %s\n\n', ...
+                            start_position(1), start_position(2), goal_data);
+
+                case 'position'
+                    % Goal is a specific position (placeholder)
+                    goal_data = [35.0, 10.0];  % Example position
+                    goal_type = 'position';
+
+                    fprintf('Test Scenario: Navigate from [%.2f, %.2f] to POSITION [%.2f, %.2f]\n\n', ...
+                            start_position(1), start_position(2), ...
+                            goal_data(1), goal_data(2));
+
+                otherwise
+                    fprintf('Unknown goal type: %s - skipping action sequence test\n', final_goal_type);
+                    return;
+            end
+
+            % Call action sequence planner (room_graph not yet available, pass empty)
+            try
+                action_sequence = obj.phaseManager.planActionSequence(start_position, goal_type, goal_data, []);
+
+                % Display the generated sequence
+                if isempty(action_sequence)
+                    fprintf('⚠️  No action sequence generated (already at goal or error)\n');
+                else
+                    fprintf('✅ Action sequence generated successfully!\n');
+                    fprintf('   This sequence will be used for systematic execution in future implementation.\n');
+                end
+
+            catch ME
+                fprintf('❌ Error generating action sequence: %s\n', ME.message);
+                fprintf('   Stack trace:\n');
+                for i = 1:length(ME.stack)
+                    fprintf('     %s (line %d)\n', ME.stack(i).name, ME.stack(i).line);
+                end
+            end
+
+            fprintf('\n');
+            fprintf('═══════════════════════════════════════════════════════════\n');
+            fprintf(' NOTE: This is a TEST output only - navigation continues\n');
+            fprintf('       using the existing PhaseManager.update() system\n');
+            fprintf('═══════════════════════════════════════════════════════════\n');
+            fprintf('\n');
+        end
+
 
     end
 end
