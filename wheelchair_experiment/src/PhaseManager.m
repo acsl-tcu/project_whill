@@ -401,6 +401,15 @@ classdef PhaseManager < handle
             target_info = struct();
             target_info.type = 'waypoint';
             target_info.position = [];
+            target_info.door_center = [];
+            target_info.exit_position = [];
+            target_info.door_type = '';
+
+            % Special modes that bypass normal path following logic
+            if any(strcmp(obj.current_phase, {'door_detection', 'ndt_pose_detection'}))
+                % Return immediately without path following logic
+                return;
+            end
 
             % Track waypoint progress within current segment
             obj.current_waypoint_local = current_waypoint_idx;

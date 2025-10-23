@@ -24,10 +24,10 @@ classdef LocationMetadata
                 metadata.astar_goal = [33, 9.3];
 
                 % Target position (where wheelchair should stop before elevator entry - Phase 1)
-                metadata.target_position = [30, 9.4];
+                metadata.target_position = [30, 9.5];
 
                 % Door center position (inside elevator)
-                metadata.door_center = [27, 9.4];
+                metadata.door_center = [27, 9.5];
 
             else
                 error('LocationMetadata:UnknownLocation', 'Unknown location: %s', name);

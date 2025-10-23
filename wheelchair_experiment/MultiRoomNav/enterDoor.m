@@ -114,6 +114,8 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
         result.door_state = door_check.door_state;
 
         if door_check.verified
+            fprintf('Door detected as OPEN - waiting 2 seconds before moving forward...\n');
+            pause(2); % Wait 2 seconds after detecting door is open
             door_verified = true;
         elseif strcmp(door_check.door_state, 'closed')
             % Door closed - waiting

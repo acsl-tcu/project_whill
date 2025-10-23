@@ -74,7 +74,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
         door_params.DEPTH_THRESHOLD = 0.3;     % Points must be this much deeper than elevator center
         door_params.FIXED_ELEVATOR_DISTANCE = 2.2; % Fixed elevator center distance in odometry mode (meters)
         % Phase 3 & 5: Movement into/out of elevator
-        door_params.MOVE_DISTANCE = 2.5;                % meters to move into elevator
+        door_params.MOVE_DISTANCE = 2.4;                % meters to move into elevator
         door_params.MOVE_SPEED = 0.2;                   % m/s for forward/reverse movement
     end
     
@@ -216,8 +216,8 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                 if DEBUG_MODE
                     % In debug mode, call the original debug function directly
                     if nargin >= 5 && ~isempty(lidar_scan_data)
-                        if isstruct(lidar_scan_data) && isfield(lidar_scan_data, 'xyz_global')
-                            pointCloud = lidar_scan_data.xyz_global;
+                        if isstruct(lidar_scan_data) && isfield(lidar_scan_data, 'xyz_local')
+                            pointCloud = lidar_scan_data.xyz_local;
                         else
                             pointCloud = lidar_scan_data;
                         end
@@ -297,7 +297,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
             fprintf('Phase 4: Door closed, current_floor = %d, target_floor = %d\n', current_floor, target_floor);
 
             % Manual floor input for real experiment (only ask once)
-            if is_gazebo && ~floor_input_requested 
+            if ~floor_input_requested 
                 fprintf('\n========================================\n');
                 fprintf('MANUAL FLOOR INPUT REQUIRED\n');
                 fprintf('========================================\n');
@@ -347,13 +347,13 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                 % Use floor/hallway center as reference (outside the elevator)
                 % floor_center passed as function parameter from Control.m
 
-                % Extract point cloud data for Phase 4 door detection
-                if isstruct(lidar_scan_data) && isfield(lidar_scan_data, 'xyz_global')
-                    phase4_pointCloud = lidar_scan_data.xyz_global; % Use global coordinates for floor reference
-                    phase4_odometry_mode = false; % Use map-based detection for floor reference
+                % Extract point cloud data for Phase 4 door detection (use odometry mode)
+                if isstruct(lidar_scan_data) && isfield(lidar_scan_data, 'xyz_local')
+                    phase4_pointCloud = lidar_scan_data.xyz_local; % Use local coordinates (odometry mode)
+                    phase4_odometry_mode = true; % Use odometry-based detection
                 else
                     phase4_pointCloud = lidar_scan_data; % Fallback to direct data
-                    phase4_odometry_mode = false;
+                    phase4_odometry_mode = true; % Default to odometry mode
                 end
 
                 % Detect door state looking toward floor/hallway (using target_position as reference)

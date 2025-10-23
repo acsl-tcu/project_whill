@@ -322,7 +322,7 @@ classdef Control < handle
             obj.door_params.DEPTH_THRESHOLD = 0.3;     % Points must be this much deeper than elevator center
             obj.door_params.FIXED_ELEVATOR_DISTANCE = 2.2; % Fixed elevator center distance in odometry mode (meters)
             % Phase 3 & 5: Movement into/out of elevator
-            obj.door_params.MOVE_DISTANCE = 2.5;                % meters to move into elevator
+            obj.door_params.MOVE_DISTANCE = 2.4;                % meters to move into elevator (reduced by 10cm to avoid back wall)
             obj.door_params.MOVE_SPEED = 0.2;                   % m/s for forward/reverse movement
 
             % Initialize multi-room navigation (disabled by default)
