@@ -119,9 +119,19 @@ classdef wheelchairObj < handle
                     info.ROSHostIP   = varargin{obj.IPAddr}.ROSHostIP;
                     % ?��?��?��?��?��?��IP?��?��?��?��?��?��Ɏ擾?��?��?��?��֐�
                     IP = split(info.HostIP, ".");
-                    info.ClientIP    = cell2mat(IPAddress.SearchOwnIP(join({IP{1:3}, '\d+'}, ".")));
+                    client_ips = IPAddress.SearchOwnIP(join({IP{1:3}, '\d+'}, "."));
+                    if ~isempty(client_ips)
+                        info.ClientIP = client_ips{1};  % Take first matching IP (handles multiple network interfaces)
+                    else
+                        info.ClientIP = '';
+                    end
                     IP = split(info.ROSHostIP, ".");
-                    info.ROSClientIP = cell2mat(IPAddress.SearchOwnIP(join({IP{1:3}, '\d+'}, ".")));
+                    ros_client_ips = IPAddress.SearchOwnIP(join({IP{1:3}, '\d+'}, "."));
+                    if ~isempty(ros_client_ips)
+                        info.ROSClientIP = ros_client_ips{1};  % Take first matching IP (handles multiple network interfaces)
+                    else
+                        info.ROSClientIP = '';
+                    end
                     % ?��?��?��?��?��ʒu?��?��ݒ�
                     info.StartState  = varargin{obj.StartState};
                     % ?��p?��?��?��?��?��?��?��Ōv?��Z?��?��?��?��Ƃ�?��Ɏg?��p
