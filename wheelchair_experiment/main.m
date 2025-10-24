@@ -10,12 +10,13 @@
 
 
 %------------------------------------------------------------------------%
-% main.m for numerical/phisics simulation and experiment
+% main.m for numerical/physics simulation and experiment
 % version 4.0.0
 % 2019.7.12 Electric wheelchair group
 % Advanced Control Systems Laboratory.
 %------------------------------------------------------------------------%
-%% Global configurations
+
+%% Global configurations (path setup and cleanup)
 clc; close all; clear global; clear variables;
 clear mexLidarTracker; clear mexLidarTracker_mex; 
 conf.pc = [ismac; isunix; ispc];
@@ -27,9 +28,7 @@ conf.fcheck = and(~contains(conf.fpath, matlabroot), ~contains(conf.fpath, conf.
 rmpath(strjoin(conf.fpath(conf.fcheck), conf.mk(conf.pc)));
 addpath(genpath(conf.usr));
 
-
-
-%% User configurations
+%% User configurations (simulation mode, network, sensors, paths)
 %{
 %----- Configuration about IP address of Motive PC and ROS PC and so on -----%
 % You can select the mode from numerical simulation, physics simulation, experiment and offline simulation by choosing "Mode".
@@ -88,12 +87,10 @@ dispInterval   = 0.5;
 
 dispFunction   = [];
 
-
-%% main
-%----- Setting up the defalt class file -----%
+%% Initialize wheelchair object
 obj = wheelchairObj(appMode, loopMode, te, dt, addr, mode, sensor, rgtNum, startstate, rbPath, autoware);
 
-
+%% Configure display and data saving
 obj.Display		= display;
 obj.DispInterval= dispInterval;
 obj.DispFunction= dispFunction;
@@ -101,28 +98,31 @@ obj.DataSave	= dataSave;
 obj.SaveFunction= saveFunction;
 obj.Datadir     = Datadir;
 
-%----- Naming your file name and makeing your data folder -----%
-% If you need to output file of your simulation or expriment data, you have to name "obj.FileName".
+%% Create data folder
+% If you need to output file of your simulation or experiment data, you have to name "obj.FileName".
 % Then, the folder will be made by calling the function "makeFolder".
 obj.FilePath = mySavePath;
 obj.FileName = mySaveFileName;
 folderPath   = makeFolder(obj);
 
-%----- Setting up your class files -----%
-% You have to call constructor functions of your class file.
+%% Initialize core system components
 % Create shared control mode instance
 sharedControlMode = SharedControlMode('path_following');
 
-obj.ControllerObj = Control(te,dt,mode,rgtNum,Datadir,sensor,autoware,sharedControlMode);
-obj.EstimatorObj = Estimate(dt,mode,Datadir,sharedControlMode);
+% Load occupancy map once and share between Estimate and Control (avoid redundant loading)
+map_data = load('map2.mat');
+occupancyMap = map_data.map;
 
+obj.ControllerObj = Control(te,dt,mode,rgtNum,Datadir,sensor,autoware,sharedControlMode,occupancyMap);
+obj.EstimatorObj = Estimate(dt,mode,Datadir,sharedControlMode,occupancyMap);
 
-%----- Waiting until enter botton is pressed in the command window -----%
+%% Wait for user confirmation
 obj.waitPressEnterkey();
 
-%% Execution of your programs
-  data = mainLoop(obj);
-  %% Plot result
+%% Execute main control loop
+data = mainLoop(obj);
+
+%% Plot and save results
 if ~loopMode
     disp('Plot result.'); % array of character vectors, or character array.
 

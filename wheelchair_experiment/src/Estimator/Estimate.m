@@ -173,7 +173,7 @@ classdef Estimate < handle
 
     end
     methods
-        function obj = Estimate(dt, mode,File,sharedControlMode) % 実行して最初の1度だけ呼び出される所
+        function obj = Estimate(dt, mode,File,sharedControlMode,occupancyMap) % 実行して最初の1度だけ呼び出される所
 
 
             obj.modeNumber = mode; % main.mで指定したmodeを代入
@@ -241,9 +241,8 @@ classdef Estimate < handle
 
             % Plot the generated path for visualization (world coordinates)
             try
-                % Load map for visualization
-                map_data = load('map2.mat');
-                map_obj = map_data.map;
+                % Use map passed from main.m
+                map_obj = occupancyMap;
 
                 figure('Name', 'Generated Path Visualization', 'Position', [100, 100, 900, 600]);
                 hold on;
@@ -296,16 +295,9 @@ classdef Estimate < handle
             obj.oldtime = 0;            % 時変の刻み時間算出用
             obj.estimatestarttime = tic;% 時変の刻み時間算出用
 
-            % Load occupancy map for wall filtering
-            try
-                map_data = load('map2.mat');
-                obj.occupancyMap = map_data.map;
-                obj.occupancyMatrix = getOccupancy(obj.occupancyMap);
-            catch ME
-                warning('Could not load map2.mat for wall filtering: %s', ME.message); %#ok<MEXCEP>
-                obj.occupancyMap = [];
-                obj.occupancyMatrix = [];
-            end
+            % Use occupancy map passed from main.m (already loaded)
+            obj.occupancyMap = occupancyMap;
+            obj.occupancyMatrix = getOccupancy(obj.occupancyMap);
 
             % 推定値の初期化
             obj.Allxhat = [];
@@ -401,14 +393,7 @@ classdef Estimate < handle
         end
         function [result, obj] = main(obj, Plant) %この部分に推定に必要なプログラムを書いていく
 
-            % Plant.X     = Plant.X;
-            % Plant.Y     = Plant.Y;
-            % Plant.Z     = Plant.Z;
-            % Plant.yaw   = Plant.yaw;
-            %
-            % Plant.yaw       = Plant.yaw-obj.Ltheta;
-            % Plant.X         = Plant.X -obj.LL*cos(Plant.yaw);
-            % Plant.Y         = Plant.Y -obj.LL*sin(Plant.yaw);
+            %% Initialize result with Plant data
 
             result.T    = Plant.T;
             result.X    = Plant.X;
@@ -423,6 +408,7 @@ classdef Estimate < handle
             result.qw   = Plant.qw;
             % disp(obj.cnt)
 
+            %% Process sensor data based on mode
             switch obj.modeNumber
                 case {2,3}     %Online estimation(LiDARやモーションキャプチャーの計測値は構造体のPlantに入っている)
                     pcloud                  = Plant.ptCloud; %点群を保存
@@ -438,7 +424,7 @@ classdef Estimate < handle
                     %
             end
 
-            %% Handle user mode requests from menu
+            %% Handle user mode requests (floor_change, navigation_only, multi_room)
             if isfield(Plant, 'UserModeRequest') && Plant.UserModeRequest.requested
                 user_request = Plant.UserModeRequest;
  
@@ -563,7 +549,7 @@ classdef Estimate < handle
                 end
             end
 
-            %% 地面除去および検出点抽出
+            %% LiDAR Processing: Ground removal and object detection
             xyz = double(xyz);
             ptCloud = pointCloud(xyz); % 全点群
 
@@ -620,7 +606,7 @@ classdef Estimate < handle
                 %--------------------------------
             end
 
-            %% Transform xyz to global coordinates for door detection
+            %% Transform LiDAR data to global coordinates
             xyz_global = [];
             if ~isempty(xyz)
                 % Transform from LiDAR local coordinates to global coordinates
@@ -633,10 +619,10 @@ classdef Estimate < handle
                 xyz_global(:,2) = xyz(:,1) * sin_yaw + xyz(:,2) * cos_yaw + Plant.Y;
                 xyz_global(:,3) = xyz(:,3) + obj.trans(3); % Add wheelchair height offset
                 xyz_local = [xyz(:,1:2),xyz_global(:,3)];
-               
+
             end
 
-            %% result.localに各変数を保存
+            %% Pass data to Control.m via result.local
             result.local.phaseManager = obj.phaseManager; % Pass PhaseManager reference to Control.m
             result.local.boundingBoxes = boundingBoxes;  % LiDAR bounding boxes for controller
             result.local.delta = delta;
@@ -669,21 +655,23 @@ classdef Estimate < handle
                     obj.Allxhat, obj.distanceThreshold,obj.requiredFrames, obj.xhat3to6_init, obj.P_init, delta, obj.tempStorage,obj.DimSta);
 
             if ~isempty(obj.trackStorage)
-                %% 予測
+                %% Track prediction
                 validTrackIdx = find(obj.trackStorage.Logical); % 有効なトラックのインデックスを取り出す
                 obj.trackStorage = predict_track(delta,validTrackIdx,obj.DimSta,obj.trackStorage,obj.Q);
-                %% 対応付け(ハンガリアン法)
+
+                %% Data association (Hungarian algorithm)
                 [assignment,obj.trackStorage,Xhbar_observed,validTrackIdx,ObsptClouds,assignedStatesIdx] = associate_track(zk,obj.associatecost, ...
                     obj.deletionFrames,obj.R_temp,obj.trackStorage,validTrackIdx,labelLocation);
-                %
-                %% 各フィルタの観測値の算出+フィルタリング-------------------------------------------------
+
+                %% Filter update: Compute observations and filtering
                 model = cell(size(assignment,1),1);
                 if all([~isempty(assignment) ,~isnan(sum(assignment,'all'))])
                     [xhat,P,obj.trackStorage,model,inlierpoints] = update_track(obj.param_RANSAC,obj.DimSta,...
                         assignment,obj.trackStorage,assignedStatesIdx,ObsptClouds,obj.doRANSAC, ...
                         obj.R,Xhbar_observed,obj.trans,Plant);
                 end
-                %% Trackの表示-------------------------------------------------
+
+                %% Visualization: Display tracks
                 if ~isempty(zk)
                     obj.detectionP.plotDetection([zk(1,:)',zk(2,:)',zeros(size(zk,2),1)]);
                 end
@@ -698,11 +686,10 @@ classdef Estimate < handle
                     vy = obj.Allxhat(4,:).*sin(obj.Allxhat(3,:));
                     obj.trackP.plotTrack([obj.Allxhat(1,:)',obj.Allxhat(2,:)',zeros(size(obj.Allxhat,2),1)],[vx',vy',zeros(size(obj.Allxhat,2),1)]);
                 end
-                %---------------------------------------------------------------
                 end
             end
 
-            %% result.localに各変数を保存
+            %% Save tracking data to result.local
             result.local.AllTracks.xhat             = {obj.Allxhat};                % 全トラックの推定値
             result.local.AllTracks.P                = {AllP};                       % 全トラックの誤差共分散
             result.local.ObsPC                      = {ptCloudWithoutGround.Location}; % 障害物点群

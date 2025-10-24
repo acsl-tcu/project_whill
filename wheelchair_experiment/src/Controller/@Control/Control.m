@@ -139,7 +139,7 @@ classdef Control < handle
 
     methods
         %         function obj = Control(dt, Mode, FolderPath,sensor,autoware)
-        function obj = Control(~, dt, mode ,rgtNum, FolderPath,sensor,autoware,sharedControlMode)
+        function obj = Control(~, dt, mode ,rgtNum, FolderPath,sensor,autoware,sharedControlMode,occupancyMap)
             % obj.wall = repmat([-0.5 8 -3 3],[size(obj.waypoint,1),1]);
             % Set Gazebo flag based on mode parameter from main_astar.m
             % mode = 2: Gazebo simulation, mode = 3: Real experiment
@@ -273,16 +273,15 @@ classdef Control < handle
             %% 車椅子を近似する点を作成
             obj.points = gpuArray(gen_vehicle_points(obj.wheel_width,obj.wheel_len_rear,obj.wheel_len_front,[3,2]));
 
-            %% 占有格子図の準備
-            load map2.mat map;
-            obj.map         = map;
-            obj.Grid_Xlim   = gpuArray(map.XWorldLimits);
-            obj.Grid_Ylim   = gpuArray(map.YWorldLimits);
-            obj.Grid_Matrix = gpuArray(getOccupancy(map));
+            %% 占有格子図の準備 (map loaded in main.m and passed as parameter)
+            obj.map         = occupancyMap;
+            obj.Grid_Xlim   = gpuArray(occupancyMap.XWorldLimits);
+            obj.Grid_Ylim   = gpuArray(occupancyMap.YWorldLimits);
+            obj.Grid_Matrix = gpuArray(getOccupancy(occupancyMap));
             obj.Grid_Size   = gpuArray(size(obj.Grid_Matrix));
-            obj.Cell_Size   = gpuArray(1/map.Resolution);
+            obj.Cell_Size   = gpuArray(1/occupancyMap.Resolution);
             % 値の範囲をProbabilitySaturationから[0-1]へマッピング
-            obj.Grid_Matrix = (obj.Grid_Matrix-map.ProbabilitySaturation(1))/(map.ProbabilitySaturation(2)-map.ProbabilitySaturation(1));
+            obj.Grid_Matrix = (obj.Grid_Matrix-occupancyMap.ProbabilitySaturation(1))/(occupancyMap.ProbabilitySaturation(2)-occupancyMap.ProbabilitySaturation(1));
 
 
 
@@ -319,6 +318,7 @@ classdef Control < handle
         end
         function result = main(obj, Plant)
             tic
+            %% Get data from Estimator (PhaseManager, LiDAR, bounding boxes)
             % Get PhaseManager reference from Estimate.m (passed via Plant.local)
             if isfield(Plant, 'local') && isfield(Plant.local, 'phaseManager')
                 obj.phaseManager = Plant.local.phaseManager;
@@ -348,12 +348,15 @@ classdef Control < handle
             lidar_data.xyz_global = xyz_global;
             lidar_data.xyz_local = xyz_local;
 
+            %% Initialize door and counter
             % Initialize door (close it) only on first iteration
             if obj.count == 1
                 controlElevatorDoor('close');
             end
             obj.count = obj.count + 1;
-            %% LiDAR位置から後輪間中心位置へ変換
+
+            %% Transform LiDAR position to rear wheel center position
+            % LiDAR位置から後輪間中心位置へ変換
             % Rxyz = eul2rotm([Plant.yaw-obj.L_roll, Plant.pitch-obj.L_pitch, Plant.roll-obj.L_roll], 'ZYX'); % roll pitch yaw
             Rxyz = eul2rotm([Plant.yaw-obj.L_roll, 0, 0], 'ZYX'); % yaw
             XYZ=Rxyz*[-obj.L_x;0;-obj.L_z]+[Plant.X;Plant.Y;Plant.Z];
@@ -362,7 +365,8 @@ classdef Control < handle
             Position.Z = XYZ(3);
             Position.yaw = Plant.yaw-obj.L_roll;
 
-            %%--歩行者6状態の予測  (状態数, 歩行者数, ホライゾン数)-----
+            %% Predict pedestrian states (6-state prediction for horizon)
+            % 歩行者6状態の予測  (状態数, 歩行者数, ホライゾン数)
             % obsnow =[ x y theta v a b]
             if isfield(Plant, 'local') && isfield(Plant.local, 'AllTracks') && isfield(Plant.local.AllTracks, 'xhat') && ~isempty(Plant.local.AllTracks.xhat{1,1})
                 obsnow = Plant.local.AllTracks.xhat{1,1};
@@ -379,9 +383,8 @@ classdef Control < handle
             else
                 preobs=zeros(6,0,obj.K);
             end
-            %------------------------------------------------------------------------
 
-            %% State-based control system with universal path follower
+            %% Universal path follower and phase management
             goal_position = obj.waypoint(end, :); % Final waypoint
             current_position = [Position.X, Position.Y];
             goal_distance = norm(current_position - goal_position);
@@ -390,7 +393,8 @@ classdef Control < handle
             % Update universal path follower - IT decides the phase
             [control_mode, target_info] = obj.phaseManager.update(current_position, current_waypoint_idx);
 
-            % Execute control based on mode returned by PhaseManager
+            %% Execute control based on current phase
+            % PhaseManager returns the appropriate control mode
             switch control_mode
                 case 'path_following'
                     % Normal path following control
@@ -410,28 +414,8 @@ classdef Control < handle
                     if door_result.completed
                         obj.phaseManager.completeTransition();
 
-                        % Update to next segment's waypoints
-                        new_waypoints = obj.phaseManager.getCurrentSegmentWaypoints();
-                        if ~isempty(new_waypoints)
-                            obj.waypoint = new_waypoints;
-
-                            % Reset target_n to point to first waypoint (correct dimensions: [K, NP])
-                            obj.target_n = ones(obj.K, obj.NP);
-
-                            % Regenerate V_ref for new segment waypoints
-                            obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
-                            if size(obj.waypoint,1) >= 2
-                                obj.V_ref(end-1) = 0.5;  % Slow down before goal
-                            end
-                            if size(obj.waypoint,1) >= 1
-                                obj.V_ref(end) = 0.5;      % Stop at goal
-                            end
-
-                            % Regenerate target heading array
-                            obj.th_target_w = get_th_target(obj.waypoint);
-
-                            fprintf('[CONTROL] Loaded new segment waypoints (%d waypoints)\n', size(obj.waypoint, 1));
-                        end
+                        % Update to next segment's waypoints (refactored method)
+                        obj.loadNextSegmentWaypoints();
                     end
 
                     % Fill empty variables with proper structure for plotting
@@ -461,28 +445,8 @@ classdef Control < handle
                         obj.phaseManager.completeTransition();
                         controlElevatorDoor('close');
 
-                        % Update to next segment's waypoints
-                        new_waypoints = obj.phaseManager.getCurrentSegmentWaypoints();
-                        if ~isempty(new_waypoints)
-                            obj.waypoint = new_waypoints;
-
-                            % Reset target_n to point to first waypoint (correct dimensions: [K, NP])
-                            obj.target_n = ones(obj.K, obj.NP);
-
-                            % Regenerate V_ref for new segment waypoints
-                            obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
-                            if size(obj.waypoint,1) >= 2
-                                obj.V_ref(end-1) = 0.5;  % Slow down before goal
-                            end
-                            if size(obj.waypoint,1) >= 1
-                                obj.V_ref(end) = 0.5;      % Stop at goal
-                            end
-
-                            % Regenerate target heading array
-                            obj.th_target_w = get_th_target(obj.waypoint);
-
-                            fprintf('[CONTROL] Loaded new segment waypoints (%d waypoints)\n', size(obj.waypoint, 1));
-                        end
+                        % Update to next segment's waypoints (refactored method)
+                        obj.loadNextSegmentWaypoints();
                     end
 
                     % Fill empty variables with proper structure for plotting
@@ -520,47 +484,17 @@ classdef Control < handle
                     elevator_result = [];
             end
 
-            % Check for updated waypoints from Estimate.m (dynamic replanning) - only when flagged
-            if obj.sharedControlMode.areWaypointsUpdated()
-                waypoint_cell_array = obj.sharedControlMode.getWaypoints();
+            %% Dynamic path replanning (TODO)
+            % TODO: Dynamic path replanning from Estimate.m (not yet implemented)
 
-                % Extract first segment
-                obj.waypoint = waypoint_cell_array{1};
-
-                % Reset target_n to point to first waypoint (correct dimensions: [K, NP])
-                obj.target_n = ones(obj.K, obj.NP);
-
-                % Update multi-room mode detection
-                if length(waypoint_cell_array) > 1
-                    obj.multiRoomEnabled = true;
-                    fprintf('[CONTROL] Updated to multi-room path (%d segments)\n', length(waypoint_cell_array));
-                else
-                    obj.multiRoomEnabled = false;
-                    fprintf('[CONTROL] Updated to single-room path (%d waypoints)\n', size(obj.waypoint, 1));
-                end
-
-                % Regenerate V_ref for new waypoints (same logic as constructor)
-                obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
-                if size(obj.waypoint,1) >= 2
-                    obj.V_ref(end-1) = 0.5;  % Slow down before goal
-                end
-                if size(obj.waypoint,1) >= 1
-                    obj.V_ref(end) = 0.5;      % Stop at goal
-                end
-
-                % Regenerate target heading array
-                obj.th_target_w = get_th_target(obj.waypoint);
-
-                % Clear the update flag
-                obj.sharedControlMode.clearWaypointUpdateFlag();
-            end
-            
+            %% Display status and prepare output
             % Display status message for current mode
             obj.displayStatusMessage(Position, goal_distance, U, elevator_result);
 
             obj.v_old = U(1);
             obj.t_old = Plant.T;
 
+            %% Prepare result output
             result.V = U;
             result.local.Vinit = obj.Vinit;
             % result.local.obstra = {obj.obs};
@@ -860,6 +794,41 @@ classdef Control < handle
             uOpt = {};
             fval = [];
             removed = [];
+        end
+
+        function loadNextSegmentWaypoints(obj)
+            % loadNextSegmentWaypoints - Load waypoints for next segment after transition
+            %
+            % This method:
+            %   1. Gets current segment waypoints from PhaseManager
+            %   2. Updates obj.waypoint
+            %   3. Resets target_n to first waypoint
+            %   4. Regenerates V_ref speed profile
+            %   5. Regenerates target heading array
+            %
+            % Called after completing door/elevator transitions
+
+            new_waypoints = obj.phaseManager.getCurrentSegmentWaypoints();
+            if ~isempty(new_waypoints)
+                obj.waypoint = new_waypoints;
+
+                % Reset target_n to point to first waypoint (correct dimensions: [K, NP])
+                obj.target_n = ones(obj.K, obj.NP);
+
+                % Regenerate V_ref for new segment waypoints
+                obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
+                if size(obj.waypoint,1) >= 2
+                    obj.V_ref(end-1) = 0.5;  % Slow down before goal
+                end
+                if size(obj.waypoint,1) >= 1
+                    obj.V_ref(end) = 0.5;      % Stop at goal
+                end
+
+                % Regenerate target heading array
+                obj.th_target_w = get_th_target(obj.waypoint);
+
+                fprintf('[CONTROL] Loaded new segment waypoints (%d waypoints)\n', size(obj.waypoint, 1));
+            end
         end
 
     end
