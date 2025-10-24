@@ -99,6 +99,27 @@ classdef Control < handle
         L_roll      =  0.0
         L_pitch     =  0.0
         L_yaw       =  0.0
+
+        %% --Door/Elevator Entry Parameters (enterElevator.m)--
+        % Phase 1: Position Correction
+        DOOR_POSITION_TOLERANCE = 0.15          % ±15cm acceptable distance error
+        DOOR_POSITION_ANGLE_TOLERANCE = 0.087   % ±5 degrees acceptable heading error (radians)
+        DOOR_CORRECTION_TURN_SPEED = 0.3        % rad/s for correction turns
+        DOOR_CORRECTION_MOVE_SPEED = 0.4        % m/s for correction movement (slower than entry)
+        % Phase 2: Turning towards elevator
+        DOOR_TURN_TOLERANCE = 0.1               % radians (~6 degrees) - when to stop turning
+        DOOR_TURN_SPEED = 0.1                   % rad/s for Phase 2 turning
+        % Phase 2.5: Door Detection
+        DOOR_ANGLE_TOLERANCE = 30               % ±30 degrees cone towards elevator (initial filtering)
+        DOOR_NARROW_ROI_ANGLE = 4               % ±4 degrees for wheelchair safe passage (critical ROI)
+        DOOR_HEIGHT_MIN = 0.5                   % Minimum height (avoid floor)
+        DOOR_HEIGHT_MAX = 1.7                   % Maximum door height
+        DOOR_MIN_POINTS_THRESHOLD = 5           % Minimum points needed for analysis
+        DOOR_DEPTH_THRESHOLD = 0.3              % Points must be this much deeper than elevator center
+        DOOR_FIXED_ELEVATOR_DISTANCE = 2.2      % Fixed elevator center distance in odometry mode (meters)
+        % Phase 3 & 5: Movement into/out of elevator
+        DOOR_MOVE_DISTANCE = 2.4                % meters to move into elevator (reduced by 10cm to avoid back wall)
+        DOOR_MOVE_SPEED = 0.2                   % m/s for forward/reverse movement
         %%
 
         animation = [0,0,0];
@@ -121,7 +142,6 @@ classdef Control < handle
         th_target_w
         sharedControlMode  % Shared control mode handle object
         phaseManager      % PhaseManager object reference (from Estimate.m)
-        door_params       % Door detection parameters struct
 
         % Multi-room navigation properties
         multiRoomNavState  % Navigation state struct (from executeMultiRoomNavigation)
@@ -226,28 +246,6 @@ classdef Control < handle
             obj.t_old = 0.2;
             obj.sharedControlMode = sharedControlMode;  % Store shared control mode object
             obj.phaseManager = [];  % Will be set by Estimate.m via Plant.local
-
-            % Door detection parameters - centralized configuration
-            obj.door_params = struct();
-            % Phase 1: Position Correction
-            obj.door_params.POSITION_TOLERANCE = 0.15;          % ±15cm acceptable distance error
-            obj.door_params.POSITION_ANGLE_TOLERANCE = 0.087;   % ±5 degrees acceptable heading error (radians)
-            obj.door_params.CORRECTION_TURN_SPEED = 0.3;        % rad/s for correction turns
-            obj.door_params.CORRECTION_MOVE_SPEED = 0.4;       % m/s for correction movement (slower than entry)
-            % Phase 2: Turning towards elevator
-            obj.door_params.TURN_TOLERANCE = 0.1;               % radians (~6 degrees) - when to stop turning
-            obj.door_params.TURN_SPEED = 0.1;                   % rad/s for Phase 2 turning
-            % Phase 2.5: Door Detection
-            obj.door_params.ANGLE_TOLERANCE = 30;       % ±30 degrees cone towards elevator (initial filtering)
-            obj.door_params.NARROW_ROI_ANGLE = 4;       % ±7 degrees for wheelchair safe passage (critical ROI)
-            obj.door_params.DOOR_HEIGHT_MIN = 0.5;      % Minimum height (avoid floor)
-            obj.door_params.DOOR_HEIGHT_MAX = 1.7;      % Maximum door height
-            obj.door_params.MIN_POINTS_THRESHOLD = 5;   % Minimum points needed for analysis
-            obj.door_params.DEPTH_THRESHOLD = 0.3;     % Points must be this much deeper than elevator center
-            obj.door_params.FIXED_ELEVATOR_DISTANCE = 2.2; % Fixed elevator center distance in odometry mode (meters)
-            % Phase 3 & 5: Movement into/out of elevator
-            obj.door_params.MOVE_DISTANCE = 2.4;                % meters to move into elevator (reduced by 10cm to avoid back wall)
-            obj.door_params.MOVE_SPEED = 0.2;                   % m/s for forward/reverse movement
 
             % Initialize multi-room navigation (disabled by default)
             obj.multiRoomEnabled = false;
@@ -418,7 +416,7 @@ classdef Control < handle
                     exit_position = target_info.exit_position;
 
                     door_result = enterDoor(current_position, Position.yaw, door_center, exit_position, ...
-                                           lidar_data, obj.door_params, 'regular');
+                                           lidar_data, obj.getDoorParams(), 'regular');
                     U = door_result.V;
 
                     % Report completion to PhaseManager
@@ -618,6 +616,31 @@ classdef Control < handle
         [px,pw,pv] = Resampling(obj,pu,pw)
         [uOpt,fval,removed] = clustering(obj,tempobj,pw,pu,px)
 %% Elevator Entry Algorithm
+        function door_params = getDoorParams(obj)
+            % Build door_params struct from constant properties
+            % This allows easy modification of parameters without changing enterElevator calls
+            door_params = struct();
+            % Phase 1: Position Correction
+            door_params.POSITION_TOLERANCE = obj.DOOR_POSITION_TOLERANCE;
+            door_params.POSITION_ANGLE_TOLERANCE = obj.DOOR_POSITION_ANGLE_TOLERANCE;
+            door_params.CORRECTION_TURN_SPEED = obj.DOOR_CORRECTION_TURN_SPEED;
+            door_params.CORRECTION_MOVE_SPEED = obj.DOOR_CORRECTION_MOVE_SPEED;
+            % Phase 2: Turning towards elevator
+            door_params.TURN_TOLERANCE = obj.DOOR_TURN_TOLERANCE;
+            door_params.TURN_SPEED = obj.DOOR_TURN_SPEED;
+            % Phase 2.5: Door Detection
+            door_params.ANGLE_TOLERANCE = obj.DOOR_ANGLE_TOLERANCE;
+            door_params.NARROW_ROI_ANGLE = obj.DOOR_NARROW_ROI_ANGLE;
+            door_params.DOOR_HEIGHT_MIN = obj.DOOR_HEIGHT_MIN;
+            door_params.DOOR_HEIGHT_MAX = obj.DOOR_HEIGHT_MAX;
+            door_params.MIN_POINTS_THRESHOLD = obj.DOOR_MIN_POINTS_THRESHOLD;
+            door_params.DEPTH_THRESHOLD = obj.DOOR_DEPTH_THRESHOLD;
+            door_params.FIXED_ELEVATOR_DISTANCE = obj.DOOR_FIXED_ELEVATOR_DISTANCE;
+            % Phase 3 & 5: Movement into/out of elevator
+            door_params.MOVE_DISTANCE = obj.DOOR_MOVE_DISTANCE;
+            door_params.MOVE_SPEED = obj.DOOR_MOVE_SPEED;
+        end
+
         function elevator_result = executeElevatorEntry(obj, current_position, current_yaw, lidar_data, door_detection_mode)
             % Execute elevator entry sequence with door detection and opening
             % This calls the external enterElevator function and handles door opening
@@ -642,7 +665,7 @@ classdef Control < handle
             target_position = elevator_metadata.target_position;  % Phase 1 target position
             door_center = elevator_metadata.door_center;          % Elevator door center
 
-            elevator_result = enterElevator(current_position, current_yaw, door_center, [], lidar_data, obj.Gazebo, obj.elevator_odom_mode, door_detection_mode, obj.door_params, target_position);
+            elevator_result = enterElevator(current_position, current_yaw, door_center, [], lidar_data, obj.Gazebo, obj.elevator_odom_mode, door_detection_mode, obj.getDoorParams(), target_position);
             
             % Check if we need to open the door (Phase 2.5 - door verification)
             if isfield(elevator_result, 'phase') && elevator_result.phase == 2.5
@@ -854,7 +877,7 @@ classdef Control < handle
 
             % Execute multi-room navigation
             [nav_state, control_cmd] = executeMultiRoomNavigation(current_position, current_yaw, ...
-                                                                   lidar_data, obj.door_params);
+                                                                   lidar_data, obj.getDoorParams());
 
             % Update state
             obj.multiRoomNavState = nav_state;
