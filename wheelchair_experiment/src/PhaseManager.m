@@ -763,8 +763,76 @@ classdef PhaseManager < handle
 
                 fprintf('  ✓ Created NDT pose detection action\n\n');
 
-            elseif strcmp(goal_type, 'elevator') || strcmp(goal_type, 'navigation_only')
-                % Mode 1 & 4: Multi-room path planning with elevator entry
+            elseif strcmp(goal_type, 'navigation_only')
+                % Mode 4: Navigation-only mode - reuse existing waypoints, just rebuild action sequence
+                fprintf('STEP 1: Rebuilding action sequence for navigation_only mode...\n');
+                fprintf('  (Reusing waypoints from constructor - no new path planning)\n\n');
+
+                % Get existing waypoints from obj.waypoint_segments (already set in constructor)
+                if isempty(obj.waypoint_segments)
+                    error('No waypoints available! Must call planMission with elevator goal first.');
+                end
+
+                waypoint_segments = obj.waypoint_segments;
+                room_sequence = obj.room_sequence;
+                door_info_struct = obj.door_info;
+
+                % STEP 2: Build action sequence from existing waypoint segments
+                fprintf('STEP 2: Building action sequence from existing path segments...\n');
+
+                % Clear old action sequence
+                obj.action_sequence = {};
+
+                for seg_idx = 1:length(waypoint_segments)
+                    % Add path_follow action
+                    action = struct();
+                    action.type = 'path_follow';
+                    if ~isempty(room_sequence) && seg_idx <= length(room_sequence)
+                        action.start_room = room_sequence{seg_idx};
+                        action.end_room = room_sequence{min(seg_idx+1, length(room_sequence))};
+                    else
+                        action.start_room = 'Unknown';
+                        action.end_room = 'Unknown';
+                    end
+                    action.waypoints = waypoint_segments{seg_idx};
+                    action.start_position = waypoint_segments{seg_idx}(1, :);
+                    action.goal_position = waypoint_segments{seg_idx}(end, :);
+                    action.description = sprintf('Path follow in room %s (%d waypoints)', ...
+                                                 action.start_room, size(action.waypoints, 1));
+                    obj.action_sequence{end+1} = action;
+
+                    % Add door_entry action if not last segment
+                    if seg_idx < length(waypoint_segments) && ~isempty(door_info_struct)
+                        door_action = struct();
+                        door_action.type = 'door_entry';
+                        door_action.door_center = door_info_struct(seg_idx).center;
+                        door_action.door_exit = door_info_struct(seg_idx).exit;
+                        if ~isempty(room_sequence) && seg_idx < length(room_sequence)
+                            door_action.description = sprintf('Cross door from %s to %s', ...
+                                                              room_sequence{seg_idx}, room_sequence{seg_idx+1});
+                        else
+                            door_action.description = 'Cross door';
+                        end
+                        obj.action_sequence{end+1} = door_action;
+                    end
+                end
+
+                % NO elevator_entry action for navigation_only mode (this is the key difference)
+                fprintf('  ✓ Created %d actions (navigation only, no elevator entry)\n\n', length(obj.action_sequence));
+
+                fprintf('═══════════════════════════════════════════════════\n');
+                fprintf('Mission Planning Complete (Navigation-Only):\n');
+                fprintf('  Actions: %d\n', length(obj.action_sequence));
+                fprintf('  Rooms: %s\n', strjoin(room_sequence, ' → '));
+                fprintf('  Waypoint Segments: %d\n', obj.total_segments);
+                fprintf('  Final Goal: room (no elevator entry)\n');
+                fprintf('═══════════════════════════════════════════════════\n\n');
+
+                % Update final goal type to 'room' (no elevator entry at end)
+                obj.final_goal_type = 'room';
+
+            elseif strcmp(goal_type, 'elevator')
+                % Mode 1: Multi-room path planning with elevator entry
                 fprintf('STEP 1: Running multi-room path planner (Dijkstra + A*)...\n');
 
                 multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
