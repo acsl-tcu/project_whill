@@ -302,15 +302,7 @@ classdef PhaseManager < handle
         end
 
         function waypoints = getCurrentSegmentWaypoints(obj)
-            % Get waypoints for current segment
-            %
-            % Returns empty if not in multi-room mode or invalid segment
-
-            if ~obj.multi_room_enabled
-                waypoints = [];
-                return;
-            end
-
+            % Get waypoints for current segmenti 
             if obj.current_segment > 0 && obj.current_segment <= length(obj.waypoint_segments)
                 waypoints = obj.waypoint_segments{obj.current_segment};
             else
