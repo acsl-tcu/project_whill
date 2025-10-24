@@ -45,7 +45,7 @@ function result = idleMotionForDoorSensor(params)
 
     % Generate motion command based on current direction
     result.V = [motion_direction * params.IDLE_SPEED; 0];
-
+    pause(1)
     % Set status message
     if motion_direction == 1
         result.status = 'Moving forward to trigger door sensor';

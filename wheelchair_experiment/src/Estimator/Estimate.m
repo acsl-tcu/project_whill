@@ -199,7 +199,7 @@ classdef Estimate < handle
             
             % Path planning - moved from Control.m constructor
             BIM_data= LocationMetadata.getLocation('elevator');
-            initial_position = [21,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
+            initial_position = [25,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
             goal_position = BIM_data.astar_goal;  % Use astar_goal for path planning (final waypoint)
             
             % Calculate robot dimensions (using same constants as Control.m)
@@ -217,7 +217,7 @@ classdef Estimate < handle
             fprintf('  2 - Automatic A* pathfinding (multi-room, auto-detects single/multi) [default]\n');
             user_choice = input('Enter choice (1/2) [default: 2]: ', 's');
 
-            %% Store parameters for mission planning (will be called after mode selection)
+            %% Store parameters for mission planning
             obj.initial_position = initial_position;
             obj.initial_goal_position = goal_position;
             obj.waypoint_method_choice = user_choice;
@@ -225,9 +225,24 @@ classdef Estimate < handle
             obj.robot_params.width = robot_width;
             obj.robot_params.length = robot_length;
             obj.robot_params.safety_margin = safety_margin;
+            obj.robot_params.user_choice = user_choice;
 
-            fprintf('[ESTIMATE] Waypoint method selected. Waiting for mode selection...\n');
-            fprintf('[ESTIMATE] Action sequence will be planned after mode is chosen.\n');
+            %% Always generate default path to elevator (will be used by Mode 1 & 4)
+            fprintf('[ESTIMATE] Generating default path to elevator...\n');
+
+            % Prepare goal data
+            goal_data = struct();
+            goal_data.center = goal_position;
+
+            % Plan default mission with elevator goal (generates waypoints)
+            obj.phaseManager.planMission(obj.initial_position, 'elevator', goal_data, obj.robot_params);
+
+            % Extract waypoints and store in SharedControlMode
+            waypoint_cell_array = obj.phaseManager.waypoint_segments;
+            obj.sharedControlMode.setWaypoints(waypoint_cell_array);
+
+            fprintf('[ESTIMATE] Default path created. Waiting for mode selection...\n');
+            fprintf('[ESTIMATE] Mode 1 & 4 will use this path. Mode 2 & 3 will ignore it.\n');
 
             % Plot the generated path for visualization (world coordinates)
             try
@@ -441,28 +456,12 @@ classdef Estimate < handle
                 % Handle special modes that PhaseManager doesn't manage
                 switch user_request.new_phase
                     case 'floor_change'
-                        % CRITICAL FIX: Use PhaseManager.isFirstTimeUse() instead of SharedControlMode
-                        % This fixes the bug where multi_room_navigation incorrectly set is_first_use = false
+                        % Mode 1: Use pre-planned elevator path from constructor
                         if obj.phaseManager.isFirstTimeUse()
-                            % First time - plan mission NOW with elevator as goal
-                            fprintf('[ESTIMATE] First-time floor_change - planning mission with ELEVATOR goal\n');
-
-                            % Prepare goal data
-                            goal_data = struct();
-                            goal_data.center = obj.initial_goal_position;
-
-                            % Add user choice to robot params
-                            obj.robot_params.user_choice = obj.waypoint_method_choice;
-
-                            % Plan mission with elevator as final goal
-                            obj.phaseManager.planMission(obj.initial_position, 'elevator', goal_data, obj.robot_params);
-
-                            % Extract waypoints for SharedControlMode (backward compatibility)
-                            waypoint_cell_array = obj.phaseManager.waypoint_segments;
-                            obj.sharedControlMode.setWaypoints(waypoint_cell_array);
-
+                            % First time - path already planned in constructor, just mark as used
+                            fprintf('[ESTIMATE] Mode 1: Using pre-planned elevator path from constructor\n');
                             obj.phaseManager.markPathReplanned();
-                            fprintf('[ESTIMATE] Mission planned based on floor_change mode\n');
+                            fprintf('[ESTIMATE] Action sequence already created (elevator goal)\n');
                         else
                             % Not first time - replan path from current position and reset trackers
                             fprintf('[ESTIMATE] Replanning floor_change - generating new path from current position\n');
@@ -472,20 +471,48 @@ classdef Estimate < handle
                         end
 
                     case 'navigation_only'
-                        % Navigation-only mode: Continue with existing path, just disable tracking
-                        fprintf('[ESTIMATE] Navigation-only mode activated - LiDAR tracking disabled\n');
-                        % obj.track_on already set to false above (line 463)
-                        % Don't change phase - let PhaseManager continue with current navigation plan
+                        % Mode 4: Use pre-planned elevator path (same waypoints, different action sequence)
+                        fprintf('[ESTIMATE] Mode 4: Using pre-planned path with navigation_only action sequence\n');
 
-                        % Force final goal to 'elevator' for Mode 4 testing
-                        obj.phaseManager.setFinalGoalType('elevator');
-                        fprintf('[ESTIMATE] Mode 4: Final goal forced to ELEVATOR for testing\n');
+                        % Prepare goal data
+                        goal_data = struct();
+                        goal_data.center = obj.initial_goal_position;
+
+                        % Create new action sequence (navigation_only) but keep existing waypoints
+                        obj.phaseManager.planMission(obj.initial_position, 'navigation_only', goal_data, obj.robot_params);
+
+                        % Waypoints already set in SharedControlMode from constructor
+                        fprintf('[ESTIMATE] Mode 4: Action sequence updated (same waypoints as Mode 1)\n');
 
                     case 'door_detection'
-                        obj.phaseManager.setPhase('door_detection');  % Keep this - debug mode
+                        % Mode 2: Door detection - single action
+                        fprintf('[ESTIMATE] Door detection mode - creating door detection action\n');
+
+                        % Prepare goal data (empty for door detection)
+                        goal_data = struct();
+
+                        % Add user choice to robot params
+                        obj.robot_params.user_choice = obj.waypoint_method_choice;
+
+                        % Plan mission with door_detection goal type
+                        obj.phaseManager.planMission(obj.initial_position, 'door_detection', goal_data, obj.robot_params);
+
+                        fprintf('[ESTIMATE] Mode 2: Door detection action created\n');
 
                     case 'ndt_pose_detection'
-                        obj.phaseManager.setPhase('ndt_pose_detection');  % Keep this - manual mode
+                        % Mode 3: NDT pose detection - single action
+                        fprintf('[ESTIMATE] NDT pose detection mode - creating NDT pose action\n');
+
+                        % Prepare goal data (empty for NDT pose)
+                        goal_data = struct();
+
+                        % Add user choice to robot params
+                        obj.robot_params.user_choice = obj.waypoint_method_choice;
+
+                        % Plan mission with ndt_pose_detection goal type
+                        obj.phaseManager.planMission(obj.initial_position, 'ndt_pose_detection', goal_data, obj.robot_params);
+
+                        fprintf('[ESTIMATE] Mode 3: NDT pose detection action created\n');
 
                     otherwise
                         fprintf('[ESTIMATE] Unknown user mode request: %s\n', user_request.new_phase);

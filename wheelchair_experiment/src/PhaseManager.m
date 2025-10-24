@@ -745,70 +745,98 @@ classdef PhaseManager < handle
             end
 
             % Option 2: A* pathfinding (multi-room planner)
-            % Use existing generateMultiRoomPath which handles everything correctly
-            fprintf('STEP 1: Running multi-room path planner (Dijkstra + A*)...\n');
-
-            multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
-            addpath(multiroom_path);
-
-            % Call generateMultiRoomPath to get waypoint segments, room sequence, and doors
-            [~, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(...
-                start_position, goal_data.center, ...
-                robot_params.width, robot_params.length, robot_params.safety_margin);
-
-            fprintf('  ✓ Generated %d segments across rooms: %s\n\n', ...
-                    length(waypoint_segments), strjoin(room_sequence, ' → '));
-
-            % STEP 2: Build action sequence from waypoint segments
-            fprintf('STEP 2: Building action sequence from path segments...\n');
+            % Branch based on goal_type for universal planning
             obj.action_sequence = {};
 
-            for seg_idx = 1:length(waypoint_segments)
-                % Add path_follow action
+            % Handle different goal types
+            if strcmp(goal_type, 'door_detection')
+                % Mode 2: Door detection only - single action
+                fprintf('STEP 1: Creating door detection action...\n');
+
                 action = struct();
-                action.type = 'path_follow';
-                action.start_room = room_sequence{seg_idx};
-                action.end_room = room_sequence{min(seg_idx+1, length(room_sequence))};
-                action.waypoints = waypoint_segments{seg_idx};
-                action.start_position = waypoint_segments{seg_idx}(1, :);
-                action.goal_position = waypoint_segments{seg_idx}(end, :);
-                action.description = sprintf('Path follow in room %s (%d waypoints)', ...
-                                             action.start_room, size(action.waypoints, 1));
+                action.type = 'door_detection';
+                action.description = 'Door detection mode';
                 obj.action_sequence{end+1} = action;
 
-                % Add door_entry action if not last segment
-                if seg_idx < length(waypoint_segments)
-                    door_action = struct();
-                    door_action.type = 'door_entry';
-                    door_action.door_center = door_info.door_centers(seg_idx, :);
-                    door_action.door_exit = door_info.door_exit_positions(seg_idx, :);
-                    door_action.description = sprintf('Cross door from %s to %s', ...
-                                                      room_sequence{seg_idx}, room_sequence{seg_idx+1});
-                    obj.action_sequence{end+1} = door_action;
-                end
-            end
+                fprintf('  ✓ Created door detection action\n\n');
 
-            % Add elevator_entry if goal is elevator
-            if strcmp(goal_type, 'elevator')
+            elseif strcmp(goal_type, 'ndt_pose_detection')
+                % Mode 3: NDT pose detection only - single action
+                fprintf('STEP 1: Creating NDT pose detection action...\n');
+
+                action = struct();
+                action.type = 'ndt_pose_detection';
+                action.description = 'NDT pose detection mode';
+                obj.action_sequence{end+1} = action;
+
+                fprintf('  ✓ Created NDT pose detection action\n\n');
+
+            elseif strcmp(goal_type, 'elevator') || strcmp(goal_type, 'navigation_only')
+                % Mode 1 & 4: Multi-room path planning with elevator entry
+                fprintf('STEP 1: Running multi-room path planner (Dijkstra + A*)...\n');
+
+                multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
+                addpath(multiroom_path);
+
+                % Call generateMultiRoomPath to get waypoint segments, room sequence, and doors
+                [~, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(...
+                    start_position, goal_data.center, ...
+                    robot_params.width, robot_params.length, robot_params.safety_margin);
+
+                fprintf('  ✓ Generated %d segments across rooms: %s\n\n', ...
+                        length(waypoint_segments), strjoin(room_sequence, ' → '));
+
+                % STEP 2: Build action sequence from waypoint segments
+                fprintf('STEP 2: Building action sequence from path segments...\n');
+
+                for seg_idx = 1:length(waypoint_segments)
+                    % Add path_follow action
+                    action = struct();
+                    action.type = 'path_follow';
+                    action.start_room = room_sequence{seg_idx};
+                    action.end_room = room_sequence{min(seg_idx+1, length(room_sequence))};
+                    action.waypoints = waypoint_segments{seg_idx};
+                    action.start_position = waypoint_segments{seg_idx}(1, :);
+                    action.goal_position = waypoint_segments{seg_idx}(end, :);
+                    action.description = sprintf('Path follow in room %s (%d waypoints)', ...
+                                                 action.start_room, size(action.waypoints, 1));
+                    obj.action_sequence{end+1} = action;
+
+                    % Add door_entry action if not last segment
+                    if seg_idx < length(waypoint_segments)
+                        door_action = struct();
+                        door_action.type = 'door_entry';
+                        door_action.door_center = door_info.door_centers(seg_idx, :);
+                        door_action.door_exit = door_info.door_exit_positions(seg_idx, :);
+                        door_action.description = sprintf('Cross door from %s to %s', ...
+                                                          room_sequence{seg_idx}, room_sequence{seg_idx+1});
+                        obj.action_sequence{end+1} = door_action;
+                    end
+                end
+
+                % Add elevator_entry action
                 elev_action = struct();
                 elev_action.type = 'elevator_entry';
                 elev_action.elevator_center = goal_data.center;
                 elev_action.description = 'Enter elevator';
                 obj.action_sequence{end+1} = elev_action;
+
+                fprintf('  ✓ Created %d actions\n\n', length(obj.action_sequence));
+
+                % STEP 3: Store for backward compatibility with old system
+                obj.extractWaypointsFromActions();  % Convert to waypoint_segments format
+
+                fprintf('═══════════════════════════════════════════════════\n');
+                fprintf('Mission Planning Complete:\n');
+                fprintf('  Actions: %d\n', length(obj.action_sequence));
+                fprintf('  Rooms: %s\n', strjoin(room_sequence, ' → '));
+                fprintf('  Waypoint Segments: %d\n', obj.total_segments);
+                fprintf('  Final Goal: %s\n', obj.final_goal_type);
+                fprintf('═══════════════════════════════════════════════════\n\n');
+
+            else
+                error('Unknown goal_type: %s', goal_type);
             end
-
-            fprintf('  ✓ Created %d actions\n\n', length(obj.action_sequence));
-
-            % STEP 3: Store for backward compatibility with old system
-            obj.extractWaypointsFromActions();  % Convert to waypoint_segments format
-
-            fprintf('═══════════════════════════════════════════════════\n');
-            fprintf('Mission Planning Complete:\n');
-            fprintf('  Actions: %d\n', length(obj.action_sequence));
-            fprintf('  Rooms: %s\n', strjoin(room_sequence, ' → '));
-            fprintf('  Waypoint Segments: %d\n', obj.total_segments);
-            fprintf('  Final Goal: %s\n', obj.final_goal_type);
-            fprintf('═══════════════════════════════════════════════════\n\n');
 
             obj.action_sequence_active = true;
 

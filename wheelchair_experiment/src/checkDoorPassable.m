@@ -107,7 +107,7 @@ function result = checkDoorPassable(lidar_scan_data, wheelchair_pose, door_cente
         vis_counter = 0;
     end
     vis_counter = vis_counter + 1;
-    enable_visualization = (mod(vis_counter, 50) == 0); % Visualize every 50 iterations
+    enable_visualization = (mod(vis_counter, 5) == 0); % Visualize every 50 iterations
 
     % Call appropriate door detection function
     if strcmp(door_type, 'elevator')
