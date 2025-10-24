@@ -121,10 +121,6 @@ classdef Estimate < handle
         oldtime                 %推定の時変の刻み時間算出に使用
         timeStep                %時変の刻み時間
         modeNumber              %main.mのmodeと同一。オンラインかオフラインか
-        pcloudOffline           %userLocal.matにある点群を各時刻保存
-        thetaOffline            %userLocal.matにある剛体1(LiDARの上に取り付けたマーカー)の方向角(yaw)を各時刻保存
-        timeOffline             %userLocal.matにあるLiDARの測定時刻を各時刻保存
-        transOffline            %userLocal.matにある剛体1(LiDAR)の位置x,y,zを各時刻保存
 
         % Theater Plot
         trackP
@@ -154,9 +150,8 @@ classdef Estimate < handle
         trackStorage
         newTrackCandidates
         tempStorage
-        
+
         % Phase detection for elevator control
-        elevator_center         % Elevator center position [x, y]
         control_phase           % Current control phase: 'path_following', 'elevator_entry', or 'floor_change'
         sharedControlMode       % Shared control mode handle object
 

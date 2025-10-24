@@ -18,7 +18,6 @@ classdef PhaseManager < handle
         % Phase state
         current_phase           % Current phase name string
         previous_phase          % Previous phase (for history/debugging)
-        phase_data              % Struct with phase-specific data
         is_first_use            % Boolean: track if this is the first time any phase is set
 
         % Universal path following state
@@ -69,7 +68,6 @@ classdef PhaseManager < handle
             obj.sharedControlMode = sharedControlMode;
             obj.current_phase = 'path_following';
             obj.previous_phase = '';
-            obj.phase_data = struct();
             obj.is_first_use = true;  % This is the first time using the system
 
             % Initialize universal path following state

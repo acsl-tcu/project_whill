@@ -2,38 +2,27 @@ classdef Control < handle
     properties (Access = public)
         Gazebo = false; % Flag to indicate if running in Gazebo simulation
         elevator_odom_mode = true; % Flag to use odometry mode (local coordinates) vs map mode (global coordinates)
-        % Core motion control properties (kept)
-        state_L
-        old_th
-        v
-        InitialVelocity
 
-        %以下移植
+        % Core motion control properties
+        v
+
+        % MPC properties
         Vinit
         count
         mu
         mu_v
         sigma
         sigma_v
-        % dt             重複？
         DT
         ObsNum
         obs
-        vobs
-        VOBS
-        %         px
         reset_flag
-        lastLPF
-        SelectMode        %重複？
-        obstacleObj
 
+        % Path following properties
         target
-        limit
         target_n
-        abc
         v_old
         t_old
-
         ltheta
 
         Grid_Xlim
@@ -94,32 +83,32 @@ classdef Control < handle
         % L_pitch     =  0.0
         % L_yaw       =  0.0
         % Gazebo
-        L_x         =  0
-        L_z         =  1.4
-        L_roll      =  0.0
-        L_pitch     =  0.0
-        L_yaw       =  0.0
+        L_x         =  0;
+        L_z         =  1.4;
+        L_roll      =  0.0;
+        L_pitch     =  0.0;
+        L_yaw       =  0.0;
 
         %% --Door/Elevator Entry Parameters (enterElevator.m)--
         % Phase 1: Position Correction
-        DOOR_POSITION_TOLERANCE = 0.15          % ±15cm acceptable distance error
-        DOOR_POSITION_ANGLE_TOLERANCE = 0.087   % ±5 degrees acceptable heading error (radians)
-        DOOR_CORRECTION_TURN_SPEED = 0.3        % rad/s for correction turns
-        DOOR_CORRECTION_MOVE_SPEED = 0.4        % m/s for correction movement (slower than entry)
+        DOOR_POSITION_TOLERANCE = 0.15   ;       % ±15cm acceptable distance error
+        DOOR_POSITION_ANGLE_TOLERANCE = 0.087;   % ±5 degrees acceptable heading error (radians)
+        DOOR_CORRECTION_TURN_SPEED = 0.3      ;  % rad/s for correction turns
+        DOOR_CORRECTION_MOVE_SPEED = 0.4       ; % m/s for correction movement (slower than entry)
         % Phase 2: Turning towards elevator
-        DOOR_TURN_TOLERANCE = 0.1               % radians (~6 degrees) - when to stop turning
-        DOOR_TURN_SPEED = 0.1                   % rad/s for Phase 2 turning
+        DOOR_TURN_TOLERANCE = 0.1               ;% radians (~6 degrees) - when to stop turning
+        DOOR_TURN_SPEED = 0.1;                   % rad/s for Phase 2 turning
         % Phase 2.5: Door Detection
-        DOOR_ANGLE_TOLERANCE = 30               % ±30 degrees cone towards elevator (initial filtering)
-        DOOR_NARROW_ROI_ANGLE = 4               % ±4 degrees for wheelchair safe passage (critical ROI)
-        DOOR_HEIGHT_MIN = 0.5                   % Minimum height (avoid floor)
-        DOOR_HEIGHT_MAX = 1.7                   % Maximum door height
-        DOOR_MIN_POINTS_THRESHOLD = 5           % Minimum points needed for analysis
-        DOOR_DEPTH_THRESHOLD = 0.3              % Points must be this much deeper than elevator center
-        DOOR_FIXED_ELEVATOR_DISTANCE = 2.2      % Fixed elevator center distance in odometry mode (meters)
+        DOOR_ANGLE_TOLERANCE = 30;               % ±30 degrees cone towards elevator (initial filtering)
+        DOOR_NARROW_ROI_ANGLE = 4 ;              % ±4 degrees for wheelchair safe passage (critical ROI)
+        DOOR_HEIGHT_MIN = 0.5      ;             % Minimum height (avoid floor)
+        DOOR_HEIGHT_MAX = 1.7       ;            % Maximum door height
+        DOOR_MIN_POINTS_THRESHOLD = 5;           % Minimum points needed for analysis
+        DOOR_DEPTH_THRESHOLD = 0.3    ;          % Points must be this much deeper than elevator center
+        DOOR_FIXED_ELEVATOR_DISTANCE = 2.2;      % Fixed elevator center distance in odometry mode (meters)
         % Phase 3 & 5: Movement into/out of elevator
-        DOOR_MOVE_DISTANCE = 2.4                % meters to move into elevator (reduced by 10cm to avoid back wall)
-        DOOR_MOVE_SPEED = 0.2                   % m/s for forward/reverse movement
+        DOOR_MOVE_DISTANCE = 2.4     ;           % meters to move into elevator (reduced by 10cm to avoid back wall)
+        DOOR_MOVE_SPEED = 0.2       ;          % m/s for forward/reverse movement
         %%
 
         animation = [0,0,0];
@@ -416,7 +405,7 @@ classdef Control < handle
                     exit_position = target_info.exit_position;
 
                     door_result = enterDoor(current_position, Position.yaw, door_center, exit_position, ...
-                                           lidar_data, obj.getDoorParams(), 'regular');
+                                           lidar_data, obj.door_params, 'regular');
                     U = door_result.V;
 
                     % Report completion to PhaseManager
@@ -877,7 +866,7 @@ classdef Control < handle
 
             % Execute multi-room navigation
             [nav_state, control_cmd] = executeMultiRoomNavigation(current_position, current_yaw, ...
-                                                                   lidar_data, obj.getDoorParams());
+                                                                   lidar_data, obj.door_params);
 
             % Update state
             obj.multiRoomNavState = nav_state;
