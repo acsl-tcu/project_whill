@@ -47,12 +47,7 @@ classdef PhaseManager < handle
                                 %   .exit: [x, y] position after passing
 
         % Legacy multi-room properties (kept for backward compatibility)
-        multi_room_enabled      % Boolean: is multi-room mode active?
-        at_door                 % Boolean: currently at a door crossing?
-        current_door            % Current door index (1, 2, 3, ...)
-        total_doors             % Total number of doors
-        door_centers            % Array of door center positions
-        door_exit_positions     % Array of door exit positions
+        multi_room_enabled      % Boolean: is multi-room mode active? (auto-set by total_segments > 1)
 
         % Action Sequence Planner (NEW)
         action_sequence         % Cell array of action structs defining the mission plan
@@ -97,13 +92,8 @@ classdef PhaseManager < handle
             obj.room_sequence = {};
             obj.door_info = struct('type', {}, 'center', {}, 'exit', {});
 
-            % Initialize legacy multi-room properties
+            % Initialize legacy multi-room property
             obj.multi_room_enabled = false;
-            obj.at_door = false;
-            obj.current_door = 0;
-            obj.total_doors = 0;
-            obj.door_centers = [];
-            obj.door_exit_positions = [];
 
             % Initialize action sequence planner
             obj.action_sequence = {};
@@ -111,48 +101,6 @@ classdef PhaseManager < handle
             obj.action_sequence_active = false;
 
             fprintf('[PHASE MANAGER] Universal Path Follower Initialized\n');
-        end
-
-        function enableMultiRoom(obj, waypoint_segments, room_sequence, door_info)
-            % Enable multi-room navigation mode
-            %
-            % Inputs:
-            %   waypoint_segments - Cell array of Nx2 waypoint matrices
-            %   room_sequence - Cell array of room ID strings
-            %   door_info - Struct with fields:
-            %               - door_centers: Mx2 array of door center positions
-            %               - door_exit_positions: Mx2 array of door exit positions
-
-            obj.multi_room_enabled = true;
-            obj.waypoint_segments = waypoint_segments;
-            obj.room_sequence = room_sequence;
-
-            % Extract door information from struct
-            if isfield(door_info, 'door_centers')
-                obj.door_centers = door_info.door_centers;
-            else
-                obj.door_centers = [];
-            end
-
-            if isfield(door_info, 'door_exit_positions')
-                obj.door_exit_positions = door_info.door_exit_positions;
-            else
-                obj.door_exit_positions = [];
-            end
-
-            obj.total_segments = length(waypoint_segments);
-            obj.total_doors = length(room_sequence) - 1;
-            obj.current_segment = 1;
-            obj.current_door = 0;
-            obj.at_door = false;
-
-            % Start in path_following mode
-            obj.setPhase('path_following');
-
-            fprintf('[PHASE MANAGER] Multi-room navigation enabled\n');
-            fprintf('  Segments: %d\n', obj.total_segments);
-            fprintf('  Doors: %d\n', obj.total_doors);
-            fprintf('  Room sequence: %s\n', strjoin(room_sequence, ' → '));
         end
 
         function setPhase(obj, new_phase, varargin)
@@ -308,21 +256,6 @@ classdef PhaseManager < handle
             else
                 waypoints = [];
             end
-        end
-
-        function [door_center, exit_position] = getCurrentDoorInfo(obj)
-            % Get current door information
-            %
-            % Returns empty arrays if not at a door
-
-            if ~obj.at_door || obj.current_door <= 0 || obj.current_door > size(obj.door_centers, 1)
-                door_center = [];
-                exit_position = [];
-                return;
-            end
-
-            door_center = obj.door_centers(obj.current_door, :);
-            exit_position = obj.door_exit_positions(obj.current_door, :);
         end
 
         function transition_info = getTransitionInfo(obj)

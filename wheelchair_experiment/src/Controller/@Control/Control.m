@@ -2,87 +2,11 @@ classdef Control < handle
     properties (Access = public)
         Gazebo = false; % Flag to indicate if running in Gazebo simulation
         elevator_odom_mode = true; % Flag to use odometry mode (local coordinates) vs map mode (global coordinates)
-        TLeng
-        NCnt
-        Cnt
-        Selectmode
-        obs_Message
-        obs_Topic
-        ObstacleNum
-        Obstacle_Topic1
-        Obstacle_Topic2
-        Obstacle_Topic3
-        Obstacle_Topic4ini
-        Obstacle_Topic5
-        Obstacle_Topic6
-        Obstacle_Topic7
-        Obstacle_Topic8
-        Obstacle_Topic9
-        Obstacle_Topic101
-        Obstacle_Topic102
-        Obstacle_Topic103
-        Obstacle_Topic104
-        Obstacle_Topic105
-        Obstacle_Topic106
-        Obstacle_Topic107
-        Obstacle_Topic108
-        Obstacle_Topic109
-        Obstacle_Topic110
-        qx1
-        qy1
-        qz1
-        qw1
-        qx2
-        qy2
-        qz2
-        qw2
-        qx3
-        qy3
-        qz3
-        qw3
-        qx4
-        qy4
-        qz4
-        qw4
-        qx5
-        qy5
-        qz5
-        qw5
-        qx6
-        qy6
-        qz6
-        qw6
-        qx7
-        qy7
-        qz7
-        qw7
-        qx8
-        qy8
-        qz8
-        qw8
-        qx9
-        qy9
-        qz9
-        qw9
+        % Core motion control properties (kept)
         state_L
-        obs_state_L
         old_th
         v
         InitialVelocity
-        obsL
-        obstaclesection
-        ObstaclePosX
-        ObstaclePosY
-        ObstaclePosYAW
-        obsYdifferent
-        obsk1
-        obsk2
-        obstaclephi
-        obstacler
-        obsf1
-        obsf2
-        cartesian
-        referenced
 
         %以下移植
         Vinit
