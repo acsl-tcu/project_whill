@@ -77,30 +77,10 @@ function [uOpt,fval,removed] = clustering(obj,pw,pu,px,remove_sample)
 %     else
         for j=1:cNum
             try
-                % Debug info before the error
-                fprintf('DEBUG: j=%d, cNum=%d\n', j, cNum);
-                fprintf('DEBUG: size(puT)=[%s]\n', num2str(size(puT)));
-                fprintf('DEBUG: size(pcT)=[%s]\n', num2str(size(pcT)));
-                fprintf('DEBUG: pcT values: [%s]\n', num2str(pcT));
-                fprintf('DEBUG: pcT==j logical index: [%s]\n', num2str(pcT==j));
-                fprintf('DEBUG: sum(pcT==j)=%d\n', sum(pcT==j));
-                
-                if sum(pcT==j) == 0
-                    error('No samples found for cluster %d', j);
-                end
-                
                 uOpt.u(j).u = mean(puT(:,:,pcT==j),3);
                 fval(1) = mean(pwT(pcT==j));
             catch ME
-                fprintf('ERROR in clustering at j=%d:\n', j);
-                fprintf('Error message: %s\n', ME.message);
-                fprintf('Error identifier: %s\n', ME.identifier);
-                fprintf('puT size: [%s]\n', num2str(size(puT)));
-                fprintf('pcT size: [%s]\n', num2str(size(pcT)));
-                fprintf('pcT values: [%s]\n', num2str(pcT));
-                fprintf('Logical index pcT==j: [%s]\n', num2str(pcT==j));
-                fprintf('Number of true values in pcT==j: %d\n', sum(pcT==j));
-                
+
                 % Pause to allow inspection
                 keyboard; % This will pause execution and enter debug mode
                 

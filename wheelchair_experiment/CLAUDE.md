@@ -57,6 +57,34 @@ safe_colors = {
 };
 ```
 
+## Coding Best Practices
+
+### DRY Principle (Don't Repeat Yourself)
+**IMPORTANT:** Minimize coding redundant things. If data or functionality already exists somewhere in the code, reuse it instead of passing it as parameters or duplicating logic.
+
+**Examples of good practice:**
+- ✅ Use PhaseManager properties instead of passing same data as parameters
+- ✅ Store data once, access from multiple places (single source of truth)
+- ✅ Use existing getter methods instead of duplicating data retrieval logic
+- ✅ Access internal object state rather than passing redundant parameters
+
+**Examples of redundancy to avoid:**
+- ❌ Passing `current_waypoint_idx` as parameter when it's already in `obj.current_waypoint_local`
+- ❌ Passing `current_position` when it's stored in `obj.estimator_data.position`
+- ❌ Creating duplicate functions that do the same thing with different names
+- ❌ Passing data through function parameters that already exists in object properties
+
+**Real Example from Project:**
+```matlab
+% ❌ BAD: Redundant parameters
+[control_mode, target_info] = obj.phaseManager.update2(current_position, current_waypoint_idx);
+
+% ✅ GOOD: Uses internal state (DRY principle)
+[control_mode, target_info] = obj.phaseManager.getCurrentPhaseInfo();
+```
+
+---
+
 ## Git/GitHub Configuration
 
 ### GitHub Personal Access Token

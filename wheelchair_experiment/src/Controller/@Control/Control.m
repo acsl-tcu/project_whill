@@ -393,8 +393,9 @@ classdef Control < handle
             current_waypoint_idx = obj.target_n(1,1);
 
             % Update universal path follower - IT decides the phase
-            % NEW SYSTEM: Use update2() - simpler action sequence-based approach
-            [control_mode, target_info] = obj.phaseManager.update2(current_position, current_waypoint_idx);
+            % NEW SYSTEM: Use getCurrentPhaseInfo() - queries phase from action sequence
+            % NO PARAMETERS: Uses internal PhaseManager state (DRY principle)
+            [control_mode, target_info] = obj.phaseManager.getCurrentPhaseInfo();
 
             %% Execute control based on current phase
             % PhaseManager returns the appropriate control mode
@@ -501,9 +502,37 @@ classdef Control < handle
             %% Dynamic path replanning (TODO)
             % TODO: Dynamic path replanning from Estimate.m (not yet implemented)
 
-            %% Display status and prepare output
-            % Display status message for current mode
-            obj.displayStatusMessage(Position, goal_distance, U, elevator_result);
+            %% Update PhaseManager with control data and display unified status
+            % Build phase-specific data struct based on control mode
+            phase_data = struct();
+            switch control_mode
+                case 'path_following'
+                    phase_data.target_waypoint = obj.target_n(1,1);
+                    phase_data.total_waypoints = size(obj.waypoint, 1);
+                    if ~isempty(BestCost)
+                        phase_data.mpc_cost = BestCost;
+                    end
+
+                case 'door_entry'
+                    if ~isempty(target_info) && isfield(target_info, 'door_center')
+                        phase_data.door_center = target_info.door_center;
+                        phase_data.door_exit = target_info.exit_position;
+                    end
+
+                case 'elevator_entry'
+                    if ~isempty(elevator_result)
+                        phase_data.elevator_phase = elevator_result.phase;
+                        phase_data.elevator_status = elevator_result.status;
+                    end
+
+                % Other cases don't need phase-specific data
+            end
+
+            % Update PhaseManager with control data
+            obj.phaseManager.updateControlData(U, phase_data);
+
+            % Display unified status (called once per loop)
+            obj.phaseManager.displayStatus();
 
             obj.v_old = U(1);
             obj.t_old = Plant.T;
@@ -592,101 +621,6 @@ classdef Control < handle
             end
         end
 
-        function displayStatusMessage(obj, Position, goal_distance, U, elevator_result)
-            % Display status message based on current control mode
-            % Clears previous output to avoid message stacking
-
-            clc;  % Clear command window
-
-            % Get current phase from PhaseManager
-            current_phase = obj.phaseManager.getCurrentPhase();
-
-            % Get action sequence info
-            action_info = obj.phaseManager.getActionSequenceInfo();
-
-            % Display action sequence header if active
-            if action_info.is_active && ~isempty(fieldnames(action_info.current_action))
-                fprintf('╔══════════════════════════════════════════════════╗\n');
-                fprintf('║         MISSION PROGRESS                         ║\n');
-                fprintf('╚══════════════════════════════════════════════════╝\n');
-                fprintf('Action %d/%d (%.1f%% complete)\n', ...
-                    action_info.current_index, action_info.total_actions, action_info.progress_percent);
-                fprintf('Current: [%s] %s\n\n', ...
-                    upper(action_info.current_action.type), action_info.current_action.description);
-            end
-
-            if strcmp(current_phase, 'multi_room_navigation')
-                % Multi-room navigation mode status
-                fprintf('=== MULTI-ROOM NAVIGATION MODE ===\n');
-                fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
-                if isfield(obj.multiRoomNavState, 'mode')
-                    fprintf('Nav Mode: %s\n', obj.multiRoomNavState.mode);
-                    fprintf('Status: %s\n', obj.multiRoomNavState.status);
-                    if isfield(obj.multiRoomNavState, 'current_segment')
-                        fprintf('Segment: %d/%d\n', obj.multiRoomNavState.current_segment, ...
-                                length(obj.multiRoomNavState.waypoint_segments));
-                    end
-                end
-                fprintf('Control: V=%.3f m/s, Ω=%.3f rad/s\n', U(1), U(2));
-                fprintf('===================================\n');
-
-            elseif any(strcmp(current_phase, {'path_following', 'floor_change'}))
-                % Path following mode status
-                fprintf('=== PATH FOLLOWING MODE ===\n');
-                fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
-                fprintf('Goal Distance: %.2f m\n', goal_distance);
-                fprintf('Control: V=%.3f m/s, Ω=%.3f rad/s\n', U(1), U(2));
-                fprintf('Target Waypoint: %d/%d\n', obj.target_n(1,1), size(obj.waypoint,1));
-                fprintf('==========================\n');
-
-            elseif strcmp(current_phase, 'door_entry')
-                % Door entry/crossing mode status
-                fprintf('=== DOOR CROSSING MODE ===\n');
-                fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
-                fprintf('Status: Navigating through door\n');
-                fprintf('Control: V=%.3f m/s, Ω=%.3f rad/s\n', U(1), U(2));
-
-                % Display door center if available from PhaseManager
-                transition_info = obj.phaseManager.getTransitionInfo();
-                if ~isempty(transition_info) && isfield(transition_info, 'door_center')
-                    fprintf('Door Center: [%.2f, %.2f]\n', transition_info.door_center(1), transition_info.door_center(2));
-                end
-                if ~isempty(transition_info) && isfield(transition_info, 'exit_position')
-                    fprintf('Exit Target: [%.2f, %.2f]\n', transition_info.exit_position(1), transition_info.exit_position(2));
-                end
-                fprintf('==========================\n');
-
-            elseif any(strcmp(current_phase, {'elevator_entry', 'door_detection'}))
-                % Elevator entry mode status
-                elevator_metadata = LocationMetadata.getLocation('elevator');
-                fprintf('=== ELEVATOR ENTRY MODE ===\n');
-                fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
-                if nargin >= 5 && ~isempty(elevator_result)
-                    fprintf('Phase: %d - %s\n', elevator_result.phase, elevator_result.status);
-                end
-                fprintf('Control: V=%.3f m/s, Ω=%.3f rad/s\n', U(1), U(2));
-                fprintf('Elevator Center: [%.1d, %.1d]\n', elevator_metadata.door_center(1), elevator_metadata.door_center(2));
-                fprintf('===========================\n');
-
-            elseif strcmp(current_phase, 'ndt_pose_detection')
-                % NDT Pose Detection mode status
-                fprintf('=== NDT POSE DETECTION MODE ===\n');
-                fprintf('** MANUAL CONTROL ACTIVE **\n');
-                fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
-                fprintf('Autonomous Control: DISABLED\n');
-                fprintf('Use your manual controls to move the wheelchair\n');
-                fprintf('Pose is being continuously broadcast in Estimate.m\n');
-                fprintf('===========================\n');
-
-            else
-                % Completed/stopped state status
-                fprintf('=== SYSTEM COMPLETED ===\n');
-                fprintf('Position: [%.2f, %.2f], Yaw: %.2f°\n', Position.X, Position.Y, rad2deg(Position.yaw));
-                fprintf('Status: STOPPED\n');
-                fprintf('Control: V=%.3f m/s, Ω=%.3f rad/s\n', U(1), U(2));
-                fprintf('========================\n');
-            end
-        end
 
         function [U, pu, px, pw, BestCost, BestCostId, uOpt, fval, removed] = pathFollowingControl(obj, Position, preobs)
             % Path following control using MPC algorithm

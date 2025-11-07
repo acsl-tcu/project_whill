@@ -802,7 +802,51 @@ classdef Estimate < handle
                     fprintf('  ✗ Waypoint cell array is empty or not a cell!\n');
                 end
             end
-            
+
+            %% Update PhaseManager with estimator data for centralized display
+            % Compute necessary data for display
+            current_waypoint = 1; % Default
+            total_waypoints = 1; % Default
+            distance_to_goal = 0; % Default
+
+            % Get waypoint data from PhaseManager
+            if obj.phaseManager.hasWaypoints()
+                waypoints = obj.phaseManager.getCurrentSegmentWaypoints();
+                if ~isempty(waypoints)
+                    total_waypoints = size(waypoints, 1);
+                    % Get current waypoint from phaseManager
+                    current_waypoint = obj.phaseManager.getCurrentTargetWaypoint();
+                    % Compute distance to final goal
+                    current_pos = [Plant.X, Plant.Y];
+                    final_goal = waypoints(end, :);
+                    distance_to_goal = norm(current_pos - final_goal);
+                end
+            end
+
+            % Get sensor counts
+            lidar_point_count = 0;
+            if isfield(result.local, 'ObsPC') && ~isempty(result.local.ObsPC) && ~isempty(result.local.ObsPC{1})
+                lidar_point_count = size(result.local.ObsPC{1}, 1);
+            end
+
+            num_objects = 0;
+            if exist('boundingBoxes', 'var') && ~isempty(boundingBoxes)
+                num_objects = length(boundingBoxes);
+            end
+
+            num_tracks = 0;
+            if isfield(result.local, 'AllTracks') && isfield(result.local.AllTracks, 'xhat') && ~isempty(result.local.AllTracks.xhat{1})
+                num_tracks = size(result.local.AllTracks.xhat{1}, 2);
+            end
+
+            % Update PhaseManager with estimator data
+            obj.phaseManager.updateEstimatorData(...
+                [Plant.X, Plant.Y, Plant.Z], ...
+                rad2deg(Plant.yaw), ...
+                Plant.T, ...
+                struct('current', current_waypoint, 'total', total_waypoints, 'distance', distance_to_goal), ...
+                struct('lidar_points', lidar_point_count, 'objects', num_objects, 'tracks', num_tracks));
+
             %
             obj.cnt     = obj.cnt + 1; % カウントの更新
         end

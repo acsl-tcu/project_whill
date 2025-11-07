@@ -54,6 +54,10 @@ classdef PhaseManager < handle
         action_sequence         % Cell array of action structs defining the mission plan
         current_action_index    % Current action being executed (index into action_sequence)
         action_sequence_active  % Boolean: is action sequence mode active?
+
+        % Status display data (centralized display system)
+        estimator_data          % Struct with estimator info (position, sensors, waypoints)
+        control_data            % Struct with control info (velocities, phase-specific data)
     end
 
     methods
@@ -106,6 +110,10 @@ classdef PhaseManager < handle
             obj.action_sequence = {};
             obj.current_action_index = 0;
             obj.action_sequence_active = false;
+
+            % Initialize status display data
+            obj.estimator_data = struct();
+            obj.control_data = struct();
 
             fprintf('[PHASE MANAGER] Universal Path Follower Initialized\n');
         end
@@ -272,21 +280,21 @@ classdef PhaseManager < handle
         %  UNIVERSAL PATH FOLLOWER - Core Methods
         %  ==============================================================
 
-        function [control_mode, target_info] = update2(obj, current_position, current_waypoint_idx)
-            % update2 - Simplified action sequence-based update (NEW SYSTEM)
+        function [control_mode, target_info] = getCurrentPhaseInfo(obj)
+            % getCurrentPhaseInfo - Get current phase and target info from action sequence
             %
-            % This is a simpler approach that directly uses action_sequence
-            % instead of the complex segment/transition tracking.
+            % This function queries the current action in action_sequence and returns
+            % the appropriate control mode and target information.
+            %
+            % NO PARAMETERS NEEDED - Uses internal PhaseManager state:
+            %   - obj.current_action_index (which action we're on)
+            %   - obj.current_waypoint_local (current waypoint index, default 1)
             %
             % Logic:
             %   1. Check current action type from action_sequence
             %   2. Return appropriate control_mode and target_info
-            %   3. Wait for Control.m to call completeTransition() when action is done
-            %   4. Advance to next action automatically in completeTransition()
-            %
-            % Inputs:
-            %   current_position - [x, y] current wheelchair position
-            %   current_waypoint_idx - Index of current target waypoint from Control.m
+            %   3. Wait for Control.m to call completeTransition2() when action is done
+            %   4. Advance to next action in completeTransition2()
             %
             % Outputs:
             %   control_mode - String: 'path_following', 'door_entry', 'elevator_entry', 'completed'
@@ -329,11 +337,15 @@ classdef PhaseManager < handle
                     control_mode = 'path_following';
                     obj.setPhase('path_following');
 
-                    % Populate waypoint target_info
+                    % Populate waypoint target_info using internal waypoint index
                     target_info.type = 'waypoint';
                     if isfield(current_action, 'waypoints') && ~isempty(current_action.waypoints)
                         % Get target waypoint from action's waypoint array
                         num_waypoints = size(current_action.waypoints, 1);
+
+                        % Use internal waypoint tracking (defaults to 1 on first call)
+                        current_waypoint_idx = obj.current_waypoint_local;
+
                         if current_waypoint_idx <= num_waypoints
                             target_info.position = current_action.waypoints(current_waypoint_idx, :);
                         else
@@ -809,6 +821,182 @@ classdef PhaseManager < handle
                 action_info.progress_percent = 0;
             end
         end
+        %% ==============================================================
+        %  CENTRALIZED STATUS DISPLAY SYSTEM
+        %  ==============================================================
+
+        function updateEstimatorData(obj, position, yaw_deg, time, waypoint_info, sensor_info)
+            % updateEstimatorData - Store estimator data for centralized display
+            %
+            % Inputs:
+            %   position - [X, Y, Z] position in meters
+            %   yaw_deg - Yaw angle in degrees
+            %   time - Current simulation/experiment time in seconds
+            %   waypoint_info - struct with fields:
+            %       .current - Current waypoint index
+            %       .total - Total number of waypoints
+            %       .distance - Distance to final goal in meters
+            %   sensor_info - struct with fields:
+            %       .lidar_points - Number of LiDAR points
+            %       .objects - Number of detected objects
+            %       .tracks - Number of active tracks
+
+            obj.estimator_data.position = position;
+            obj.estimator_data.yaw_deg = yaw_deg;
+            obj.estimator_data.time = time;
+            obj.estimator_data.waypoint_current = waypoint_info.current;
+            obj.estimator_data.waypoint_total = waypoint_info.total;
+            obj.estimator_data.distance_to_goal = waypoint_info.distance;
+            obj.estimator_data.lidar_points = sensor_info.lidar_points;
+            obj.estimator_data.num_objects = sensor_info.objects;
+            obj.estimator_data.num_tracks = sensor_info.tracks;
+        end
+
+        function updateControlData(obj, velocities, phase_data)
+            % updateControlData - Store control data for centralized display
+            %
+            % Inputs:
+            %   velocities - [v; omega] control commands
+            %   phase_data - struct with phase-specific fields:
+            %       For 'path_following':
+            %           .target_waypoint - Current target waypoint index
+            %           .total_waypoints - Total waypoints
+            %           .mpc_cost - (optional) MPC cost value
+            %       For 'door_entry':
+            %           .door_center - [x, y] door center position
+            %           .door_exit - [x, y] door exit position
+            %       For 'elevator_entry':
+            %           .elevator_phase - Elevator phase number
+            %           .elevator_status - Elevator status string
+
+            obj.control_data.velocities = velocities;
+            obj.control_data.phase_data = phase_data;
+        end
+
+        function displayStatus(obj)
+            % displayStatus - Unified status display with fixed 25-line format
+            %
+            % Displays:
+            %   - Estimator status (position, sensors, navigation)
+            %   - Control status (phase, commands, phase-specific data)
+            %   - Action sequence progress
+            %
+            % Uses clc to clear screen for consistent terminal output
+
+            % Clear screen (clc is more reliable across different MATLAB terminals)
+            clc;
+
+            % Get action sequence info for progress display
+            action_info = obj.getActionSequenceInfo();
+
+            %% ESTIMATOR STATUS SECTION
+            fprintf('╔═══════════════════════════════════════════════╗\n');
+            fprintf('║              ESTIMATOR STATUS                         ║\n');
+            fprintf('╚═══════════════════════════════════════════════╝\n');
+
+            if isempty(fieldnames(obj.estimator_data))
+                fprintf('Position    : No data\n');
+                fprintf('Orientation : No data\n');
+                fprintf('Navigation  : No data\n');
+                fprintf('Sensors     : No data\n');
+            else
+                fprintf('Position    : X=%7.3f m | Y=%7.3f m | Z=%6.3f m\n', ...
+                    obj.estimator_data.position(1), obj.estimator_data.position(2), obj.estimator_data.position(3));
+                fprintf('Orientation : Yaw=%6.1f° | Time: %7.2f s\n', ...
+                    obj.estimator_data.yaw_deg, obj.estimator_data.time);
+                fprintf('Navigation  : Waypoint %3d/%3d | Distance: %6.2f m\n', ...
+                    obj.estimator_data.waypoint_current, obj.estimator_data.waypoint_total, obj.estimator_data.distance_to_goal);
+                fprintf('Sensors     : LiDAR %4d pts | Objects: %2d | Tracks: %2d\n', ...
+                    obj.estimator_data.lidar_points, obj.estimator_data.num_objects, obj.estimator_data.num_tracks);
+            end
+
+            fprintf('\n');
+
+            %% CONTROL STATUS SECTION
+            fprintf('╔═══════════════════════════════════════════════╗\n');
+            fprintf('║              CONTROL STATUS                           ║\n');
+            fprintf('╚═══════════════════════════════════════════════╝\n');
+
+            % Get current phase
+            current_phase = obj.current_phase;
+            fprintf('Phase       : %s\n', current_phase);
+
+            if isempty(fieldnames(obj.control_data))
+                fprintf('Command     : No data\n');
+                fprintf('Status      : Waiting for control data\n');
+            else
+                % Display command velocities
+                v = obj.control_data.velocities(1);
+                omega = obj.control_data.velocities(2);
+                fprintf('Command     : V=%6.3f m/s | Ω=%+6.3f rad/s\n', v, omega);
+
+                % DYNAMIC THIRD ROW based on current phase
+                phase_data = obj.control_data.phase_data;
+                switch current_phase
+                    case 'path_following'
+                        if isfield(phase_data, 'target_waypoint')
+                            if isfield(phase_data, 'mpc_cost')
+                                fprintf('Target      : Waypoint %3d/%3d | MPC Cost: %8.2f\n', ...
+                                    phase_data.target_waypoint, phase_data.total_waypoints, phase_data.mpc_cost);
+                            else
+                                fprintf('Target      : Waypoint %3d/%3d\n', ...
+                                    phase_data.target_waypoint, phase_data.total_waypoints);
+                            end
+                        else
+                            fprintf('Target      : Waypoint data unavailable\n');
+                        end
+
+                    case 'door_entry'
+                        if isfield(phase_data, 'door_center')
+                            fprintf('Door        : Center [%5.1f, %5.1f] → Exit [%5.1f, %5.1f]\n', ...
+                                phase_data.door_center(1), phase_data.door_center(2), ...
+                                phase_data.door_exit(1), phase_data.door_exit(2));
+                        else
+                            fprintf('Door        : Crossing in progress\n');
+                        end
+
+                    case 'elevator_entry'
+                        if isfield(phase_data, 'elevator_phase')
+                            fprintf('Elevator    : Phase %.1f - %s\n', ...
+                                phase_data.elevator_phase, phase_data.elevator_status);
+                        else
+                            fprintf('Elevator    : Entry in progress\n');
+                        end
+
+                    case 'door_detection'
+                        fprintf('Detection   : Door analysis mode (testing)\n');
+
+                    case 'ndt_pose_detection'
+                        fprintf('NDT Mode    : Manual control active (pose broadcast)\n');
+
+                    case 'completed'
+                        fprintf('Status      : Mission complete - STOPPED\n');
+
+                    otherwise
+                        fprintf('Status      : Unknown phase\n');
+                end
+            end
+
+            fprintf('\n');
+
+            %% ACTION SEQUENCE PROGRESS SECTION
+            fprintf('╔═══════════════════════════════════════════════╗\n');
+            fprintf('║              ACTION SEQUENCE PROGRESS                 ║\n');
+            fprintf('╚═══════════════════════════════════════════════╝\n');
+
+            if action_info.is_active && ~isempty(fieldnames(action_info.current_action))
+                fprintf('Progress    : Action %d/%d (%.1f%% complete)\n', ...
+                    action_info.current_index, action_info.total_actions, action_info.progress_percent);
+                fprintf('Current     : [%s] %s\n', ...
+                    upper(action_info.current_action.type), action_info.current_action.description);
+            else
+                fprintf('Progress    : No active action sequence\n');
+                fprintf('Current     : N/A\n');
+            end
+
+            fprintf('════════════════════════════════════════════════════════\n');
+        end
+
         %% Waypoint Management Methods (replaces SharedControlMode)
 
         function setWaypoints(obj, waypoint_cell_array)
