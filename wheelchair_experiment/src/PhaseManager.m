@@ -35,9 +35,10 @@ classdef PhaseManager < handle
         transition_completed    % Boolean: track if current transition is done
 
         % Final goal configuration
-        final_goal_type         % String: 'room' or 'elevator' - defines what happens at final waypoint
-                                %   'room' - mission completes immediately at final waypoint
-                                %   'elevator' - final elevator_entry phase must complete before mission ends
+        target_action          % String: action type for final mission goal
+                               %   'elevator_entry' - navigate to elevator and enter
+                               %   'door_detection' - debug door detection only
+                               %   'ndt_pose_detection' - manual control with pose broadcast
 
         % Waypoint and navigation data
         waypoint_segments       % Cell array of waypoint matrices
@@ -95,8 +96,8 @@ classdef PhaseManager < handle
             obj.total_transitions = 0;
             obj.transition_completed = false;
 
-            % Initialize final goal type (default: 'room' for backward compatibility)
-            obj.final_goal_type = 'room';
+            % Initialize target action (default: 'elevator_entry')
+            obj.target_action = 'elevator_entry';
 
             % Initialize data structures
             obj.waypoint_segments = {};
@@ -447,17 +448,17 @@ classdef PhaseManager < handle
         %  MISSION PLANNING - Unified waypoint generation + action sequence
         %  ==============================================================
 
-        function planMission(obj, start_position, goal_type, goal_data, robot_params)
+        function planMission(obj, start_position, target_action, goal_data, robot_params)
             % planMission - Complete mission planning: action sequence + waypoints
             %
             % NEW APPROACH:
-            % 1. Plan action sequence FIRST (high-level blueprint)
-            % 2. Generate waypoints for each path_follow action
-            % 3. Store waypoints in actions
+            % 1. Determine if target_action requires navigation
+            % 2. If yes: generate waypoints and build action sequence
+            % 3. If no: create single action
             %
             % Inputs:
             %   start_position - [x, y] starting position
-            %   goal_type - 'elevator', 'room', or 'position'
+            %   target_action - String: 'elevator_entry', 'door_detection', 'ndt_pose_detection'
             %   goal_data - Goal-specific data (struct with .center for elevator, etc.)
             %   robot_params - struct with .width, .length, .safety_margin
 
@@ -466,7 +467,10 @@ classdef PhaseManager < handle
             fprintf('╚═══════════════════════════════════════════════════╝\n\n');
 
             fprintf('Start: [%.2f, %.2f]\n', start_position(1), start_position(2));
-            fprintf('Goal Type: %s\n\n', goal_type);
+            fprintf('Target Action: %s\n\n', target_action);
+
+            % Store target action
+            obj.target_action = target_action;
 
             % Check user choice
             user_choice = '2';  % Default to A* planning
@@ -509,104 +513,89 @@ classdef PhaseManager < handle
             end
 
             % Option 2: A* pathfinding (multi-room planner)
-            % Branch based on goal_type for universal planning
+            % Clear previous action sequence
             obj.action_sequence = {};
 
-            % Handle different goal types
-            if strcmp(goal_type, 'door_detection')
-                % Mode 2: Door detection only - single action
-                fprintf('STEP 1: Creating door detection action...\n');
+            % Determine if target_action requires navigation
+            requires_navigation = PhaseManager.requiresNavigation(target_action);
 
-                action = struct();
-                action.type = 'door_detection';
-                action.description = 'Door detection mode';
-                obj.action_sequence{end+1} = action;
+            if requires_navigation
+                % Navigation-based actions (e.g., elevator_entry)
+                fprintf('STEP 1: Target action requires navigation\n');
 
-                fprintf('  ✓ Created door detection action\n\n');
-
-            elseif strcmp(goal_type, 'ndt_pose_detection')
-                % Mode 3: NDT pose detection only - single action
-                fprintf('STEP 1: Creating NDT pose detection action...\n');
-
-                action = struct();
-                action.type = 'ndt_pose_detection';
-                action.description = 'NDT pose detection mode';
-                obj.action_sequence{end+1} = action;
-
-                fprintf('  ✓ Created NDT pose detection action\n\n');
-
-            elseif strcmp(goal_type, 'navigation_only')
-                % Mode 4: Navigation-only mode - reuse existing waypoints, just rebuild action sequence
-                fprintf('STEP 1: Rebuilding action sequence for navigation_only mode...\n');
-                fprintf('  (Reusing waypoints from constructor - no new path planning)\n\n');
-
-                % Get existing waypoints from obj.waypoint_segments (already set in constructor)
-                if isempty(obj.waypoint_segments)
-                    error('No waypoints available! Must call planMission with elevator goal first.');
-                end
-
-                waypoint_segments = obj.waypoint_segments;
-                room_sequence = obj.room_sequence;
-                door_info_struct = obj.door_info;
-
-                % Get elevator center from last segment's final waypoint (or from door_info if available)
-                if ~isempty(door_info_struct) && length(door_info_struct) > 0 && isfield(door_info_struct(end), 'center')
-                    elevator_center = door_info_struct(end).center;
-                elseif ~isempty(waypoint_segments)
-                    elevator_center = waypoint_segments{end}(end, :);  % Last waypoint of last segment
+                % Check if we should reuse existing waypoints
+                if ~isempty(obj.waypoint_segments)
+                    fprintf('  Reusing existing waypoint segments\n\n');
+                    waypoint_segments = obj.waypoint_segments;
+                    room_sequence = obj.room_sequence;
+                    door_info_struct = obj.door_info;
                 else
-                    % Fallback to LocationMetadata
-                    elevator_metadata = LocationMetadata.getLocation('elevator');
-                    elevator_center = elevator_metadata.door_center;
+                    % Generate new path
+                    fprintf('  Running multi-room path planner (Dijkstra + A*)...\n');
+
+                    multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
+                    addpath(multiroom_path);
+
+                    % Determine goal position based on target_action
+                    if strcmp(target_action, 'elevator_entry')
+                        if isfield(goal_data, 'center')
+                            goal_position = goal_data.center;
+                        else
+                            elevator_metadata = LocationMetadata.getLocation('elevator');
+                            goal_position = elevator_metadata.door_center;
+                        end
+                    else
+                        error('Unknown navigation target_action: %s', target_action);
+                    end
+
+                    % Generate multi-room path
+                    [~, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(...
+                        start_position, goal_position, ...
+                        robot_params.width, robot_params.length, robot_params.safety_margin, ...
+                        obj.occupancyMap, obj.roomGraph);
+
+                    fprintf('  ✓ Generated %d segments across rooms: %s\n\n', ...
+                            length(waypoint_segments), strjoin(room_sequence, ' → '));
+
+                    % Store waypoint data
+                    obj.waypoint_segments = waypoint_segments;
+                    obj.room_sequence = room_sequence;
+                    obj.door_info = door_info;
+                    door_info_struct = door_info;
                 end
 
-                % STEP 2: Build action sequence using reusable function
-                % Since you changed final_goal_type to 'elevator', this will include elevator_entry
-                obj.buildActionSequenceFromSegments(waypoint_segments, room_sequence, door_info_struct, 'elevator', elevator_center);
+                % Build action sequence with navigation + target_action
+                target_data = PhaseManager.prepareTargetData(target_action, goal_data);
+                obj.buildActionSequenceFromSegments(waypoint_segments, room_sequence, ...
+                                                   door_info_struct, target_action, target_data);
 
-                fprintf('═══════════════════════════════════════════════════\n');
-                fprintf('Mission Planning Complete (Navigation-Only → Elevator):\n');
-                fprintf('  Actions: %d\n', length(obj.action_sequence));
-                fprintf('  Rooms: %s\n', strjoin(room_sequence, ' → '));
-                fprintf('  Waypoint Segments: %d\n', obj.total_segments);
-                fprintf('  Final Goal: elevator (enters elevator at end)\n');
-                fprintf('═══════════════════════════════════════════════════\n\n');
-
-                % Update final goal type to 'elevator' (enters elevator at end)
-                obj.final_goal_type = 'elevator';
-
-            elseif strcmp(goal_type, 'elevator')
-                % Mode 1: Multi-room path planning with elevator entry
-                fprintf('STEP 1: Running multi-room path planner (Dijkstra + A*)...\n');
-
-                multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
-                addpath(multiroom_path);
-
-                % Call generateMultiRoomPath to get waypoint segments, room sequence, and doors
-                [~, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(...
-                    start_position, goal_data.center, ...
-                    robot_params.width, robot_params.length, robot_params.safety_margin, ...
-                    obj.occupancyMap, obj.roomGraph);
-
-                fprintf('  ✓ Generated %d segments across rooms: %s\n\n', ...
-                        length(waypoint_segments), strjoin(room_sequence, ' → '));
-
-                % STEP 2: Build action sequence using reusable function
-                obj.buildActionSequenceFromSegments(waypoint_segments, room_sequence, door_info, 'elevator', goal_data.center);
-
-                % STEP 3: Store for backward compatibility with old system
-                obj.extractWaypointsFromActions();  % Convert to waypoint_segments format
+                % Store for backward compatibility
+                obj.extractWaypointsFromActions();
 
                 fprintf('═══════════════════════════════════════════════════\n');
                 fprintf('Mission Planning Complete:\n');
                 fprintf('  Actions: %d\n', length(obj.action_sequence));
                 fprintf('  Rooms: %s\n', strjoin(room_sequence, ' → '));
                 fprintf('  Waypoint Segments: %d\n', obj.total_segments);
-                fprintf('  Final Goal: %s\n', obj.final_goal_type);
+                fprintf('  Target Action: %s\n', obj.target_action);
                 fprintf('═══════════════════════════════════════════════════\n\n');
 
             else
-                error('Unknown goal_type: %s', goal_type);
+                % Non-navigation actions (e.g., door_detection, ndt_pose_detection)
+                fprintf('STEP 1: Creating single action (no navigation required)\n');
+
+                action = struct();
+                action.type = target_action;
+                action.description = PhaseManager.getActionDescription(target_action);
+                obj.action_sequence{end+1} = action;
+
+                fprintf('  ✓ Created %s action\n\n', target_action);
+
+                fprintf('═══════════════════════════════════════════════════\n');
+                fprintf('Mission Planning Complete:\n');
+                fprintf('  Actions: %d\n', length(obj.action_sequence));
+                fprintf('  Target Action: %s\n', obj.target_action);
+                fprintf('═══════════════════════════════════════════════════\n\n');
             end
 
             obj.action_sequence_active = true;
@@ -616,18 +605,18 @@ classdef PhaseManager < handle
             obj.printActionSequence();
         end
 
-        function buildActionSequenceFromSegments(obj, waypoint_segments, room_sequence, door_info_struct, final_goal_type, elevator_center)
+        function buildActionSequenceFromSegments(obj, waypoint_segments, room_sequence, door_info_struct, target_action, target_data)
             % buildActionSequenceFromSegments - Convert waypoint segments to action sequence
             %
             % This is a REUSABLE function that builds action_sequence from waypoint data.
-            % Used by both mode 1 (elevator) and mode 4 (navigation_only).
+            % Used by all navigation-requiring target actions.
             %
             % Inputs:
             %   waypoint_segments - Cell array of Nx2 waypoint matrices
             %   room_sequence - Cell array of room ID strings
             %   door_info_struct - Struct array with .type, .center, .exit
-            %   final_goal_type - 'room' or 'elevator'
-            %   elevator_center - [x, y] elevator position (only needed if final_goal_type='elevator')
+            %   target_action - String: 'elevator_entry', etc.
+            %   target_data - Struct with target-specific data (e.g., .elevator_center)
             %
             % Updates:
             %   obj.action_sequence - Built from segments
@@ -682,16 +671,21 @@ classdef PhaseManager < handle
                 end
             end
 
-            % Add elevator_entry action if final_goal_type is 'elevator'
-            if strcmp(final_goal_type, 'elevator')
-                elev_action = struct();
-                elev_action.type = 'elevator_entry';
-                elev_action.elevator_center = elevator_center;
-                elev_action.description = 'Enter elevator';
-                obj.action_sequence{end+1} = elev_action;
+            % Append target_action at the end
+            switch target_action
+                case 'elevator_entry'
+                    elev_action = struct();
+                    elev_action.type = 'elevator_entry';
+                    elev_action.elevator_center = target_data.elevator_center;
+                    elev_action.description = 'Enter elevator';
+                    obj.action_sequence{end+1} = elev_action;
+
+                % Add other navigation-requiring actions here in the future
+                otherwise
+                    warning('target_action %s not handled in buildActionSequenceFromSegments', target_action);
             end
 
-            fprintf('  ✓ Created %d actions (final goal: %s)\n\n', length(obj.action_sequence), final_goal_type);
+            fprintf('  ✓ Created %d actions (target action: %s)\n\n', length(obj.action_sequence), target_action);
         end
 
         function printActionSequence(obj)
@@ -756,7 +750,7 @@ classdef PhaseManager < handle
                     obj.door_info(door_idx).type = 'elevator';
                     obj.door_info(door_idx).center = action.elevator_center;
                     obj.door_info(door_idx).exit = [];  % No exit for elevator
-                    obj.final_goal_type = 'elevator';
+                    obj.target_action = 'elevator_entry';
                 end
             end
 
@@ -1037,5 +1031,78 @@ classdef PhaseManager < handle
             target_n = obj.current_waypoint_local;
         end
 
+    end
+
+    methods (Static, Access = private)
+        function requires_nav = requiresNavigation(target_action)
+            % Determine if target_action requires navigation to a position
+            %
+            % Inputs:
+            %   target_action - String: 'elevator_entry', 'door_detection', 'ndt_pose_detection'
+            %
+            % Outputs:
+            %   requires_nav - Boolean: true if navigation is required, false otherwise
+
+            switch target_action
+                case 'elevator_entry'
+                    requires_nav = true;
+
+                case 'door_detection'
+                    requires_nav = false;
+
+                case 'ndt_pose_detection'
+                    requires_nav = false;
+
+                otherwise
+                    error('Unknown target_action: %s', target_action);
+            end
+        end
+
+        function target_data = prepareTargetData(target_action, goal_data)
+            % Prepare action-specific data structure for buildActionSequenceFromSegments
+            %
+            % Inputs:
+            %   target_action - String: action type
+            %   goal_data - Struct with goal-specific data
+            %
+            % Outputs:
+            %   target_data - Struct with prepared target data
+
+            target_data = struct();
+
+            switch target_action
+                case 'elevator_entry'
+                    if isfield(goal_data, 'center')
+                        target_data.elevator_center = goal_data.center;
+                    else
+                        elevator_metadata = LocationMetadata.getLocation('elevator');
+                        target_data.elevator_center = elevator_metadata.door_center;
+                    end
+
+                otherwise
+                    % No additional data needed for other actions
+            end
+        end
+
+        function description = getActionDescription(target_action)
+            % Get human-readable description for target_action
+            %
+            % Inputs:
+            %   target_action - String: action type
+            %
+            % Outputs:
+            %   description - String: human-readable description
+
+            switch target_action
+                case 'elevator_entry'
+                    description = 'Enter elevator';
+                case 'door_detection'
+                    description = 'Door detection mode';
+                case 'ndt_pose_detection'
+                    description = 'NDT pose detection mode';
+                otherwise
+                    description = sprintf('Unknown action: %s', target_action);
+            end
+        end
     end
 end
