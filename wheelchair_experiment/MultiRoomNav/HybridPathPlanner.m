@@ -1,4 +1,4 @@
-function [waypoint_segments, room_sequence, total_distance] = HybridPathPlanner(start_position, goal_position, room_database_path, robot_width, robot_length, safety_margin)
+function [waypoint_segments, room_sequence, total_distance] = HybridPathPlanner(start_position, goal_position, roomGraph, robot_width, robot_length, safety_margin, occupancyMap)
     % HybridPathPlanner - Combines Dijkstra (room-level) with A* (geometric)
     %
     % This function performs two-level path planning:
@@ -8,10 +8,11 @@ function [waypoint_segments, room_sequence, total_distance] = HybridPathPlanner(
     % Inputs:
     %   start_position - [x, y] starting position in world coordinates
     %   goal_position - [x, y] goal position in world coordinates
-    %   room_database_path - path to room_database.json file
+    %   roomGraph - RoomGraphWithDoorDistances object (passed from PhaseManager)
     %   robot_width - wheelchair width in meters
     %   robot_length - wheelchair length in meters
     %   safety_margin - safety clearance in meters
+    %   occupancyMap - Occupancy map object (passed from PhaseManager)
     %
     % Outputs:
     %   waypoint_segments - cell array of waypoint matrices, one per room
@@ -21,7 +22,7 @@ function [waypoint_segments, room_sequence, total_distance] = HybridPathPlanner(
     %
     % Example:
     %   [segments, rooms, dist] = HybridPathPlanner([10, 5], [35, 10], ...
-    %       'room_database.json', 0.6, 1.0, 0.1);
+    %       roomGraph, 0.6, 1.0, 0.1, occupancyMap);
     %
     % Returns:
     %   segments{1} = waypoints from start to first door (in room 1)
@@ -32,18 +33,16 @@ function [waypoint_segments, room_sequence, total_distance] = HybridPathPlanner(
     fprintf('║   HYBRID PATH PLANNER (Dijkstra + A*)           ║\n');
     fprintf('╚══════════════════════════════════════════════════╝\n\n');
 
-    %% Step 1: Load room database and build graph
-    fprintf('STEP 1: Loading room database and building graph...\n');
+    %% Step 1: Use provided room graph
+    fprintf('STEP 1: Using room graph from PhaseManager...\n');
     fprintf('─────────────────────────────────────────────────────\n');
 
-    db = RoomDatabase(room_database_path);
-    if isempty(db.rooms_data)
-        error('Failed to load room database from: %s', room_database_path);
+    if isempty(roomGraph)
+        error('Room graph not provided! Must be passed from PhaseManager.');
     end
 
-    graph = db.buildGraph();
-    fprintf('  Loaded %d rooms\n', length(db.rooms_data));
-    fprintf('  Map file: %s\n\n', db.map_file);
+    graph = roomGraph;
+    fprintf('  Room graph loaded: %d rooms\n\n', graph.rooms.Count);
 
     %% Step 2: Find which rooms contain start and goal
     fprintf('STEP 2: Detecting rooms for start and goal positions...\n');
@@ -129,23 +128,11 @@ function [waypoint_segments, room_sequence, total_distance] = HybridPathPlanner(
     fprintf('STEP 5: Planning geometric paths using A* for each segment...\n');
     fprintf('─────────────────────────────────────────────────────\n');
 
-    % Load occupancy map (needed for A*)
-    map_path = fullfile(fileparts(room_database_path), db.map_file);
-    if ~exist(map_path, 'file')
-        error('Map file not found: %s', map_path);
-    end
-
-    % Change to map directory for PathSetting_AStar
-    original_dir = pwd;
-    map_dir = fileparts(map_path);
-    cd(map_dir);
-
     waypoint_segments = {};
     total_distance = 0;
     segment_count = 0;
 
-    try
-        % Plan path for each segment (skip door crossings - use different algorithm)
+    % Plan path for each segment (skip door crossings - use different algorithm)
         for i = 1:length(subgoals)-1
             segment_start = subgoals(i, :);
             segment_goal = subgoals(i+1, :);
@@ -186,9 +173,9 @@ function [waypoint_segments, room_sequence, total_distance] = HybridPathPlanner(
                 end
             end
 
-            % Call PathSetting_AStar for this segment
+            % Call PathSetting_AStar for this segment (pass map to avoid reloading)
             [waypoints, ~, ~, ~, ~] = PathSetting_AStar(segment_start, segment_goal, ...
-                robot_width, robot_length, safety_margin);
+                robot_width, robot_length, safety_margin, occupancyMap);
 
             if isempty(waypoints)
                 error('A* failed for segment %d', segment_count);
@@ -207,14 +194,6 @@ function [waypoint_segments, room_sequence, total_distance] = HybridPathPlanner(
             waypoint_segments{segment_count} = waypoints;
             total_distance = total_distance + segment_dist;
         end
-
-    catch ME
-        cd(original_dir);
-        rethrow(ME);
-    end
-
-    % Return to original directory
-    cd(original_dir);
 
     %% Summary
     fprintf('\n╔══════════════════════════════════════════════════╗\n');

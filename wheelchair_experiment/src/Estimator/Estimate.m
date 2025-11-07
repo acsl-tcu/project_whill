@@ -153,10 +153,9 @@ classdef Estimate < handle
 
         % Phase detection for elevator control
         control_phase           % Current control phase: 'path_following', 'elevator_entry', or 'floor_change'
-        sharedControlMode       % Shared control mode handle object
 
-        % Universal phase manager
-        phaseManager            % PhaseManager object for centralized phase transitions
+        % Universal phase manager (single source of truth for all state)
+        phaseManager            % PhaseManager object for centralized phase transitions and waypoint management
 
         % Tracking control switch
         track_on                % Boolean switch to enable/disable LiDAR processing and tracking
@@ -173,17 +172,14 @@ classdef Estimate < handle
 
     end
     methods
-        function obj = Estimate(dt, mode,File,sharedControlMode,occupancyMap) % 実行して最初の1度だけ呼び出される所
+        function obj = Estimate(dt, mode, File, phaseManager) % 実行して最初の1度だけ呼び出される所
 
 
             obj.modeNumber = mode; % main.mで指定したmodeを代入
             obj.cnt = 1; % カウントの初期定義
-            
-            % Initialize shared control mode
-            obj.sharedControlMode = sharedControlMode; % Store shared control mode object
 
-            % Initialize universal phase manager
-            obj.phaseManager = PhaseManager(sharedControlMode);
+            % Store the PhaseManager instance (created in main_astar.m)
+            obj.phaseManager = phaseManager;
 
             % Initialize phase detection (backward compatibility)
             % obj.elevator_center = [27, 9.3]; % Elevator center position (same as Control.m)
@@ -232,9 +228,9 @@ classdef Estimate < handle
             % Plan default mission with elevator goal (generates waypoints)
             obj.phaseManager.planMission(obj.initial_position, 'elevator', goal_data, obj.robot_params);
 
-            % Extract waypoints and store in SharedControlMode
+            % Extract waypoints and store in PhaseManager
             waypoint_cell_array = obj.phaseManager.waypoint_segments;
-            obj.sharedControlMode.setWaypoints(waypoint_cell_array);
+            obj.phaseManager.setWaypoints(waypoint_cell_array);
 
             fprintf('[ESTIMATE] Default path created. Waiting for mode selection...\n');
             fprintf('[ESTIMATE] Mode 1 & 4 will use this path. Mode 2 & 3 will ignore it.\n');
@@ -242,7 +238,7 @@ classdef Estimate < handle
             % Plot the generated path for visualization (world coordinates)
             try
                 % Use map passed from main.m
-                map_obj = occupancyMap;
+                map_obj = obj.phaseManager.occupancyMap;
 
                 figure('Name', 'Generated Path Visualization', 'Position', [100, 100, 900, 600]);
                 hold on;
@@ -462,7 +458,7 @@ classdef Estimate < handle
                         % Create new action sequence (navigation_only) but keep existing waypoints
                         obj.phaseManager.planMission(obj.initial_position, 'navigation_only', goal_data, obj.robot_params);
 
-                        % Waypoints already set in SharedControlMode from constructor
+                        % Waypoints already set in PhaseManager from constructor
                         fprintf('[ESTIMATE] Mode 4: Action sequence updated (same waypoints as Mode 1)\n');
 
                     case 'door_detection'
@@ -506,7 +502,7 @@ classdef Estimate < handle
             obj.control_phase = obj.phaseManager.getCurrentPhase();
 
             %% NDT Pose Detection Mode - Continuous pose broadcasting
-            % FIXED: Use PhaseManager.getCurrentPhase() instead of SharedControlMode.getMode()
+            % Use PhaseManager.getCurrentPhase() for phase state
             if strcmp(obj.phaseManager.getCurrentPhase(), 'ndt_pose_detection')
                 % Convert yaw from radians to degrees for better readability
                 yaw_degrees = Plant.yaw * 180 / pi;
@@ -524,12 +520,12 @@ classdef Estimate < handle
                 % Get current position from Plant
                 debug_position = [Plant.X, Plant.Y];
 
-                % Get waypoint info from SharedControlMode (just for printing, not for phase management)
-                debug_waypoints_data = obj.sharedControlMode.getWaypoints();
-                debug_current_target_n = obj.sharedControlMode.getCurrentTargetWaypoint();
+                % Get waypoint info from PhaseManager (just for printing, not for phase management)
+                debug_waypoints_data = obj.phaseManager.getWaypoints();
+                debug_current_target_n = obj.phaseManager.getCurrentTargetWaypoint();
 
                 if iscell(debug_waypoints_data)
-                    debug_waypoints = obj.sharedControlMode.getCurrentSegmentWaypoints();
+                    debug_waypoints = obj.phaseManager.getCurrentSegmentWaypoints();
                     if isempty(debug_waypoints)
                         debug_waypoints = debug_waypoints_data{1};
                     end
@@ -774,7 +770,7 @@ classdef Estimate < handle
             
             % Plot waypoints (only once, when cnt == 1, or when waypoints change)
             if obj.cnt == 1
-                waypoint_cell_array = obj.sharedControlMode.getWaypoints();
+                waypoint_cell_array = obj.phaseManager.getWaypoints();
                 fprintf('[ESTIMATE] Plotting waypoints at cnt=1\n');
                 fprintf('  Waypoint data type: %s\n', class(waypoint_cell_array));
                 fprintf('  Is cell array: %d\n', iscell(waypoint_cell_array));
@@ -1554,9 +1550,9 @@ classdef Estimate < handle
             % PhaseManager replans entire mission with new action sequence
             obj.phaseManager.planMission(current_position, 'elevator', goal_data, robot_params);
 
-            % Extract waypoints for SharedControlMode (backward compatibility)
+            % Extract waypoints for PhaseManager
             waypoint_cell_array = obj.phaseManager.waypoint_segments;
-            obj.sharedControlMode.setWaypoints(waypoint_cell_array);
+            obj.phaseManager.setWaypoints(waypoint_cell_array);
 
             fprintf('[ESTIMATE] ═══════════════════════════════════════\n');
             fprintf('[ESTIMATE] Replanning complete\n');

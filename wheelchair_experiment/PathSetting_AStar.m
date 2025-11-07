@@ -1,14 +1,21 @@
-function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_AStar(start_position,goal_position,robot_width,robot_length, safety_margin)
-    % A*-based path setting using map2.mat occupancy grid
+function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_AStar(start_position,goal_position,robot_width,robot_length, safety_margin, occupancyMap)
+    % A*-based path setting using occupancy grid passed from higher level
     % This version automatically generates waypoints using A* pathfinding
     % instead of manual waypoint definition
-    
-    fprintf('Loading occupancy map for A* pathfinding...\n');
+
+    fprintf('Using occupancy map from external source for A* pathfinding...\n');
     debug_on=false;
     try
-        % Load the occupancy map
-        map_data = load('map2.mat');
-        map_obj = map_data.map;
+        % Use provided occupancy map (loaded once in main_astar.m)
+        if nargin >= 6 && ~isempty(occupancyMap)
+            map_obj = occupancyMap;
+            fprintf('Using provided occupancy map from high-level planner\n');
+        else
+            % Fallback: Load the occupancy map
+            fprintf('No occupancy map provided, loading from map2.mat...\n');
+            map_data = load('map2.mat');
+            map_obj = map_data.map;
+        end
         
         % Extract occupancy matrix and parameters
         occ_matrix = getOccupancy(map_obj);  % This method works with this MATLAB version

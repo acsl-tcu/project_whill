@@ -110,12 +110,41 @@ folderPath   = makeFolder(obj);
 
 %----- Setting up your class files -----%
 % You have to call constructor functions of your class file.
-% Create shared control mode instance
-sharedControlMode = SharedControlMode('path_following');
 
+% Load occupancy map (shared across all components)
+fprintf('Loading occupancy map from map2.mat...\n');
+map_data = load('map2.mat');
+occupancyMap = map_data.map;
+fprintf('  Map loaded: %.2fm x %.2fm, Resolution: %.1f cells/m\n', ...
+        diff(occupancyMap.XWorldLimits), diff(occupancyMap.YWorldLimits), occupancyMap.Resolution);
 
-obj.EstimatorObj = Estimate(dt,mode,Datadir,sharedControlMode);
-obj.ControllerObj = Control(te,dt,mode,rgtNum,Datadir,sensor,autoware,sharedControlMode); %Need to be after Estimate
+% Load room database and create room graph for Dijkstra planning
+fprintf('Loading room database for multi-room navigation...\n');
+addpath('MultiRoomNav');
+room_database_path = fullfile('MultiRoomNav', 'room_database.json');
+
+if exist(room_database_path, 'file')
+    try
+        db = RoomDatabase(room_database_path);
+        roomGraph = db.buildGraph();
+        fprintf('  Room graph loaded: %d rooms\n', roomGraph.rooms.Count);
+    catch ME
+        fprintf('  Warning: Failed to load room database: %s\n', ME.message);
+        fprintf('  Continuing without room graph (multi-room Dijkstra disabled)\n');
+        roomGraph = [];
+    end
+else
+    fprintf('  Warning: room_database.json not found at %s\n', room_database_path);
+    fprintf('  Continuing without room graph (multi-room Dijkstra disabled)\n');
+    roomGraph = [];
+end
+
+% Create PhaseManager instance with map and room graph (shared between Estimate and Control)
+phaseManager = PhaseManager(occupancyMap, roomGraph);
+
+% Estimate and Control get phaseManager
+obj.EstimatorObj = Estimate(dt,mode,Datadir,phaseManager);
+obj.ControllerObj = Control(te,dt,mode,rgtNum,Datadir,sensor,autoware,phaseManager); %Need to be after Estimate
 
 %----- Waiting until enter botton is pressed in the command window -----%
 fprintf('\n*** RUNNING WITH A* PATHFINDING ***\n');

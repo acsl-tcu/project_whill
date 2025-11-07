@@ -1,4 +1,4 @@
-function [waypoint, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(initial_position, goal_position, robot_width, robot_length, safety_margin)
+function [waypoint, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(initial_position, goal_position, robot_width, robot_length, safety_margin, occupancyMap, roomGraph)
     % generateMultiRoomPath - Generate multi-room path using HybridPathPlanner
     %
     % This function calls the HybridPathPlanner which combines:
@@ -11,6 +11,8 @@ function [waypoint, waypoint_segments, room_sequence, door_info] = generateMulti
     %   robot_width - Width of robot in meters
     %   robot_length - Length of robot in meters
     %   safety_margin - Safety margin for obstacle clearance
+    %   occupancyMap - Occupancy map object (passed from PhaseManager)
+    %   roomGraph - RoomGraphWithDoorDistances object (passed from PhaseManager)
     %
     % Outputs:
     %   waypoint - Nx2 array of first segment waypoints (for backward compatibility)
@@ -19,23 +21,19 @@ function [waypoint, waypoint_segments, room_sequence, door_info] = generateMulti
     %   door_info - Struct with door_centers and door_exit_positions arrays
     %
     % Example:
-    %   [wp, segments, rooms, doors] = generateMultiRoomPath([0,0], [30,10], 0.6, 1.0, 0.1);
+    %   [wp, segments, rooms, doors] = generateMultiRoomPath([0,0], [30,10], 0.6, 1.0, 0.1, map, graph);
 
     % Add path to MultiRoomNav directory
     multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../../MultiRoomNav');
     addpath(multiroom_path);
 
-    % Room database path
-    room_database_path = fullfile(multiroom_path, 'room_database.json');
-
-    % Check if room database exists
-    if ~exist(room_database_path, 'file')
-        error('Room database not found at: %s\nPlease ensure room_database.json exists in MultiRoomNav/', ...
-              room_database_path);
+    % Check if room graph is provided
+    if nargin < 7 || isempty(roomGraph)
+        error('Room graph not provided! Must be passed from PhaseManager.');
     end
 
     try
-        % Call HybridPathPlanner
+        % Call HybridPathPlanner with roomGraph
         fprintf('Planning multi-room path using HybridPathPlanner...\n');
         fprintf('  Start: [%.2f, %.2f]\n', initial_position(1), initial_position(2));
         fprintf('  Goal: [%.2f, %.2f]\n', goal_position(1), goal_position(2));
@@ -43,11 +41,11 @@ function [waypoint, waypoint_segments, room_sequence, door_info] = generateMulti
                 robot_width, robot_length, safety_margin);
 
         [waypoint_segments, room_sequence, total_distance] = HybridPathPlanner(...
-            initial_position, goal_position, room_database_path, ...
-            robot_width, robot_length, safety_margin);
+            initial_position, goal_position, roomGraph, ...
+            robot_width, robot_length, safety_margin, occupancyMap);
 
-        % Extract door information from room database for PhaseManager
-        door_info = extractDoorInfo(room_database_path, room_sequence);
+        % Extract door information from room graph for PhaseManager
+        door_info = extractDoorInfoFromGraph(roomGraph, room_sequence);
 
         fprintf('\n✓ Multi-room path planning successful!\n');
         fprintf('  Total distance: %.2f m\n', total_distance);
@@ -84,7 +82,7 @@ function [waypoint, waypoint_segments, room_sequence, door_info] = generateMulti
         % Fallback to single-room A* (call the function from selectWaypointMethod)
         try
             [waypoint, ~, ~, ~, ~] = PathSetting_AStar(initial_position, goal_position, ...
-                                                        robot_width, robot_length, safety_margin);
+                                                        robot_width, robot_length, safety_margin, occupancyMap);
             fprintf('Fallback A* successful: Generated %d waypoints\n', size(waypoint, 1));
         catch ME2
             fprintf('Fallback A* also failed: %s\n', ME2.message);
@@ -99,12 +97,12 @@ function [waypoint, waypoint_segments, room_sequence, door_info] = generateMulti
     end
 end
 
-function door_info = extractDoorInfo(room_database_path, room_sequence)
-    % Extract door centers and exit positions from room database
+function door_info = extractDoorInfoFromGraph(roomGraph, room_sequence)
+    % Extract door centers and exit positions from room graph
     % Based on the room sequence from Dijkstra
     %
     % Inputs:
-    %   room_database_path - path to room_database.json
+    %   roomGraph - RoomGraphWithDoorDistances object
     %   room_sequence - cell array of room IDs {'A', 'B', 'D'}
     %
     % Outputs:
@@ -121,69 +119,38 @@ function door_info = extractDoorInfo(room_database_path, room_sequence)
         return;
     end
 
-    % Load room database JSON
-    try
-        json_text = fileread(room_database_path);
-        db_data = jsondecode(json_text);
-    catch ME
-        warning('Failed to read room database: %s', ME.message);
-        return;
-    end
-
     % Extract doors for each transition in the sequence
     num_doors = length(room_sequence) - 1;
     door_centers = zeros(num_doors, 2);
     door_exit_positions = zeros(num_doors, 2);
 
     for i = 1:num_doors
-        current_room = room_sequence{i};
-        next_room = room_sequence{i+1};
+        current_room_id = room_sequence{i};
+        next_room_id = room_sequence{i+1};
 
-        % Find the door connecting these two rooms
-        door_found = false;
-        for d = 1:length(db_data.doors)
-            % db_data.doors is a cell array, use {} indexing
-            door = db_data.doors{d};
+        % Get room objects from graph
+        current_room = roomGraph.getRoom(current_room_id);
+        next_room = roomGraph.getRoom(next_room_id);
 
-            % Handle different MATLAB versions' jsondecode behavior
-            % connects might be cell array or regular array
-            if iscell(door.connects)
-                connects_1 = door.connects{1};
-                connects_2 = door.connects{2};
-            else
-                connects_1 = door.connects(1);
-                connects_2 = door.connects(2);
-            end
+        % Get door from current room's perspective (for exit position)
+        door_from_current = current_room.getDoorTo(next_room_id);
 
-            % Check if this door connects the current and next room
-            if (strcmp(connects_1, current_room) && strcmp(connects_2, next_room)) || ...
-               (strcmp(connects_1, next_room) && strcmp(connects_2, current_room))
+        % Get door from next room's perspective (for entry position)
+        door_from_next = next_room.getDoorTo(current_room_id);
 
-                % Found the door
-                door_centers(i, :) = door.position;
+        if ~isempty(door_from_current) && ~isempty(door_from_next)
+            % Door center is the actual door position
+            door_centers(i, :) = door_from_current.door_center;
 
-                % CRITICAL: Exit position = entry point in NEXT room (not current room!)
-                % This is where the wheelchair lands after passing through the door
-                astar_field = sprintf('astar_goal_from_%s', next_room);
-                if isfield(door, astar_field)
-                    door_exit_positions(i, :) = door.(astar_field);
-                else
-                    % Fallback: use door center
-                    door_exit_positions(i, :) = door.position;
-                    warning('Door %s missing astar_goal_from_%s, using door center', door.id, next_room);
-                end
+            % Exit position is the astar_goal in the NEXT room (where we land after crossing)
+            door_exit_positions(i, :) = door_from_next.astar_goal;
 
-                door_found = true;
-                fprintf('  Door %d: %s (%s → %s) at [%.2f, %.2f], exit at [%.2f, %.2f]\n', ...
-                    i, door.id, current_room, next_room, ...
-                    door_centers(i, 1), door_centers(i, 2), ...
-                    door_exit_positions(i, 1), door_exit_positions(i, 2));
-                break;
-            end
-        end
-
-        if ~door_found
-            warning('No door found connecting room %s to %s', current_room, next_room);
+            fprintf('  Door %d: (%s → %s) at [%.2f, %.2f], exit at [%.2f, %.2f]\n', ...
+                i, current_room_id, next_room_id, ...
+                door_centers(i, 1), door_centers(i, 2), ...
+                door_exit_positions(i, 1), door_exit_positions(i, 2));
+        else
+            warning('No door found connecting room %s to %s', current_room_id, next_room_id);
             % Use zeros as placeholder
             door_centers(i, :) = [0, 0];
             door_exit_positions(i, :) = [0, 0];

@@ -8,17 +8,19 @@ classdef PhaseManager < handle
     %   - Mode management (path_following, door_entry, elevator_entry, etc.)
     %
     % Usage:
-    %   phaseManager = PhaseManager(sharedControlMode);
-    %   phaseManager.setWaypoints(waypoint_segments, room_sequence, door_info);
+    %   phaseManager = PhaseManager(occupancyMap, roomGraph);
+    %   phaseManager.planMission(start_position, goal_type, goal_data, robot_params);
     %   [control_mode, target_info] = phaseManager.update(position, current_waypoint_idx);
 
     properties
-        sharedControlMode       % Reference to SharedControlMode object
-
         % Phase state
         current_phase           % Current phase name string
         previous_phase          % Previous phase (for history/debugging)
         is_first_use            % Boolean: track if this is the first time any phase is set
+
+        % Map data (loaded once in main_astar.m and passed through system)
+        occupancyMap            % Occupancy map object for path planning and visualization
+        roomGraph               % RoomGraphWithDoorDistances object for Dijkstra room planning
 
         % Universal path following state
         current_segment         % Current segment index (1, 2, 3, ...)
@@ -55,20 +57,27 @@ classdef PhaseManager < handle
     end
 
     methods
-        function obj = PhaseManager(sharedControlMode)
+        function obj = PhaseManager(occupancyMap, roomGraph)
             % Constructor - initialize universal path follower
-            %
-            % Input:
-            %   sharedControlMode - SharedControlMode object (required)
+            % Inputs:
+            %   occupancyMap - Occupancy map object (loaded in main_astar.m)
+            %   roomGraph - (Optional) RoomGraphWithDoorDistances object for Dijkstra planning
 
-            if nargin < 1 || isempty(sharedControlMode)
-                error('PhaseManager requires a SharedControlMode object');
-            end
-
-            obj.sharedControlMode = sharedControlMode;
             obj.current_phase = 'path_following';
             obj.previous_phase = '';
             obj.is_first_use = true;  % This is the first time using the system
+
+            % Store occupancy map for path planning and visualization
+            obj.occupancyMap = occupancyMap;
+
+            % Store room graph for Dijkstra planning (optional)
+            if nargin >= 2 && ~isempty(roomGraph)
+                obj.roomGraph = roomGraph;
+                fprintf('[PHASE MANAGER] Room graph loaded with %d rooms\n', roomGraph.rooms.Count);
+            else
+                obj.roomGraph = [];
+                fprintf('[PHASE MANAGER] No room graph provided - Dijkstra planning disabled\n');
+            end
 
             % Initialize universal path following state
             obj.current_segment = 1;
@@ -130,7 +139,6 @@ classdef PhaseManager < handle
             % Handle phase-specific initialization
             switch new_phase
                 case 'path_following'
-                    obj.at_door = false;
                     if obj.multi_room_enabled
                         fprintf('  Segment: %d/%d (Room %s)\n', ...
                                 obj.current_segment, obj.total_segments, ...
@@ -142,49 +150,6 @@ classdef PhaseManager < handle
 
                 case 'completed'
                     fprintf('  ✓ Navigation completed!\n');
-            end
-        end
-
-        function checkTransitions(obj, current_position, current_waypoint_index, total_waypoints)
-            % Check if phase transitions are needed
-            %
-            % This is the main transition logic dispatcher
-            %
-            % Inputs:
-            %   current_position - [x, y] current position
-            %   current_waypoint_index - Index of current target waypoint
-            %   total_waypoints - Total number of waypoints in current segment
-
-            if obj.multi_room_enabled
-                % Multi-room navigation transitions
-                obj.checkMultiRoomTransitions(current_position, current_waypoint_index, total_waypoints);
-            else
-                % Single-room navigation transitions
-                obj.checkSingleRoomTransitions(current_position, current_waypoint_index, total_waypoints);
-            end
-        end
-
-        function checkMultiRoomTransitions(obj, current_position, current_waypoint_index, total_waypoints)
-            % Check transitions for multi-room navigation
-            %
-            % NOTE: Multi-room navigation is now handled by executeMultiRoomNavigation
-            % which manages its own state machine internally.
-            % This function is kept for backward compatibility but not actively used.
-            %
-            % State machine (legacy, not used):
-            %   path_following → (segment complete) → completed
-
-            switch obj.current_phase
-                case 'path_following'
-                    % Check if reached end of current segment
-                    if current_waypoint_index >= total_waypoints
-                        % Segment complete - goal reached
-                        obj.setPhase('completed');
-                        fprintf('[PHASE] Segment complete - GOAL REACHED!\n');
-                    end
-
-                case 'completed'
-                    % Stay in completed state
             end
         end
 
@@ -307,14 +272,17 @@ classdef PhaseManager < handle
         %  UNIVERSAL PATH FOLLOWER - Core Methods
         %  ==============================================================
 
-        function [control_mode, target_info] = update(obj, current_position, current_waypoint_idx)
-            % Universal path follower update - main interface
+        function [control_mode, target_info] = update2(obj, current_position, current_waypoint_idx)
+            % update2 - Simplified action sequence-based update (NEW SYSTEM)
             %
-            % This is the main method that should be called every control loop.
-            % It handles:
-            %   - Segment transitions
-            %   - Door/elevator detection
-            %   - Control mode selection (MPC, enterDoor, enterElevator)
+            % This is a simpler approach that directly uses action_sequence
+            % instead of the complex segment/transition tracking.
+            %
+            % Logic:
+            %   1. Check current action type from action_sequence
+            %   2. Return appropriate control_mode and target_info
+            %   3. Wait for Control.m to call completeTransition() when action is done
+            %   4. Advance to next action automatically in completeTransition()
             %
             % Inputs:
             %   current_position - [x, y] current wheelchair position
@@ -322,15 +290,9 @@ classdef PhaseManager < handle
             %
             % Outputs:
             %   control_mode - String: 'path_following', 'door_entry', 'elevator_entry', 'completed'
-            %   target_info - Struct with target information:
-            %       .type - 'waypoint', 'door', or 'elevator'
-            %       .position - Target position [x, y]
-            %       .door_center - (for doors/elevators) Door center [x, y]
-            %       .exit_position - (for doors) Exit position [x, y]
-            %       .door_type - (for doors) 'door' or 'elevator'
+            %   target_info - Struct with target information for Control.m
 
             % Initialize output
-            control_mode = obj.current_phase;
             target_info = struct();
             target_info.type = 'waypoint';
             target_info.position = [];
@@ -338,269 +300,135 @@ classdef PhaseManager < handle
             target_info.exit_position = [];
             target_info.door_type = '';
 
-            % Special modes that bypass normal path following logic
-            if any(strcmp(obj.current_phase, {'door_detection', 'ndt_pose_detection'}))
-                % Return immediately without path following logic
-                return;
-            end
-
-            % Track waypoint progress within current segment
-            obj.current_waypoint_local = current_waypoint_idx;
-
-            % Update total waypoints for current segment
-            if obj.current_segment <= length(obj.waypoint_segments)
-                waypoints = obj.waypoint_segments{obj.current_segment};
-                obj.total_waypoints_segment = size(waypoints, 1);
-            end
-
-            % Check if we need to handle a transition (door/elevator)
-            if obj.at_transition && ~obj.transition_completed
-                % Currently at a transition point
-                target_info = obj.handleTransition(current_position, target_info);
-                control_mode = obj.current_phase;
-                return;
-            end
-
-            % Check if current segment is complete
-            if obj.current_waypoint_local >= obj.total_waypoints_segment
-                % Segment complete - check if there are more segments
-                if obj.current_segment < obj.total_segments
-                    % Move to next segment (requires door/elevator crossing)
-                    obj.startTransition(current_waypoint_idx);
-
-                    % Populate target_info immediately (fixes missing door_center bug)
-                    target_info = obj.handleTransition(current_position, target_info);
-
-                    control_mode = obj.current_phase;
-                else
-                    % Last segment complete - check final goal type
-                    % IMPORTANT: Only trigger final elevator entry ONCE (not if already completed)
-                    if strcmp(obj.current_phase, 'completed')
-                        % Already completed - stay in completed state
-                        control_mode = 'completed';
-                        target_info.type = 'completed';
-                    elseif strcmp(obj.final_goal_type, 'elevator')
-                        % Final goal is elevator entry - initiate final elevator maneuver
-                        obj.at_transition = true;
-                        obj.current_transition = obj.current_transition + 1;
-                        obj.transition_completed = false;
-                        obj.setPhase('elevator_entry');
-
-                        % Populate target_info for final elevator entry
-                        target_info = obj.handleTransition(current_position, target_info);
-                        control_mode = 'elevator_entry';
-
-                        fprintf('[PATH FOLLOWER] Last segment complete - initiating final elevator entry\n');
-                    else
-                        % Final goal is room - mission accomplished immediately
-                        obj.setPhase('completed');
-                        control_mode = 'completed';
-                        target_info.type = 'completed';
-
-                        fprintf('[PATH FOLLOWER] Last segment complete - mission accomplished (room goal)\n');
-                    end
-                end
-                return;
-            end
-
-            % Normal path following
-            control_mode = 'path_following';
-            target_info.type = 'waypoint';
-
-            % Get current segment waypoints
-            if obj.total_segments > 0 && obj.current_segment <= length(obj.waypoint_segments)
-                waypoints = obj.waypoint_segments{obj.current_segment};
-                if ~isempty(waypoints) && current_waypoint_idx <= size(waypoints, 1)
-                    target_info.position = waypoints(current_waypoint_idx, :);
-                end
-            end
-        end
-
-        function startTransition(obj, current_waypoint_idx)
-            % Start a transition (door or elevator crossing)
-            %
-            % Called when a segment is complete and we need to cross a door/elevator
-
-            obj.at_transition = true;
-            obj.current_transition = obj.current_transition + 1;
-            obj.transition_completed = false;
-
-            % Determine transition type from door_info
-            if obj.current_transition <= length(obj.door_info)
-                transition = obj.door_info(obj.current_transition);
-
-                if strcmp(transition.type, 'elevator')
-                    obj.setPhase('elevator_entry');
-                    fprintf('[PATH FOLLOWER] Starting elevator entry (transition %d/%d)\n', ...
-                            obj.current_transition, obj.total_transitions);
-                else
-                    obj.setPhase('door_entry');
-                    fprintf('[PATH FOLLOWER] Starting door entry (transition %d/%d)\n', ...
-                            obj.current_transition, obj.total_transitions);
-                end
-            else
-                % No transition info - default to elevator (backward compatibility)
-                obj.setPhase('elevator_entry');
-                fprintf('[PATH FOLLOWER] Starting transition %d (default: elevator)\n', obj.current_transition);
-            end
-        end
-
-        function target_info = handleTransition(obj, current_position, target_info)
-            % Handle active transition (door or elevator crossing)
-            %
-            % This is called when at_transition = true
-            %
-            % IMPORTANT: Returns modified target_info (MATLAB pass-by-value)
-
-            if obj.current_transition <= length(obj.door_info)
-                transition = obj.door_info(obj.current_transition);
-
-                % Populate target_info for Control.m
-                target_info.type = transition.type;
-                target_info.door_center = transition.center;
-                target_info.exit_position = transition.exit;
-                target_info.door_type = transition.type;
-            else
-                % Fallback - no transition info available
-                target_info.type = 'elevator';
-                target_info.door_center = []; % Will use default from LocationMetadata
-                target_info.exit_position = [];
-                target_info.door_type = 'elevator';
-            end
-        end
-
-        function completeTransition(obj)
-            % Mark current transition as complete and move to next segment
-            %
-            % This should be called by Control.m when enterDoor/enterElevator returns completed=true
-
-            obj.transition_completed = true;
-            obj.at_transition = false;
-
-            % Move to next segment
-            obj.current_segment = obj.current_segment + 1;
-            obj.current_waypoint_local = 1; % Reset to first waypoint of new segment
-
-            if obj.current_segment <= obj.total_segments
-                % Update segment waypoint count
-                waypoints = obj.waypoint_segments{obj.current_segment};
-                obj.total_waypoints_segment = size(waypoints, 1);
-
-                % Return to path following
-                obj.setPhase('path_following');
-                fprintf('[PATH FOLLOWER] Transition complete - now in segment %d/%d\n', ...
-                        obj.current_segment, obj.total_segments);
-            else
-                % All segments complete
+            % Check if action sequence is active
+            if ~obj.action_sequence_active || isempty(obj.action_sequence)
+                % No action sequence - fallback to 'completed'
+                control_mode = 'completed';
+                target_info.type = 'completed';
                 obj.setPhase('completed');
-                fprintf('[PATH FOLLOWER] All segments complete - navigation finished!\n');
+                return;
+            end
+
+            % Check if all actions completed
+            if obj.current_action_index > length(obj.action_sequence)
+                % All actions done - mission complete
+                control_mode = 'completed';
+                target_info.type = 'completed';
+                obj.setPhase('completed');
+                fprintf('[UPDATE2] All actions completed - mission complete!\n');
+                return;
+            end
+
+            % Get current action
+            current_action = obj.action_sequence{obj.current_action_index};
+
+            % Dispatch based on action type
+            switch current_action.type
+                case 'path_follow'
+                    % Path following action
+                    control_mode = 'path_following';
+                    obj.setPhase('path_following');
+
+                    % Populate waypoint target_info
+                    target_info.type = 'waypoint';
+                    if isfield(current_action, 'waypoints') && ~isempty(current_action.waypoints)
+                        % Get target waypoint from action's waypoint array
+                        num_waypoints = size(current_action.waypoints, 1);
+                        if current_waypoint_idx <= num_waypoints
+                            target_info.position = current_action.waypoints(current_waypoint_idx, :);
+                        else
+                            % Reached end of waypoints - return last waypoint
+                            % Control.m will detect completion and call completeTransition2()
+                            target_info.position = current_action.waypoints(end, :);
+                        end
+                    end
+
+                case 'door_entry'
+                    % Door entry action
+                    control_mode = 'door_entry';
+                    obj.setPhase('door_entry');
+
+                    % Populate door target_info
+                    target_info.type = 'door';
+                    target_info.door_type = 'door';
+                    if isfield(current_action, 'door_center')
+                        target_info.door_center = current_action.door_center;
+                    end
+                    if isfield(current_action, 'door_exit')
+                        target_info.exit_position = current_action.door_exit;
+                    end
+
+                case 'elevator_entry'
+                    % Elevator entry action
+                    control_mode = 'elevator_entry';
+                    obj.setPhase('elevator_entry');
+
+                    % Populate elevator target_info
+                    target_info.type = 'elevator';
+                    target_info.door_type = 'elevator';
+                    if isfield(current_action, 'elevator_center')
+                        target_info.door_center = current_action.elevator_center;
+                    else
+                        % Fallback to LocationMetadata
+                        elevator_metadata = LocationMetadata.getLocation('elevator');
+                        target_info.door_center = elevator_metadata.door_center;
+                    end
+                    target_info.exit_position = []; % No exit for elevator
+
+                case 'door_detection'
+                    % Door detection mode (debug/testing)
+                    control_mode = 'door_detection';
+                    obj.setPhase('door_detection');
+                    target_info.type = 'door_detection';
+
+                case 'ndt_pose_detection'
+                    % NDT pose detection mode (manual control)
+                    control_mode = 'ndt_pose_detection';
+                    obj.setPhase('ndt_pose_detection');
+                    target_info.type = 'ndt_pose_detection';
+
+                otherwise
+                    % Unknown action type - stop
+                    control_mode = 'completed';
+                    target_info.type = 'completed';
+                    obj.setPhase('completed');
+                    fprintf('[UPDATE2] WARNING: Unknown action type: %s\n', current_action.type);
             end
         end
 
-        function setWaypointsUniversal(obj, waypoint_segments, room_sequence, door_info_struct, final_goal_type)
-            % Set waypoints for universal path follower
+        function completeTransition2(obj)
+            % completeTransition2 - Mark current action as complete and advance to next
             %
-            % Inputs:
-            %   waypoint_segments - Cell array of Nx2 waypoint matrices
-            %   room_sequence - Cell array of room ID strings (can be empty for single-room)
-            %   door_info_struct - Struct array with fields:
-            %       .type - 'door' or 'elevator'
-            %       .center - [x, y] door/elevator center
-            %       .exit - [x, y] exit position after passing
-            %   final_goal_type - (Optional) String: 'room' or 'elevator'
-            %       'room' - mission completes when final waypoint is reached
-            %       'elevator' - mission requires final elevator_entry before completion
-            %       Default: 'room' (for backward compatibility)
-
-            obj.waypoint_segments = waypoint_segments;
-            obj.room_sequence = room_sequence;
-            obj.door_info = door_info_struct;
-
-            % Set final goal type (default to 'room' if not provided)
-            if nargin >= 5 && ~isempty(final_goal_type)
-                obj.final_goal_type = final_goal_type;
-            else
-                obj.final_goal_type = 'room';  % Backward compatibility
-            end
-
-            % Set segment counts
-            obj.total_segments = length(waypoint_segments);
-            obj.current_segment = 1;
-            obj.current_waypoint_local = 1;
-
-            if obj.total_segments > 0
-                obj.total_waypoints_segment = size(waypoint_segments{1}, 1);
-            else
-                obj.total_waypoints_segment = 0;
-            end
-
-            % Set transition counts
-            if ~isempty(door_info_struct)
-                obj.total_transitions = length(door_info_struct);
-            else
-                obj.total_transitions = 0;
-            end
-
-            obj.current_transition = 0;
-            obj.at_transition = false;
-            obj.transition_completed = false;
-
-            % Determine if multi-room mode
-            obj.multi_room_enabled = (obj.total_segments > 1);
-
-            % Start in path_following mode
-            obj.setPhase('path_following');
-
-            fprintf('[PATH FOLLOWER] Waypoints loaded:\n');
-            fprintf('  Segments: %d\n', obj.total_segments);
-            fprintf('  Transitions: %d\n', obj.total_transitions);
-            fprintf('  Final Goal Type: %s\n', obj.final_goal_type);
-            if ~isempty(room_sequence)
-                fprintf('  Rooms: %s\n', strjoin(room_sequence, ' → '));
-            end
-        end
-
-        function setFinalGoalType(obj, goal_type)
-            % Override the final goal type
+            % This is called by Control.m when an action is completed
+            % (e.g., door_entry returns completed=true, elevator_entry returns completed=true)
             %
-            % Input:
-            %   goal_type - String: 'room' or 'elevator'
-            %
-            % This is useful when the user wants to force elevator entry at the end
-            % regardless of the initial navigation plan
+            % Simpler than completeTransition() - just advances action index
 
-            if ~ismember(goal_type, {'room', 'elevator'})
-                error('Invalid goal_type: must be ''room'' or ''elevator''');
+            if ~obj.action_sequence_active || isempty(obj.action_sequence)
+                fprintf('[UPDATE2] WARNING: completeTransition2 called but no action sequence active\n');
+                return;
             end
 
-            old_type = obj.final_goal_type;
-            obj.final_goal_type = goal_type;
+            % Mark current action as complete
+            fprintf('[UPDATE2] Action %d/%d completed: [%s] %s\n', ...
+                obj.current_action_index, length(obj.action_sequence), ...
+                obj.action_sequence{obj.current_action_index}.type, ...
+                obj.action_sequence{obj.current_action_index}.description);
 
-            fprintf('[PHASE MANAGER] Final goal type changed: %s → %s\n', old_type, goal_type);
-        end
+            % Advance to next action
+            obj.current_action_index = obj.current_action_index + 1;
 
-        function printStatus(obj)
-            % Print current phase manager status (for debugging)
-
-            fprintf('\n=== PHASE MANAGER STATUS ===\n');
-            fprintf('Current Phase: %s\n', obj.current_phase);
-            fprintf('First Time Use: %s\n', mat2str(obj.is_first_use));
-
-            fprintf('\n--- Path Follower State ---\n');
-            fprintf('Segment: %d/%d\n', obj.current_segment, obj.total_segments);
-            fprintf('Waypoint (local): %d/%d\n', obj.current_waypoint_local, obj.total_waypoints_segment);
-            fprintf('At Transition: %s\n', mat2str(obj.at_transition));
-            if obj.at_transition
-                fprintf('Transition: %d/%d (completed: %s)\n', obj.current_transition, ...
-                        obj.total_transitions, mat2str(obj.transition_completed));
+            if obj.current_action_index <= length(obj.action_sequence)
+                % More actions to do
+                next_action = obj.action_sequence{obj.current_action_index};
+                fprintf('[UPDATE2] Starting action %d/%d: [%s] %s\n', ...
+                    obj.current_action_index, length(obj.action_sequence), ...
+                    next_action.type, next_action.description);
+            else
+                % All actions complete
+                fprintf('[UPDATE2] All actions completed!\n');
+                obj.setPhase('completed');
             end
-
-            if ~isempty(obj.room_sequence)
-                fprintf('\n--- Room Sequence ---\n');
-                fprintf('%s\n', strjoin(obj.room_sequence, ' → '));
-            end
-
-            fprintf('===========================\n\n');
         end
 
         %% ==============================================================
@@ -622,8 +450,8 @@ classdef PhaseManager < handle
             %   robot_params - struct with .width, .length, .safety_margin
 
             fprintf('\n╔══════════════════════════════════════════════════╗\n');
-            fprintf('║         PHASE MANAGER - MISSION PLANNING         ║\n');
-            fprintf('╚══════════════════════════════════════════════════╝\n\n');
+            fprintf('║         PHASE MANAGER - MISSION PLANNING                                          ║\n');
+            fprintf('╚═══════════════════════════════════════════════════╝\n\n');
 
             fprintf('Start: [%.2f, %.2f]\n', start_position(1), start_position(2));
             fprintf('Goal Type: %s\n\n', goal_type);
@@ -662,6 +490,7 @@ classdef PhaseManager < handle
                     obj.action_sequence = {action1, action2};
                     obj.extractWaypointsFromActions();
                     obj.action_sequence_active = true;
+                    obj.current_action_index = 1;  % Start at first action
                     fprintf('Manual waypoint mode activated\n');
                     return;  % Skip the rest of planning
                 end
@@ -708,59 +537,31 @@ classdef PhaseManager < handle
                 room_sequence = obj.room_sequence;
                 door_info_struct = obj.door_info;
 
-                % STEP 2: Build action sequence from existing waypoint segments
-                fprintf('STEP 2: Building action sequence from existing path segments...\n');
-
-                % Clear old action sequence
-                obj.action_sequence = {};
-
-                for seg_idx = 1:length(waypoint_segments)
-                    % Add path_follow action
-                    action = struct();
-                    action.type = 'path_follow';
-                    if ~isempty(room_sequence) && seg_idx <= length(room_sequence)
-                        action.start_room = room_sequence{seg_idx};
-                        action.end_room = room_sequence{min(seg_idx+1, length(room_sequence))};
-                    else
-                        action.start_room = 'Unknown';
-                        action.end_room = 'Unknown';
-                    end
-                    action.waypoints = waypoint_segments{seg_idx};
-                    action.start_position = waypoint_segments{seg_idx}(1, :);
-                    action.goal_position = waypoint_segments{seg_idx}(end, :);
-                    action.description = sprintf('Path follow in room %s (%d waypoints)', ...
-                                                 action.start_room, size(action.waypoints, 1));
-                    obj.action_sequence{end+1} = action;
-
-                    % Add door_entry action if not last segment
-                    if seg_idx < length(waypoint_segments) && ~isempty(door_info_struct)
-                        door_action = struct();
-                        door_action.type = 'door_entry';
-                        door_action.door_center = door_info_struct(seg_idx).center;
-                        door_action.door_exit = door_info_struct(seg_idx).exit;
-                        if ~isempty(room_sequence) && seg_idx < length(room_sequence)
-                            door_action.description = sprintf('Cross door from %s to %s', ...
-                                                              room_sequence{seg_idx}, room_sequence{seg_idx+1});
-                        else
-                            door_action.description = 'Cross door';
-                        end
-                        obj.action_sequence{end+1} = door_action;
-                    end
+                % Get elevator center from last segment's final waypoint (or from door_info if available)
+                if ~isempty(door_info_struct) && length(door_info_struct) > 0 && isfield(door_info_struct(end), 'center')
+                    elevator_center = door_info_struct(end).center;
+                elseif ~isempty(waypoint_segments)
+                    elevator_center = waypoint_segments{end}(end, :);  % Last waypoint of last segment
+                else
+                    % Fallback to LocationMetadata
+                    elevator_metadata = LocationMetadata.getLocation('elevator');
+                    elevator_center = elevator_metadata.door_center;
                 end
 
-                % NO elevator_entry action for navigation_only mode (this is the key difference)
-                fprintf('  ✓ Created %d actions (navigation only, no elevator entry)\n\n', length(obj.action_sequence));
+                % STEP 2: Build action sequence using reusable function
+                % Since you changed final_goal_type to 'elevator', this will include elevator_entry
+                obj.buildActionSequenceFromSegments(waypoint_segments, room_sequence, door_info_struct, 'elevator', elevator_center);
 
                 fprintf('═══════════════════════════════════════════════════\n');
-                fprintf('Mission Planning Complete (Navigation-Only):\n');
+                fprintf('Mission Planning Complete (Navigation-Only → Elevator):\n');
                 fprintf('  Actions: %d\n', length(obj.action_sequence));
                 fprintf('  Rooms: %s\n', strjoin(room_sequence, ' → '));
                 fprintf('  Waypoint Segments: %d\n', obj.total_segments);
-                fprintf('  Final Goal: room (no elevator entry)\n');
+                fprintf('  Final Goal: elevator (enters elevator at end)\n');
                 fprintf('═══════════════════════════════════════════════════\n\n');
 
-                % Update final goal type to 'room' (no elevator entry at end)
-                obj.final_goal_type = 'room';
+                % Update final goal type to 'elevator' (enters elevator at end)
+                obj.final_goal_type = 'elevator';
 
             elseif strcmp(goal_type, 'elevator')
                 % Mode 1: Multi-room path planning with elevator entry
@@ -772,47 +573,14 @@ classdef PhaseManager < handle
                 % Call generateMultiRoomPath to get waypoint segments, room sequence, and doors
                 [~, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(...
                     start_position, goal_data.center, ...
-                    robot_params.width, robot_params.length, robot_params.safety_margin);
+                    robot_params.width, robot_params.length, robot_params.safety_margin, ...
+                    obj.occupancyMap, obj.roomGraph);
 
                 fprintf('  ✓ Generated %d segments across rooms: %s\n\n', ...
                         length(waypoint_segments), strjoin(room_sequence, ' → '));
 
-                % STEP 2: Build action sequence from waypoint segments
-                fprintf('STEP 2: Building action sequence from path segments...\n');
-
-                for seg_idx = 1:length(waypoint_segments)
-                    % Add path_follow action
-                    action = struct();
-                    action.type = 'path_follow';
-                    action.start_room = room_sequence{seg_idx};
-                    action.end_room = room_sequence{min(seg_idx+1, length(room_sequence))};
-                    action.waypoints = waypoint_segments{seg_idx};
-                    action.start_position = waypoint_segments{seg_idx}(1, :);
-                    action.goal_position = waypoint_segments{seg_idx}(end, :);
-                    action.description = sprintf('Path follow in room %s (%d waypoints)', ...
-                                                 action.start_room, size(action.waypoints, 1));
-                    obj.action_sequence{end+1} = action;
-
-                    % Add door_entry action if not last segment
-                    if seg_idx < length(waypoint_segments)
-                        door_action = struct();
-                        door_action.type = 'door_entry';
-                        door_action.door_center = door_info.door_centers(seg_idx, :);
-                        door_action.door_exit = door_info.door_exit_positions(seg_idx, :);
-                        door_action.description = sprintf('Cross door from %s to %s', ...
-                                                          room_sequence{seg_idx}, room_sequence{seg_idx+1});
-                        obj.action_sequence{end+1} = door_action;
-                    end
-                end
-
-                % Add elevator_entry action
-                elev_action = struct();
-                elev_action.type = 'elevator_entry';
-                elev_action.elevator_center = goal_data.center;
-                elev_action.description = 'Enter elevator';
-                obj.action_sequence{end+1} = elev_action;
-
-                fprintf('  ✓ Created %d actions\n\n', length(obj.action_sequence));
+                % STEP 2: Build action sequence using reusable function
+                obj.buildActionSequenceFromSegments(waypoint_segments, room_sequence, door_info, 'elevator', goal_data.center);
 
                 % STEP 3: Store for backward compatibility with old system
                 obj.extractWaypointsFromActions();  % Convert to waypoint_segments format
@@ -830,266 +598,88 @@ classdef PhaseManager < handle
             end
 
             obj.action_sequence_active = true;
+            obj.current_action_index = 1;  % Start at first action
 
             % Print action sequence for debugging
             obj.printActionSequence();
         end
 
-        %% ==============================================================
-        %  ACTION SEQUENCE PLANNER - New systematic approach
-        %  ==============================================================
-
-        function action_sequence = planActionSequence(obj, start_position, goal_type, goal_data, room_graph)
-            % planActionSequence - Create systematic action sequence from start to goal
+        function buildActionSequenceFromSegments(obj, waypoint_segments, room_sequence, door_info_struct, final_goal_type, elevator_center)
+            % buildActionSequenceFromSegments - Convert waypoint segments to action sequence
             %
-            % This function analyzes the start position, goal, and room connectivity
-            % to generate a complete action sequence that the robot should execute.
+            % This is a REUSABLE function that builds action_sequence from waypoint data.
+            % Used by both mode 1 (elevator) and mode 4 (navigation_only).
             %
             % Inputs:
-            %   start_position - [x, y] current wheelchair position
-            %   goal_type - String: 'elevator', 'room', or 'position'
-            %   goal_data - Goal-specific data:
-            %       For 'elevator': struct with .center [x,y]
-            %       For 'room': string room_id (e.g., 'A', 'B')
-            %       For 'position': [x, y] target position
-            %   room_graph - (Optional) RoomGraph object with room/door connectivity
+            %   waypoint_segments - Cell array of Nx2 waypoint matrices
+            %   room_sequence - Cell array of room ID strings
+            %   door_info_struct - Struct array with .type, .center, .exit
+            %   final_goal_type - 'room' or 'elevator'
+            %   elevator_center - [x, y] elevator position (only needed if final_goal_type='elevator')
             %
-            % Outputs:
-            %   action_sequence - Cell array of action structs, each with:
-            %       .type - 'path_follow', 'door_entry', 'elevator_entry'
-            %       .start_room - Starting room ID
-            %       .end_room - Ending room ID (for path_follow)
-            %       .waypoints - Nx2 waypoint array (for path_follow)
-            %       .door_center - [x, y] (for door_entry)
-            %       .door_exit - [x, y] (for door_entry)
-            %       .elevator_center - [x, y] (for elevator_entry)
-            %       .description - Human-readable description
-            %
-            % Example:
-            %   % Start in room A, goal is elevator
-            %   goal.center = [27.0, 12.2];
-            %   seq = phaseManager.planActionSequence([30, 6], 'elevator', goal, roomGraph);
-            %   % Returns: {path_follow_1, door_entry_1, path_follow_2, elevator_entry}
+            % Updates:
+            %   obj.action_sequence - Built from segments
 
-            fprintf('\n=== ACTION SEQUENCE PLANNER ===\n');
-            fprintf('Start Position: [%.2f, %.2f]\n', start_position(1), start_position(2));
-            fprintf('Goal Type: %s\n', goal_type);
+            fprintf('STEP 2: Building action sequence from path segments...\n');
 
-            % Initialize action sequence
-            action_sequence = {};
+            % Clear old action sequence
+            obj.action_sequence = {};
 
-            % Determine start room (find which room contains start_position)
-            if nargin >= 5 && ~isempty(room_graph)
-                start_room = obj.findRoomAtPosition(start_position, room_graph);
-            else
-                start_room = 'unknown';
+            % Build path_follow and door_entry actions for each segment
+            for seg_idx = 1:length(waypoint_segments)
+                % Add path_follow action
+                action = struct();
+                action.type = 'path_follow';
+                if ~isempty(room_sequence) && seg_idx <= length(room_sequence)
+                    action.start_room = room_sequence{seg_idx};
+                    action.end_room = room_sequence{min(seg_idx+1, length(room_sequence))};
+                else
+                    action.start_room = 'Unknown';
+                    action.end_room = 'Unknown';
+                end
+                action.waypoints = waypoint_segments{seg_idx};
+                action.start_position = waypoint_segments{seg_idx}(1, :);
+                action.goal_position = waypoint_segments{seg_idx}(end, :);
+                action.description = sprintf('Path follow in room %s (%d waypoints)', ...
+                                             action.start_room, size(action.waypoints, 1));
+                obj.action_sequence{end+1} = action;
+
+                % Add door_entry action if not last segment
+                if seg_idx < length(waypoint_segments) && ~isempty(door_info_struct)
+                    door_action = struct();
+                    door_action.type = 'door_entry';
+
+                    % Handle both old struct format and new array format
+                    if isfield(door_info_struct, 'door_centers')
+                        % Old format (from generateMultiRoomPath)
+                        door_action.door_center = door_info_struct.door_centers(seg_idx, :);
+                        door_action.door_exit = door_info_struct.door_exit_positions(seg_idx, :);
+                    else
+                        % New format (struct array)
+                        door_action.door_center = door_info_struct(seg_idx).center;
+                        door_action.door_exit = door_info_struct(seg_idx).exit;
+                    end
+
+                    if ~isempty(room_sequence) && seg_idx < length(room_sequence)
+                        door_action.description = sprintf('Cross door from %s to %s', ...
+                                                          room_sequence{seg_idx}, room_sequence{seg_idx+1});
+                    else
+                        door_action.description = 'Cross door';
+                    end
+                    obj.action_sequence{end+1} = door_action;
+                end
             end
 
-            fprintf('Start Room: %s\n', start_room);
-
-            % Plan based on goal type
-            switch goal_type
-                case 'elevator'
-                    % Goal is to reach elevator
-                    elevator_center = goal_data.center;
-                    fprintf('Goal: Elevator at [%.2f, %.2f]\n', elevator_center(1), elevator_center(2));
-
-                    % Determine elevator room
-                    if nargin >= 5 && ~isempty(room_graph)
-                        elevator_room = obj.findRoomAtPosition(elevator_center, room_graph);
-                    else
-                        elevator_room = 'unknown';
-                    end
-
-                    fprintf('Elevator Room: %s\n', elevator_room);
-
-                    % Check if we're in the same room as elevator
-                    if strcmp(start_room, elevator_room)
-                        % Same room - direct path to elevator
-                        action_sequence = obj.createSingleRoomElevatorSequence(start_position, elevator_center, start_room);
-                    else
-                        % Different rooms - multi-room navigation required
-                        action_sequence = obj.createMultiRoomElevatorSequence(start_position, elevator_center, ...
-                                                                              start_room, elevator_room, room_graph);
-                    end
-
-                case 'room'
-                    % Goal is to reach a specific room
-                    target_room = goal_data;
-                    fprintf('Goal: Room %s\n', target_room);
-
-                    if strcmp(start_room, target_room)
-                        fprintf('Already in target room - no navigation needed\n');
-                        action_sequence = {};
-                    else
-                        % Navigate from start_room to target_room
-                        action_sequence = obj.createRoomToRoomSequence(start_position, start_room, target_room, room_graph);
-                    end
-
-                case 'position'
-                    % Goal is to reach a specific position
-                    target_position = goal_data;
-                    fprintf('Goal: Position [%.2f, %.2f]\n', target_position(1), target_position(2));
-
-                    % Determine which room contains target
-                    if nargin >= 5 && ~isempty(room_graph)
-                        target_room = obj.findRoomAtPosition(target_position, room_graph);
-                    else
-                        target_room = 'unknown';
-                    end
-
-                    if strcmp(start_room, target_room)
-                        % Same room - direct path
-                        action_sequence = obj.createSingleRoomPathSequence(start_position, target_position, start_room);
-                    else
-                        % Multi-room path required
-                        action_sequence = obj.createMultiRoomPathSequence(start_position, target_position, ...
-                                                                          start_room, target_room, room_graph);
-                    end
-
-                otherwise
-                    error('Invalid goal_type: %s. Must be ''elevator'', ''room'', or ''position''', goal_type);
+            % Add elevator_entry action if final_goal_type is 'elevator'
+            if strcmp(final_goal_type, 'elevator')
+                elev_action = struct();
+                elev_action.type = 'elevator_entry';
+                elev_action.elevator_center = elevator_center;
+                elev_action.description = 'Enter elevator';
+                obj.action_sequence{end+1} = elev_action;
             end
 
-            % Print action sequence summary
-            fprintf('\n--- Generated Action Sequence ---\n');
-            for i = 1:length(action_sequence)
-                action = action_sequence{i};
-                fprintf('%d. [%s] %s\n', i, upper(action.type), action.description);
-            end
-            fprintf('Total Actions: %d\n', length(action_sequence));
-            fprintf('================================\n\n');
-        end
-
-        function room_id = findRoomAtPosition(obj, position, room_graph)
-            % Find which room contains the given position
-            %
-            % Returns room ID string, or 'unknown' if not in any room
-
-            if isempty(room_graph)
-                room_id = 'unknown';
-                return;
-            end
-
-            % TODO: Implement room boundary checking
-            % For now, return 'unknown' - this will be implemented when integrating with RoomGraph
-            room_id = 'unknown';
-            fprintf('  [findRoomAtPosition] Position check not yet implemented\n');
-        end
-
-        function action_sequence = createSingleRoomElevatorSequence(obj, start_pos, elevator_center, room_id)
-            % Create action sequence for elevator in same room
-            %
-            % Sequence: path_follow → elevator_entry
-
-            action_sequence = {};
-
-            % Action 1: Path follow to elevator approach position
-            action1 = struct();
-            action1.type = 'path_follow';
-            action1.start_room = room_id;
-            action1.end_room = room_id;
-            action1.start_position = start_pos;  % For A* generation
-            action1.goal_position = elevator_center;  % For A* generation
-            action1.waypoints = [];  % Will be filled in planMission()
-            action1.description = sprintf('Path follow in room %s to elevator', room_id);
-            action_sequence{end+1} = action1;
-
-            % Action 2: Enter elevator
-            action2 = struct();
-            action2.type = 'elevator_entry';
-            action2.elevator_center = elevator_center;
-            action2.description = 'Enter elevator';
-            action_sequence{end+1} = action2;
-        end
-
-        function action_sequence = createMultiRoomElevatorSequence(obj, start_pos, elevator_center, start_room, elevator_room, room_graph)
-            % Create action sequence for elevator in different room
-            %
-            % Sequence: path_follow_1 → door → path_follow_2 → ... → elevator_entry
-
-            action_sequence = {};
-
-            % TODO: Use room_graph to find path from start_room to elevator_room
-            % For now, create a placeholder sequence
-            fprintf('  [Multi-room to elevator] Requires room graph integration\n');
-
-            % Placeholder: assume single door between rooms
-            action1 = struct();
-            action1.type = 'path_follow';
-            action1.start_room = start_room;
-            action1.end_room = start_room;
-            action1.waypoints = [];
-            action1.goal_position = [];  % Door approach position
-            action1.description = sprintf('Path follow in room %s to door', start_room);
-            action_sequence{end+1} = action1;
-
-            action2 = struct();
-            action2.type = 'door_entry';
-            action2.door_center = [];  % Will be filled from room_graph
-            action2.door_exit = [];
-            action2.description = sprintf('Cross door from %s to %s', start_room, elevator_room);
-            action_sequence{end+1} = action2;
-
-            action3 = struct();
-            action3.type = 'path_follow';
-            action3.start_room = elevator_room;
-            action3.end_room = elevator_room;
-            action3.waypoints = [];
-            action3.goal_position = elevator_center;
-            action3.description = sprintf('Path follow in room %s to elevator', elevator_room);
-            action_sequence{end+1} = action3;
-
-            action4 = struct();
-            action4.type = 'elevator_entry';
-            action4.elevator_center = elevator_center;
-            action4.description = 'Enter elevator';
-            action_sequence{end+1} = action4;
-        end
-
-        function action_sequence = createSingleRoomPathSequence(obj, start_pos, target_pos, room_id)
-            % Create action sequence for target position in same room
-            %
-            % Sequence: path_follow
-
-            action_sequence = {};
-
-            action1 = struct();
-            action1.type = 'path_follow';
-            action1.start_room = room_id;
-            action1.end_room = room_id;
-            action1.waypoints = [];  % Will be computed by A*
-            action1.goal_position = target_pos;
-            action1.description = sprintf('Path follow in room %s to target', room_id);
-            action_sequence{end+1} = action1;
-        end
-
-        function action_sequence = createMultiRoomPathSequence(obj, start_pos, target_pos, start_room, target_room, room_graph)
-            % Create action sequence for target position in different room
-            %
-            % Sequence: path_follow_1 → door → path_follow_2 → ...
-
-            action_sequence = {};
-
-            % TODO: Use room_graph to find path
-            fprintf('  [Multi-room path] Requires room graph integration\n');
-
-            % Placeholder sequence
-            action_sequence = {};
-        end
-
-        function action_sequence = createRoomToRoomSequence(obj, start_pos, start_room, target_room, room_graph)
-            % Create action sequence to navigate from one room to another
-            %
-            % Sequence: path_follow_1 → door_1 → path_follow_2 → door_2 → ...
-
-            action_sequence = {};
-
-            % TODO: Use Dijkstra on room_graph to find room sequence
-            fprintf('  [Room-to-room] Requires room graph integration\n');
-
-            % Placeholder
-            action_sequence = {};
+            fprintf('  ✓ Created %d actions (final goal: %s)\n\n', length(obj.action_sequence), final_goal_type);
         end
 
         function printActionSequence(obj)
@@ -1165,5 +755,99 @@ classdef PhaseManager < handle
                 obj.total_waypoints_segment = size(obj.waypoint_segments{1}, 1);
             end
         end
+
+        %% ==============================================================
+        %  ACTION SEQUENCE TRACKING
+        %  ==============================================================
+
+        function action = getCurrentAction(obj)
+            % Get the current action being executed
+            %
+            % Outputs:
+            %   action - Current action struct with fields:
+            %            .type - 'path_follow', 'door_entry', 'elevator_entry'
+            %            .description - Human-readable description
+            %            (and other action-specific fields)
+            %   Returns empty struct if no action sequence or invalid index
+
+            action = struct();
+
+            % Check if action sequence is active
+            if ~obj.action_sequence_active || isempty(obj.action_sequence)
+                return;
+            end
+
+            % Check if current index is valid
+            if obj.current_action_index < 1 || obj.current_action_index > length(obj.action_sequence)
+                return;
+            end
+
+            % Return current action
+            action = obj.action_sequence{obj.current_action_index};
+        end
+
+        function action_info = getActionSequenceInfo(obj)
+            % Get comprehensive action sequence information
+            %
+            % Outputs:
+            %   action_info - Struct with:
+            %       .is_active - Boolean: is action sequence mode active?
+            %       .current_index - Current action index (0 if not active)
+            %       .total_actions - Total number of actions
+            %       .current_action - Current action struct (empty if not active)
+            %       .progress_percent - Progress percentage (0-100)
+
+            action_info = struct();
+            action_info.is_active = obj.action_sequence_active;
+            action_info.current_index = obj.current_action_index;
+            action_info.total_actions = length(obj.action_sequence);
+            action_info.current_action = obj.getCurrentAction();
+
+            if obj.action_sequence_active && action_info.total_actions > 0
+                action_info.progress_percent = (obj.current_action_index / action_info.total_actions) * 100;
+            else
+                action_info.progress_percent = 0;
+            end
+        end
+        %% Waypoint Management Methods (replaces SharedControlMode)
+
+        function setWaypoints(obj, waypoint_cell_array)
+            % Update waypoint segments (cell array)
+            % Input: waypoint_cell_array - {segment1, segment2, ...}
+            obj.waypoint_segments = waypoint_cell_array;
+            obj.total_segments = length(waypoint_cell_array);
+            obj.current_segment = 1; % Reset to first segment
+
+            % Update waypoint tracking for first segment
+            if ~isempty(waypoint_cell_array) && ~isempty(waypoint_cell_array{1})
+                obj.total_waypoints_segment = size(waypoint_cell_array{1}, 1);
+            else
+                obj.total_waypoints_segment = 0;
+            end
+
+            fprintf('[PHASE MANAGER] Waypoints updated: %d segments\n', obj.total_segments);
+        end
+
+        function waypoint = getWaypoints(obj)
+            % Get the full waypoint cell array
+            waypoint = obj.waypoint_segments;
+        end
+
+        function has_waypoints = hasWaypoints(obj)
+            % Check if waypoints are available
+            has_waypoints = ~isempty(obj.waypoint_segments) && length(obj.waypoint_segments) > 0;
+        end
+
+        function setCurrentTargetWaypoint(obj, target_n)
+            % Update the current target waypoint number (called by Control.m)
+            % Input: target_n - current target waypoint index from obj.target_n(1,1)
+            obj.current_waypoint_local = target_n;
+        end
+
+        function target_n = getCurrentTargetWaypoint(obj)
+            % Get the current target waypoint number
+            target_n = obj.current_waypoint_local;
+        end
+
     end
 end
