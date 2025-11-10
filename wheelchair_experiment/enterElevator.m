@@ -232,7 +232,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                     door_verified = false; % Keep checking in debug mode
                 else
                     % Normal mode: use unified door checking function
-                    door_check = checkDoorPassable(lidar_scan_data, wheelchair_pose, elevator_center, 'elevator', odometry_mode, door_params);
+                    door_check = checkDoorPassable(lidar_scan_data, wheelchair_pose, elevator_center, odometry_mode, door_params);
                     result.door_state = door_check.door_state;
 
                     if door_check.verified
@@ -347,19 +347,16 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                 % Use floor/hallway center as reference (outside the elevator)
                 % floor_center passed as function parameter from Control.m
 
-                % Extract point cloud data for Phase 4 door detection (use odometry mode)
-                if isstruct(lidar_scan_data) && isfield(lidar_scan_data, 'xyz_local')
-                    phase4_pointCloud = lidar_scan_data.xyz_local; % Use local coordinates (odometry mode)
-                    phase4_odometry_mode = true; % Use odometry-based detection
-                else
-                    phase4_pointCloud = lidar_scan_data; % Fallback to direct data
-                    phase4_odometry_mode = true; % Default to odometry mode
-                end
+                % Use unified door checking function for Phase 4
+                % Looking outward from inside elevator toward floor/hallway (REVERSE direction)
+                phase4_odometry_mode = true; % Use odometry-based detection
+                phase4_target_angle = pi;    % 180° = reverse/backward direction (robot will exit backward)
 
-                % Detect door state looking toward floor/hallway (using target_position as reference)
-                door_state = detectElevatorDoorState(phase4_pointCloud{1}, wheelchair_pose, target_position, phase4_odometry_mode, door_params);
+                % Check if door is passable looking backward (robot exits in reverse)
+                door_check = checkDoorPassable(lidar_scan_data, wheelchair_pose, target_position, ...
+                                               phase4_odometry_mode, door_params, phase4_target_angle);
 
-                if strcmp(door_state, 'open')
+                if door_check.verified && strcmp(door_check.door_state, 'open')
                     fprintf('Phase 4: LiDAR confirmed door is OPEN - ready to reverse\n');
                     % Transition to reversing state
                     elevator_sequence_state = 'reversing';
@@ -367,7 +364,7 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
                     last_update_time_reverse = []; % Reset timer for Phase 5
                     sequence_timer = tic;
                 else
-                    fprintf('Phase 4: LiDAR detects door state: %s - waiting for open...\n', door_state);
+                    fprintf('Phase 4: LiDAR detects door state: %s - waiting for open...\n', door_check.door_state);
                 end
             else
                 fprintf('Phase 4: No LiDAR data - assuming door open after delay\n');

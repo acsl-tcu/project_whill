@@ -1,17 +1,19 @@
-function result = checkDoorPassable(lidar_scan_data, wheelchair_pose, door_center, door_type, odometry_mode, door_params)
+function result = checkDoorPassable(lidar_scan_data, wheelchair_pose, door_center, odometry_mode, door_params, odometry_target_angle)
     % checkDoorPassable - Check if a door is passable using LiDAR data
     %
-    % This function wraps door detection logic for both regular doors and elevators,
-    % providing a unified interface for Phase 2.5 door checking in navigation sequences.
+    % Unified door detection algorithm for both regular doors and elevators.
+    % Uses coverage-based depth analysis: checks if all points in the wheelchair's
+    % path extend beyond the expected door surface (indicating door is open).
     %
     % Inputs:
     %   lidar_scan_data - struct with xyz_global and xyz_local point cloud data
     %                     OR direct point cloud array (Nx3) for legacy compatibility
     %   wheelchair_pose - [x, y, yaw] current wheelchair pose
     %   door_center - [x, y] position of door/elevator center
-    %   door_type - string: 'regular' or 'elevator' (determines detection method)
     %   odometry_mode - boolean: true = use local coordinates, false = use global
     %   door_params - struct with door detection parameters
+    %   odometry_target_angle - (optional) target angle in odometry mode (default: 0 = forward)
+    %                           Use pi (180°) for reverse direction
     %
     % Outputs:
     %   result - struct with:
@@ -19,10 +21,19 @@ function result = checkDoorPassable(lidar_scan_data, wheelchair_pose, door_cente
     %       .verified - boolean, true if door is confirmed passable
     %       .point_count - number of points analyzed in door ROI
     %       .coordinate_mode - 'global' or 'local' (which coordinates were used)
+    %       .coverage_percentage - percentage of ROI points that are "deep"
     %
-    % Example:
-    %   result = checkDoorPassable(lidar_data, [27, 12, pi/2], [27, 12.2], ...
-    %                              'elevator', false, door_params);
+    % Examples:
+    %   % Forward detection (default)
+    %   result = checkDoorPassable(lidar_data, [27, 12, pi/2], [27, 12.2], false, door_params);
+    %
+    %   % Reverse detection (looking backward)
+    %   result = checkDoorPassable(lidar_data, pose, door_center, true, door_params, pi);
+
+    % Handle optional odometry_target_angle parameter
+    if nargin < 6 || isempty(odometry_target_angle)
+        odometry_target_angle = 0; % Default: forward direction (0°)
+    end
 
     % Initialize result structure
     result = struct();
@@ -30,15 +41,21 @@ function result = checkDoorPassable(lidar_scan_data, wheelchair_pose, door_cente
     result.verified = false;
     result.point_count = 0;
     result.coordinate_mode = 'none';
+    result.coverage_percentage = 0;
 
-    % Validate door_type
-    if ~strcmp(door_type, 'regular') && ~strcmp(door_type, 'elevator')
-        fprintf('  Warning: Invalid door_type ''%s'', defaulting to ''regular''\n', door_type);
-        door_type = 'regular';
+    % Determine direction string for logging
+    if odometry_mode
+        if abs(odometry_target_angle) < 0.1
+            direction_str = 'forward';
+        elseif abs(odometry_target_angle - pi) < 0.1
+            direction_str = 'reverse';
+        else
+            direction_str = sprintf('%.0f°', rad2deg(odometry_target_angle));
+        end
+        fprintf('  Checking door passability (Mode: odometry %s)...\n', direction_str);
+    else
+        fprintf('  Checking door passability (Mode: map)...\n');
     end
-
-    fprintf('  Checking door passability (Type: %s, Mode: %s)...\n', ...
-            door_type, ternary(odometry_mode, 'odometry', 'map'));
 
     % Extract point cloud data based on coordinate mode
     if isempty(lidar_scan_data)
@@ -101,82 +118,26 @@ function result = checkDoorPassable(lidar_scan_data, wheelchair_pose, door_cente
 
     fprintf('  Point cloud: %d points\n', size(pointCloud, 1));
 
-    % Visualization control - plot every N iterations
+    % ========== UNIFIED DOOR DETECTION ALGORITHM ==========
+    % Based on coverage-based depth analysis (from detectDoorState)
+
+    % Visualization control - plot every N iterations when door is closed
     persistent vis_counter;
     if isempty(vis_counter)
         vis_counter = 0;
     end
     vis_counter = vis_counter + 1;
-    enable_visualization = (mod(vis_counter, 5) == 0); % Visualize every 50 iterations
 
-    % Call appropriate door detection function
-    if strcmp(door_type, 'elevator')
-        % Use elevator-specific door detection
-        door_state = detectElevatorDoorState(pointCloud, wheelchair_pose, ...
-                                              door_center, odometry_mode, door_params);
-    else
-        % Use general door detection (regular doors)
-        [door_state, detection_data] = detectDoorState(pointCloud, wheelchair_pose, ...
-                                     door_center, odometry_mode, door_params);
-
-        % Visualize detection process every N iterations
-        if enable_visualization
-            fprintf('  [VIS] Plotting door detection (iteration %d)\n', vis_counter);
-            plotDoorDetectionDebug(pointCloud, detection_data, wheelchair_pose, ...
-                                   door_center, door_state, odometry_mode, door_params);
-        end
-    end
-
-    % Update result
-    result.door_state = door_state;
-    result.point_count = size(pointCloud, 1);
-
-    % Determine if door is verified as passable
-    if strcmp(door_state, 'open')
-        result.verified = true;
-        fprintf('  Result: Door OPEN/PASSABLE - verified\n');
-    elseif strcmp(door_state, 'closed')
-        result.verified = false;
-        fprintf('  Result: Door CLOSED/BLOCKED - not passable\n');
-    else
-        result.verified = false; % Unknown state = not verified
-        fprintf('  Result: Door state UNKNOWN - not verified\n');
-    end
-end
-
-function str = ternary(condition, true_val, false_val)
-    % Simple ternary operator helper
-    if condition
-        str = true_val;
-    else
-        str = false_val;
-    end
-end
-
-function [door_state, detection_data] = detectDoorState(pointCloud, wheelchair_pose, door_center, odometry_mode, door_params)
-    % General door state detection for regular doors
-    % Uses same algorithm as elevator door detection (coverage-based depth analysis)
-    %
-    % Outputs:
-    %   door_state - 'open', 'closed', or 'unknown'
-    %   detection_data - struct with visualization data
-
-    fprintf('  Detecting door state (regular door)...\n');
-
-    % Initialize detection data
-    detection_data = struct();
-    detection_data.narrow_points = [];
-    detection_data.door_roi_points = [];
-    detection_data.cone_points = [];
-    detection_data.wheelchair_pos = [];
-    detection_data.target_angle = [];
-    detection_data.deep_points = [];
-    detection_data.center_point = [];
-
-    if isempty(pointCloud) || size(pointCloud, 1) == 0 || size(pointCloud, 2) < 3
-        fprintf('  Warning: Empty or invalid point cloud\n');
-        door_state = 'unknown';
-        return;
+    % Extract default parameters if not provided
+    if nargin < 5 || isempty(door_params)
+        door_params = struct();
+        door_params.ANGLE_TOLERANCE = 30;       % ±30 degrees cone towards door
+        door_params.NARROW_ROI_ANGLE = 12;      % ±12 degrees for wheelchair safe passage
+        door_params.DOOR_HEIGHT_MIN = 0.3;      % Minimum height (avoid floor)
+        door_params.DOOR_HEIGHT_MAX = 2.2;      % Maximum door height
+        door_params.MIN_POINTS_THRESHOLD = 5;   % Minimum points needed
+        door_params.DEPTH_THRESHOLD = 0.3;      % Points must be this much deeper
+        door_params.FIXED_ELEVATOR_DISTANCE = 2.5; % Fixed distance in odometry mode
     end
 
     % Extract parameters
@@ -186,22 +147,17 @@ function [door_state, detection_data] = detectDoorState(pointCloud, wheelchair_p
     DOOR_HEIGHT_MAX = door_params.DOOR_HEIGHT_MAX;
     MIN_POINTS = door_params.MIN_POINTS_THRESHOLD;
     DEPTH_THRESHOLD = door_params.DEPTH_THRESHOLD;
-
-    % Get expected door distance
-    if isfield(door_params, 'FIXED_ELEVATOR_DISTANCE')
-        FIXED_DOOR_DISTANCE = door_params.FIXED_ELEVATOR_DISTANCE;
-    else
-        FIXED_DOOR_DISTANCE = 2.5; % Default
-    end
+    FIXED_DOOR_DISTANCE = door_params.FIXED_ELEVATOR_DISTANCE;
 
     % Calculate target direction and distance to door
     wheelchair_pos = wheelchair_pose(1:2);
 
     if odometry_mode
-        % Odometry mode: use wheelchair heading direction
-        target_angle = 0; % LiDAR forward direction
+        % Odometry mode: use specified target angle (0° = forward, pi = reverse)
+        target_angle = odometry_target_angle;
         distance_to_door = FIXED_DOOR_DISTANCE;
-        fprintf('  Odometry Mode: forward direction (0°), fixed distance: %.2fm\n', distance_to_door);
+        fprintf('  Odometry Mode: target angle %.1f° (%.2fm fixed distance)\n', ...
+                rad2deg(target_angle), distance_to_door);
     else
         % Map mode: calculate direction to door center
         direction_to_door = door_center - wheelchair_pos;
@@ -212,17 +168,15 @@ function [door_state, detection_data] = detectDoorState(pointCloud, wheelchair_p
         fprintf('  Direction: %.1f°, Distance: %.2fm\n', rad2deg(target_angle), distance_to_door);
     end
 
-    % Store for visualization
-    detection_data.wheelchair_pos = wheelchair_pos;
-    detection_data.target_angle = target_angle;
-
     % Step 1: Filter by height (door height range)
     height_filter = pointCloud(:,3) >= DOOR_HEIGHT_MIN & pointCloud(:,3) <= DOOR_HEIGHT_MAX;
     height_filtered_points = pointCloud(height_filter, :);
 
     if size(height_filtered_points, 1) < MIN_POINTS
-        door_state = 'unknown';
+        result.door_state = 'unknown';
+        result.point_count = size(pointCloud, 1);
         fprintf('  Insufficient points (%d) at door height\n', size(height_filtered_points, 1));
+        fprintf('  Result: Door state UNKNOWN\n');
         return;
     end
 
@@ -243,14 +197,15 @@ function [door_state, detection_data] = detectDoorState(pointCloud, wheelchair_p
     within_cone = abs(angle_diff) <= angle_tolerance_rad;
 
     cone_points = height_filtered_points(within_cone, :);
-    detection_data.cone_points = cone_points;
 
     fprintf('  %d points at door height, %d within ±%d° cone\n', ...
             size(height_filtered_points, 1), size(cone_points, 1), ANGLE_TOLERANCE);
 
     if size(cone_points, 1) < MIN_POINTS
-        door_state = 'unknown';
+        result.door_state = 'unknown';
+        result.point_count = size(pointCloud, 1);
         fprintf('  Insufficient points (%d) within angular cone\n', size(cone_points, 1));
+        fprintf('  Result: Door state UNKNOWN\n');
         return;
     end
 
@@ -266,9 +221,6 @@ function [door_state, detection_data] = detectDoorState(pointCloud, wheelchair_p
     deep_threshold = expected_door_distance + DEPTH_THRESHOLD;
     deep_points_mask = cone_distances > deep_threshold;
     deep_points = cone_points(deep_points_mask, :);
-    deep_distances = cone_distances(deep_points_mask);
-
-    detection_data.deep_points = deep_points;
 
     num_deep_points = size(deep_points, 1);
 
@@ -290,8 +242,6 @@ function [door_state, detection_data] = detectDoorState(pointCloud, wheelchair_p
     center_point = cone_points(center_idx, :);
     center_angle = cone_angles(center_idx);
 
-    detection_data.center_point = center_point;
-
     fprintf('  Center point: [%.2f, %.2f] at angle %.1f°\n', ...
             center_point(1), center_point(2), rad2deg(center_angle));
 
@@ -301,18 +251,16 @@ function [door_state, detection_data] = detectDoorState(pointCloud, wheelchair_p
     narrow_roi_points = cone_points(narrow_roi_mask, :);
     num_narrow_roi = size(narrow_roi_points, 1);
 
-    detection_data.narrow_points = narrow_roi_points;
-    detection_data.door_roi_points = narrow_roi_points; % For visualization compatibility
-
     fprintf('  Narrow ROI (±%d°): %d points\n', NARROW_ROI_ANGLE, num_narrow_roi);
 
     if num_narrow_roi < MIN_POINTS
-        door_state = 'unknown';
+        result.door_state = 'unknown';
+        result.point_count = size(pointCloud, 1);
         fprintf('  Decision: UNKNOWN (insufficient points in narrow ROI)\n');
         return;
     end
 
-    % Step 7: Check coverage - are ALL narrow ROI points deep? (100% coverage = open door)
+    % Step 7: Check coverage - are ALL narrow ROI points deep? (100% = open)
     if odometry_mode
         narrow_roi_distances = sqrt(sum(narrow_roi_points(:,1:2).^2, 2));
     else
@@ -334,6 +282,48 @@ function [door_state, detection_data] = detectDoorState(pointCloud, wheelchair_p
         door_state = 'closed';
         fprintf('  Decision: CLOSED (%.1f%% coverage - obstacle blocking path)\n', coverage_percentage);
     end
+
+    % Update result structure
+    result.door_state = door_state;
+    result.point_count = size(pointCloud, 1);
+    result.coverage_percentage = coverage_percentage;
+
+    % Determine if door is verified as passable
+    if strcmp(door_state, 'open')
+        result.verified = true;
+        fprintf('  Result: Door OPEN/PASSABLE - verified\n');
+    elseif strcmp(door_state, 'closed')
+        result.verified = false;
+        fprintf('  Result: Door CLOSED/BLOCKED - not passable\n');
+
+        % Visualize every 5 iterations when door is closed (to reduce computational load)
+        if mod(vis_counter, 5) == 0
+            fprintf('  [VIS] Plotting door detection - DOOR CLOSED (iteration %d)\n', vis_counter);
+            detection_data = struct();
+            detection_data.cone_points = cone_points;
+            detection_data.narrow_points = narrow_roi_points;
+            detection_data.deep_points = deep_points;
+            detection_data.center_point = center_point;
+            detection_data.wheelchair_pos = wheelchair_pos;
+            detection_data.target_angle = target_angle;
+
+            plotDoorDetectionDebug(pointCloud, detection_data, wheelchair_pose, ...
+                                   door_center, door_state, odometry_mode, door_params, ...
+                                   coverage_percentage);
+        end
+    else
+        result.verified = false;
+        fprintf('  Result: Door state UNKNOWN - not verified\n');
+    end
+end
+
+function str = ternary(condition, true_val, false_val)
+    % Simple ternary operator helper
+    if condition
+        str = true_val;
+    else
+        str = false_val;
+    end
 end
 
 function angle_diff = angdiff(angle1, angle2)
@@ -343,9 +333,9 @@ function angle_diff = angdiff(angle1, angle2)
     angle_diff = atan2(sin(angle_diff), cos(angle_diff));
 end
 
-function plotDoorDetectionDebug(pointCloud, detection_data, wheelchair_pose, door_center, door_state, odometry_mode, door_params)
-    % Plot door detection debug visualization
-    % Similar to debugElevatorDoorDetection.m visualization
+function plotDoorDetectionDebug(pointCloud, detection_data, wheelchair_pose, door_center, door_state, odometry_mode, door_params, coverage_percentage)
+    % Plot door detection debug visualization when door is closed
+    % Shows point cloud analysis with color-coded regions
 
     persistent fig_handle;
 
@@ -367,7 +357,6 @@ function plotDoorDetectionDebug(pointCloud, detection_data, wheelchair_pose, doo
     % Extract visualization data
     cone_points = detection_data.cone_points;
     narrow_points = detection_data.narrow_points;
-    door_roi_points = detection_data.door_roi_points;
     deep_points = detection_data.deep_points;
     center_point = detection_data.center_point;
     wheelchair_pos = detection_data.wheelchair_pos;
@@ -469,13 +458,12 @@ function plotDoorDetectionDebug(pointCloud, detection_data, wheelchair_pose, doo
         mode_str = 'Odometry Mode (Wheelchair @ Origin)';
     end
 
-    % Calculate coverage for title
+    % Title with coverage information
     if ~isempty(narrow_points) && size(narrow_points, 1) > 0
         num_narrow = size(narrow_points, 1);
         num_deep = size(deep_points, 1);
-        coverage = (num_deep / num_narrow) * 100;
         title(sprintf('Door Detection: %s | %s | ROI ±%d° | Coverage: %d/%d (%.0f%%)', ...
-                      upper(door_state), mode_str, NARROW_ROI_ANGLE, num_deep, num_narrow, coverage));
+                      upper(door_state), mode_str, NARROW_ROI_ANGLE, num_deep, num_narrow, coverage_percentage));
     else
         title(sprintf('Door Detection: %s | %s | ROI ±%d°', ...
                       upper(door_state), mode_str, NARROW_ROI_ANGLE));
@@ -484,9 +472,9 @@ function plotDoorDetectionDebug(pointCloud, detection_data, wheelchair_pose, doo
     axis equal;
     grid on;
 
-    % Set axis limits to show 2m radius around wheelchair
-    xlim([wheelchair_pos(1) - 2, wheelchair_pos(1) + 2]);
-    ylim([wheelchair_pos(2) - 2, wheelchair_pos(2) + 2]);
+    % Set axis limits to show area around wheelchair
+    xlim([wheelchair_pos(1) - 3, wheelchair_pos(1) + 3]);
+    ylim([wheelchair_pos(2) - 3, wheelchair_pos(2) + 3]);
 
     % Create legend
     legend_entries = {};

@@ -109,7 +109,7 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
         wheelchair_pose = [current_position, current_yaw];
         odometry_mode = false; % Use global coordinates for enterDoor
 
-        door_check = checkDoorPassable(lidar_scan_data, wheelchair_pose, door_center, door_type, odometry_mode, door_params);
+        door_check = checkDoorPassable(lidar_scan_data, wheelchair_pose, door_center, odometry_mode, door_params);
         result.door_state = door_check.door_state;
 
         if door_check.verified
