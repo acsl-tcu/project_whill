@@ -16,7 +16,6 @@ classdef PhaseManager < handle
         % Phase state
         current_phase           % Current phase name string
         previous_phase          % Previous phase (for history/debugging)
-        is_first_use            % Boolean: track if this is the first time any phase is set
 
         % Map data (loaded once in main_astar.m and passed through system)
         occupancyMap            % Occupancy map object for path planning and visualization
@@ -55,6 +54,7 @@ classdef PhaseManager < handle
         action_sequence         % Cell array of action structs defining the mission plan
         current_action_index    % Current action being executed (index into action_sequence)
         action_sequence_active  % Boolean: is action sequence mode active?
+        waypoints_need_reload   % Boolean: signals Control.m to reload waypoints (set when new mission planned)
 
         % Status display data (centralized display system)
         estimator_data          % Struct with estimator info (position, sensors, waypoints)
@@ -70,7 +70,6 @@ classdef PhaseManager < handle
 
             obj.current_phase = 'path_following';
             obj.previous_phase = '';
-            obj.is_first_use = true;  % This is the first time using the system
 
             % Store occupancy map for path planning and visualization
             obj.occupancyMap = occupancyMap;
@@ -111,6 +110,7 @@ classdef PhaseManager < handle
             obj.action_sequence = {};
             obj.current_action_index = 0;
             obj.action_sequence_active = false;
+            obj.waypoints_need_reload = false;
 
             % Initialize status display data
             obj.estimator_data = struct();
@@ -132,17 +132,6 @@ classdef PhaseManager < handle
 
             obj.previous_phase = obj.current_phase;
             obj.current_phase = new_phase;
-
-            % CRITICAL FIX: Only mark is_first_use = false when user explicitly requests
-            % a mode change (NOT when setting up multi-room navigation initially)
-            % This prevents the bug where multi_room_navigation incorrectly marks is_first_use = false
-            user_triggered_phases = {'path_following', 'floor_change', 'door_detection', 'ndt_pose_detection', 'elevator_entry'};
-            if ismember(new_phase, user_triggered_phases) && ~strcmp(new_phase, 'path_following') && obj.is_first_use
-                % User explicitly requested a mode change (not initial setup)
-                obj.is_first_use = false;
-                fprintf('[PHASE MANAGER] Marking is_first_use = false (user-triggered: %s)\n', new_phase);
-            end
-
             fprintf('[PHASE MANAGER] %s → %s\n', obj.previous_phase, new_phase);
 
             % Handle phase-specific initialization
@@ -261,21 +250,6 @@ classdef PhaseManager < handle
             end
         end
 
-        function is_first = isFirstTimeUse(obj)
-            % Check if this is the first time the system is being used
-            % Returns true if user has never triggered a mode change (e.g., 'floor_change')
-            is_first = obj.is_first_use;
-        end
-
-        function markPathReplanned(obj)
-            % Mark that a path replanning has occurred
-            % This is called when the user triggers 'floor_change' for the first time
-            % to distinguish between:
-            %   - First navigation (just use initial waypoints)
-            %   - Replanning (recompute waypoints from current position)
-            obj.is_first_use = false;
-            fprintf('[PHASE MANAGER] Path replanning marked - is_first_use set to false\n');
-        end
 
         %% ==============================================================
         %  UNIVERSAL PATH FOLLOWER - Core Methods
@@ -513,6 +487,7 @@ classdef PhaseManager < handle
             end
 
             % Option 2: A* pathfinding (multi-room planner)
+
             % Clear previous action sequence
             obj.action_sequence = {};
 
@@ -522,47 +497,34 @@ classdef PhaseManager < handle
             if requires_navigation
                 % Navigation-based actions (e.g., elevator_entry)
                 fprintf('STEP 1: Target action requires navigation\n');
+                fprintf('  Running multi-room path planner (Dijkstra + A*)...\n');
 
-                % Check if we should reuse existing waypoints
-                if ~isempty(obj.waypoint_segments)
-                    fprintf('  Reusing existing waypoint segments\n\n');
-                    waypoint_segments = obj.waypoint_segments;
-                    room_sequence = obj.room_sequence;
-                    door_info_struct = obj.door_info;
-                else
-                    % Generate new path
-                    fprintf('  Running multi-room path planner (Dijkstra + A*)...\n');
+                multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
+                addpath(multiroom_path);
 
-                    multiroom_path = fullfile(fileparts(mfilename('fullpath')), '../MultiRoomNav');
-                    addpath(multiroom_path);
-
-                    % Determine goal position based on target_action
-                    if strcmp(target_action, 'elevator_entry')
-                        if isfield(goal_data, 'center')
-                            goal_position = goal_data.center;
-                        else
-                            elevator_metadata = LocationMetadata.getLocation('elevator');
-                            goal_position = elevator_metadata.door_center;
-                        end
+                % Determine goal position based on target_action
+                if strcmp(target_action, 'elevator_entry')
+                    if isfield(goal_data, 'center')
+                        goal_position = goal_data.center;
                     else
-                        error('Unknown navigation target_action: %s', target_action);
+                        elevator_metadata = LocationMetadata.getLocation('elevator');
+                        goal_position = elevator_metadata.door_center;
                     end
-
-                    % Generate multi-room path
-                    [~, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(...
-                        start_position, goal_position, ...
-                        robot_params.width, robot_params.length, robot_params.safety_margin, ...
-                        obj.occupancyMap, obj.roomGraph);
-
-                    fprintf('  ✓ Generated %d segments across rooms: %s\n\n', ...
-                            length(waypoint_segments), strjoin(room_sequence, ' → '));
-
-                    % Store waypoint data
-                    obj.waypoint_segments = waypoint_segments;
-                    obj.room_sequence = room_sequence;
-                    obj.door_info = door_info;
-                    door_info_struct = door_info;
+                else
+                    error('Unknown navigation target_action: %s', target_action);
                 end
+
+                % Generate multi-room path
+                [~, waypoint_segments, room_sequence, door_info] = generateMultiRoomPath(...
+                    start_position, goal_position, ...
+                    robot_params.width, robot_params.length, robot_params.safety_margin, ...
+                    obj.occupancyMap, obj.roomGraph);
+
+                % Store waypoint data
+                obj.waypoint_segments = waypoint_segments;
+                obj.room_sequence = room_sequence;
+                obj.door_info = door_info;
+                door_info_struct = door_info;
 
                 % Build action sequence with navigation + target_action
                 target_data = PhaseManager.prepareTargetData(target_action, goal_data);
@@ -571,14 +533,6 @@ classdef PhaseManager < handle
 
                 % Store for backward compatibility
                 obj.extractWaypointsFromActions();
-
-                fprintf('═══════════════════════════════════════════════════\n');
-                fprintf('Mission Planning Complete:\n');
-                fprintf('  Actions: %d\n', length(obj.action_sequence));
-                fprintf('  Rooms: %s\n', strjoin(room_sequence, ' → '));
-                fprintf('  Waypoint Segments: %d\n', obj.total_segments);
-                fprintf('  Target Action: %s\n', obj.target_action);
-                fprintf('═══════════════════════════════════════════════════\n\n');
 
             else
                 % Non-navigation actions (e.g., door_detection, ndt_pose_detection)
@@ -600,6 +554,7 @@ classdef PhaseManager < handle
 
             obj.action_sequence_active = true;
             obj.current_action_index = 1;  % Start at first action
+            obj.waypoints_need_reload = true;  % Signal Control.m to reload waypoints
 
             % Print action sequence for debugging
             obj.printActionSequence();
@@ -967,7 +922,14 @@ classdef PhaseManager < handle
                         fprintf('Status      : Mission complete - STOPPED\n');
 
                     otherwise
-                        fprintf('Status      : Unknown phase\n');
+                        % Check if this is a replanning event
+                        if isfield(phase_data, 'replanning') && phase_data.replanning
+                            fprintf('Replanning  : [%.2f, %.2f] → [%.2f, %.2f]\n', ...
+                                phase_data.old_start(1), phase_data.old_start(2), ...
+                                phase_data.new_start(1), phase_data.new_start(2));
+                        else
+                            fprintf('Status      : Unknown phase\n');
+                        end
                 end
             end
 

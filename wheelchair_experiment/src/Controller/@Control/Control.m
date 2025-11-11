@@ -157,79 +157,17 @@ classdef Control < handle
             obj.phaseManager = phaseManager;
 
             % Get waypoints from PhaseManager (path planning now done in Estimate.m)
-            % Waypoints are now stored as cell array {segment1, segment2, ...}
-            if phaseManager.hasWaypoints()
-                % DEBUG: Check PhaseManager object state BEFORE calling getWaypoints
-                fprintf('\n[CONTROL PRE-DEBUG] BEFORE getWaypoints() call:\n');
-                fprintf('  phaseManager class: %s\n', class(phaseManager));
-                fprintf('  phaseManager is handle: %d\n', isa(phaseManager, 'handle'));
-
-                waypoint_cell_array = phaseManager.getWaypoints();
-
-                % DEBUG: Check waypoint data received in Control
-                fprintf('\n[CONTROL DEBUG] Waypoint data from PhaseManager:\n');
-                fprintf('  Type: %s\n', class(waypoint_cell_array));
-                fprintf('  Is cell: %d\n', iscell(waypoint_cell_array));
-                fprintf('  Length: %d\n', length(waypoint_cell_array));
-                fprintf('  Size: %s\n', mat2str(size(waypoint_cell_array)));
-                fprintf('  ndims: %d\n', ndims(waypoint_cell_array));
-
-                % Check if it's actually a numeric array instead of cell array
-                if ~iscell(waypoint_cell_array)
-                    fprintf('  *** ERROR: waypoint_cell_array is NOT a cell array! ***\n');
-                    fprintf('  *** It is a %s with value: %s ***\n', class(waypoint_cell_array), mat2str(waypoint_cell_array));
-                end
-
-                % Only loop if it's actually a cell array
-                if iscell(waypoint_cell_array)
-                    for seg = 1:length(waypoint_cell_array)
-                        fprintf('  Segment %d: %dx%d waypoints\n', seg, size(waypoint_cell_array{seg}, 1), size(waypoint_cell_array{seg}, 2));
-                    end
-                end
-                fprintf('\n');
-
-                % Extract first segment for initial control
-                obj.waypoint = waypoint_cell_array{1};  % Nx2 matrix for Control to use
-                fprintf('[CONTROL DEBUG] Extracted obj.waypoint: %dx%d\n\n', size(obj.waypoint, 1), size(obj.waypoint, 2));
-
-                % Store ALL waypoint segments for plotting (to be saved to NamedConst)
-                obj.waypoint_all_segments = waypoint_cell_array;
-
-                % Detect multi-room mode automatically
-                if length(waypoint_cell_array) > 1
-                    fprintf('Control: Multi-room mode AUTO-DETECTED (%d segments)\n', length(waypoint_cell_array));
-                    obj.multiRoomEnabled = true;
-                else
-                    fprintf('Control: Single-room mode (%d waypoints)\n', size(obj.waypoint, 1));
-                    obj.multiRoomEnabled = false;
-                end
-
-                % Generate V_ref based on first segment waypoints
-                obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
-                if size(obj.waypoint,1) >= 2
-                    obj.V_ref(end-5:end-1) = 0.3;  % Slow down before goal
-                end
-                if size(obj.waypoint,1) >= 1
-                    obj.V_ref(end) = 0.2;      % Stop at goal
-                end
-            else
-                % Fallback to simple default waypoints if none available
-                obj.waypoint = [28.9, 6; 30, 12]; % Basic start->elevator path
-                obj.waypoint_all_segments = {obj.waypoint}; % Single segment
-                obj.V_ref = [0.5; 0]; % Default velocities
-                obj.multiRoomEnabled = false;
-                fprintf('Control: Using fallback waypoints (%d points)\n', size(obj.waypoint, 1));
-            end
+            % Initialize empty waypoints - will be loaded when user selects mode and planning completes
+            obj.waypoint = [];  % Empty until first segment is loaded
+            obj.waypoint_all_segments = {};  % Empty cell array
+            obj.V_ref = 0.5;  % Default velocity until waypoints are loaded (will be regenerated)
+            obj.multiRoomEnabled = false;
+            fprintf('[CONTROL] Waiting for mode selection and path planning...\n');
             
-            % Get zones from original path setting (kept separate for now)
-            try
-                [~, obj.selectZone,obj.NoEntryZone,obj.ZoneNum,~]=PathSetting_original;
-            catch ME
-                fprintf('Control: Failed to get zones (%s), using defaults\n', ME.message);
-                obj.selectZone = ones(size(obj.waypoint, 1), 1);
-                obj.NoEntryZone = [];
-                obj.ZoneNum = [];
-            end
+            % Initialize zones with empty defaults - will be set when waypoints load
+            obj.selectZone = [];
+            obj.NoEntryZone = [];
+            obj.ZoneNum = [];
 
             %初期化
             obj.v_old = 0.5;
@@ -251,11 +189,12 @@ classdef Control < handle
             % obj.abc = get_abc(obj);
             obj.ltheta = get_ltheta(obj);
 
-            obj.th_target_w =get_th_target(obj.waypoint);
+            % Initialize empty - will be generated when waypoints are loaded
+            obj.th_target_w = [];
 
             obj.count = 1;
             obj.mu = zeros(obj.K,obj.NP);
-            obj.mu_v = obj.V_ref(1)*ones(1,obj.NP);
+            obj.mu_v = 0.5 * ones(1,obj.NP);  % Default velocity 0.5 m/s
             obj.sigma = repmat(obj.sigma_0,obj.K,obj.NP);
             obj.sigma_v = repmat(obj.sigma_v0,1,obj.NP);
 
@@ -387,15 +326,33 @@ classdef Control < handle
             end
 
             %% Universal path follower and phase management
-            goal_position = obj.waypoint(end, :); % Final waypoint
-            current_position = [Position.X, Position.Y];
-            goal_distance = norm(current_position - goal_position);
-            current_waypoint_idx = obj.target_n(1,1);
-
             % Update universal path follower - IT decides the phase
             % NEW SYSTEM: Use getCurrentPhaseInfo() - queries phase from action sequence
             % NO PARAMETERS: Uses internal PhaseManager state (DRY principle)
             [control_mode, target_info] = obj.phaseManager.getCurrentPhaseInfo();
+
+            %% Load first segment waypoints when mission starts or replans
+            % When user selects Mode 1/4, planMission() sets waypoints_need_reload = true
+            % This handles both initial planning AND re-selection of modes
+            if obj.phaseManager.waypoints_need_reload && obj.phaseManager.current_action_index == 1 && strcmp(control_mode, 'path_following')
+                fprintf('[CONTROL] Loading first segment waypoints (new mission planned)...\n');
+                obj.loadNextSegmentWaypoints();
+                obj.phaseManager.waypoints_need_reload = false;  % Clear flag after loading
+            end
+
+            % Calculate goal-related values (only if waypoints exist)
+            if ~isempty(obj.waypoint)
+                goal_position = obj.waypoint(end, :); % Final waypoint
+                current_position = [Position.X, Position.Y];
+                goal_distance = norm(current_position - goal_position);
+                current_waypoint_idx = obj.target_n(1,1);
+            else
+                % No waypoints yet - use dummy values
+                goal_position = [0, 0];
+                current_position = [Position.X, Position.Y];
+                goal_distance = 0;
+                current_waypoint_idx = 1;
+            end
 
             %% Execute control based on current phase
             % PhaseManager returns the appropriate control mode
@@ -803,6 +760,12 @@ classdef Control < handle
 
                     % Regenerate target heading array
                     obj.th_target_w = get_th_target(obj.waypoint);
+
+                    % Regenerate mu_v based on first V_ref value
+                    obj.mu_v = obj.V_ref(1) * ones(1, obj.NP);
+
+                    % Regenerate selectZone for new waypoints
+                    obj.selectZone = ones(size(obj.waypoint, 1), 1);
 
                     fprintf('[CONTROL] Loaded waypoints from action: [%s] (%d waypoints)\n', ...
                         current_action.type, size(obj.waypoint, 1));

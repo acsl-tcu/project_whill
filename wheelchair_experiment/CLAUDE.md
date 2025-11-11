@@ -83,6 +83,102 @@ safe_colors = {
 [control_mode, target_info] = obj.phaseManager.getCurrentPhaseInfo();
 ```
 
+### Centralized Status Display System
+**IMPORTANT:** All console output should use PhaseManager's centralized status display system for consistency and unified formatting.
+
+**System Architecture:**
+
+PhaseManager provides a **three-section fixed status display** that updates continuously:
+1. **Estimator Status** - Position, orientation, navigation, sensors
+2. **Control Status** - Phase, commands, phase-specific data (dynamic)
+3. **Action Sequence Progress** - Current action and progress percentage
+
+**How to use for continuous status updates:**
+
+```matlab
+% 1. Update estimator data (called from Estimate.m)
+obj.phaseManager.updateEstimatorData(...
+    position,      % [X, Y, Z]
+    yaw_degrees,   % Orientation in degrees
+    time,          % Current time
+    waypoint_info, % struct with waypoint_current, waypoint_total, distance_to_goal
+    sensor_info    % struct with lidar_points, num_objects, num_tracks
+);
+
+% 2. Update control data (called from Control.m)
+obj.phaseManager.updateControlData(...
+    velocities,    % [v; omega] command velocities
+    phase_data     % struct with phase-specific data (varies by phase)
+);
+
+% 3. Display unified status (called from Control.m main loop)
+obj.phaseManager.displayStatus();
+```
+
+**How to use for one-off events/notifications:**
+
+For special events like path replanning, temporarily insert an action into the action sequence:
+
+```matlab
+% Example: Show "waypoint replan" event in status display
+replan_action = struct(...
+    'type', 'waypoint_replan', ...
+    'description', 'Auto-replan: Distance exceeded threshold', ...
+    'waypoints', [] ...
+);
+
+% Temporarily insert at front of action sequence
+obj.phaseManager.action_sequence = [{replan_action}, obj.phaseManager.action_sequence];
+obj.phaseManager.current_action_index = 1;
+
+% Update data and display
+obj.phaseManager.updateEstimatorData(...);
+obj.phaseManager.updateControlData(...);
+obj.phaseManager.displayStatus();
+pause(1.5); % Brief pause to show event
+
+% Remove temporary action and restore sequence
+obj.phaseManager.action_sequence(1) = [];
+```
+
+**Phase-Specific Control Data:**
+
+The third line of Control Status section is **dynamic** based on current phase:
+- `path_following` → `'Target : Waypoint X/Y | MPC Cost: Z'`
+- `door_entry` → `'Door : Center [X, Y] → Exit [X, Y]'`
+- `elevator_entry` → `'Elevator : Phase X - Status'`
+- `door_detection` → `'Detection : Door analysis mode'`
+- `ndt_pose_detection` → `'NDT Mode : Manual control active'`
+- Custom data → Pass struct with custom fields to `updateControlData()`
+
+**Examples:**
+
+```matlab
+% ❌ BAD: Direct fprintf scattered throughout code
+fprintf('[ESTIMATE] Starting path planning...\n');
+fprintf('[ESTIMATE] ⚠ Distance exceeds threshold!\n');
+fprintf('[ESTIMATE] ✓ Path repositioned successfully\n');
+
+% ✅ GOOD: Use centralized status display
+% For continuous updates - update data, let displayStatus() show it
+obj.phaseManager.updateEstimatorData(pos, yaw, time, waypoint_info, sensor_info);
+obj.phaseManager.displayStatus();
+
+% For one-off events - temporarily add to action sequence
+replan_action = struct('type', 'waypoint_replan', 'description', 'Replanning path...', 'waypoints', []);
+obj.phaseManager.action_sequence = [{replan_action}, obj.phaseManager.action_sequence];
+obj.phaseManager.current_action_index = 1;
+obj.phaseManager.displayStatus();
+pause(1.5);
+obj.phaseManager.action_sequence(1) = []; % Remove after showing
+```
+
+**When to use:**
+- ✅ Use `updateEstimatorData()` / `updateControlData()` + `displayStatus()` for ALL status updates
+- ✅ Use temporary action insertion for one-off events/notifications
+- ✅ Let the centralized system handle formatting, layout, and consistency
+- ❌ Avoid direct fprintf/disp except for initial setup messages or debugging
+
 ---
 
 ## Git/GitHub Configuration

@@ -187,7 +187,7 @@ classdef Estimate < handle
 
             % Initialize tracking switch (default enabled)
             obj.track_on = true;
-            
+
             % Path planning - moved from Control.m constructor
             BIM_data= LocationMetadata.getLocation('elevator');
             initial_position = [25,6]; %set custom initial and goal positions if needed but if you want the default leave it as []
@@ -201,82 +201,17 @@ classdef Estimate < handle
             robot_length = wheel_len_rear + wheel_len_front; % Total length = 1.11m
             safety_margin = 0.0;
 
-            %% User selects waypoint method
-            fprintf('\n=== WAYPOINT SELECTION ===\n');
-            fprintf('Select waypoint generation method:\n');
-            fprintf('  1 - Interactive manual waypoint selection\n');
-            fprintf('  2 - Automatic A* pathfinding (multi-room, auto-detects single/multi) [default]\n');
-            user_choice = input('Enter choice (1/2) [default: 2]: ', 's');
-
-            %% Store parameters for mission planning
+            %% Store parameters for mission planning (path will be generated when mode is selected)
             obj.initial_position = initial_position;
             obj.initial_goal_position = goal_position;
-            obj.waypoint_method_choice = user_choice;
+            obj.waypoint_method_choice = '2';  % Default to A* pathfinding (manual waypoint option '1' available for future use)
             obj.robot_params = struct();
             obj.robot_params.width = robot_width;
             obj.robot_params.length = robot_length;
             obj.robot_params.safety_margin = safety_margin;
-            obj.robot_params.user_choice = user_choice;
+            obj.robot_params.user_choice = obj.waypoint_method_choice;
 
-            %% Always generate default path to elevator (will be used by Mode 1 & 4)
-            fprintf('[ESTIMATE] Generating default path to elevator...\n');
-
-            % Prepare goal data
-            goal_data = struct();
-            goal_data.center = goal_position;
-
-            % Plan default mission with elevator goal (generates waypoints)
-            obj.phaseManager.planMission(obj.initial_position, 'elevator_entry', goal_data, obj.robot_params);
-
-            % Extract waypoints and store in PhaseManager
-            waypoint_cell_array = obj.phaseManager.waypoint_segments;
-            obj.phaseManager.setWaypoints(waypoint_cell_array);
-
-            fprintf('[ESTIMATE] Default path created. Waiting for mode selection...\n');
-            fprintf('[ESTIMATE] Mode 1 & 4 will use this path. Mode 2 & 3 will ignore it.\n');
-
-            % Plot the generated path for visualization (world coordinates)
-            try
-                % Use map passed from main.m
-                map_obj = obj.phaseManager.occupancyMap;
-
-                figure('Name', 'Generated Path Visualization', 'Position', [100, 100, 900, 600]);
-                hold on;
-
-                % Show occupancy grid in world coordinates
-                show(map_obj);
-
-                % Plot all segments with different colors
-                colors = {'red', 'blue', [0 0.5 0], [1 0.5 0], [0.5 0 0.5], [0 0.8 0.8]};
-                for seg_idx = 1:length(waypoint_cell_array)
-                    segment = waypoint_cell_array{seg_idx};
-                    color_idx = mod(seg_idx - 1, length(colors)) + 1;
-                    plot(segment(:,1), segment(:,2), 'o-', 'Color', colors{color_idx}, ...
-                         'LineWidth', 2, 'MarkerSize', 6, 'DisplayName', sprintf('Segment %d', seg_idx));
-                end
-
-                % Mark start and goal
-                first_segment = waypoint_cell_array{1};
-                last_segment = waypoint_cell_array{end};
-                plot(first_segment(1,1), first_segment(1,2), 'gs', 'MarkerSize', 15, 'LineWidth', 3, 'DisplayName', 'Start');
-                plot(last_segment(end,1), last_segment(end,2), 'rs', 'MarkerSize', 15, 'LineWidth', 3, 'DisplayName', 'Goal');
-
-                xlabel('X (m)');
-                ylabel('Y (m)');
-                if length(waypoint_cell_array) > 1
-                    title(sprintf('Multi-Room Path: %d Segments', length(waypoint_cell_array)));
-                else
-                    title('Single-Room Path');
-                end
-                legend('Location', 'best');
-                grid on;
-                axis equal;
-                hold off;
-
-                fprintf('Estimate: Path visualization plotted in world coordinates\n');
-            catch ME
-                fprintf('Estimate: Could not create path visualization: %s\n', ME.message);
-            end
+            fprintf('[ESTIMATE] Ready. Waiting for mode selection (press any key to open menu)...\n\n');
 
             % Theater Plot---------------------------------------------
             tp = theaterPlot('XLim',obj.roi(1,1:2),'YLim',obj.roi(2,1:2)); grid on;
@@ -433,33 +368,18 @@ classdef Estimate < handle
                 % Handle special modes that PhaseManager doesn't manage
                 switch user_request.new_phase
                     case 'floor_change'
-                        % Mode 1: Use pre-planned elevator path from constructor
-                        if obj.phaseManager.isFirstTimeUse()
-                            % First time - path already planned in constructor, just mark as used
-                            fprintf('[ESTIMATE] Mode 1: Using pre-planned elevator path from constructor\n');
-                            obj.phaseManager.markPathReplanned();
-                            fprintf('[ESTIMATE] Action sequence already created (elevator goal)\n');
-                        else
-                            % Not first time - replan path from current position and reset trackers
-                            fprintf('[ESTIMATE] Replanning floor_change - generating new path from current position\n');
-                            obj.replanPathFromCurrentPosition(Plant);
-                            obj.resetAllTrackers();
-                            % Don't set phase - PhaseManager.update() will handle it in Control.m
-                        end
+                        % Mode 1: Plan path from current position to elevator
+                        fprintf('[ESTIMATE] Mode 1 (floor_change): Planning path from current position\n');
+                        obj.replanPathFromCurrentPosition(Plant);
+                        obj.resetAllTrackers();
+                        fprintf('[ESTIMATE] Mode 1: Path planning complete\n');
 
                     case 'navigation_only'
-                        % Mode 4: Use pre-planned elevator path (same waypoints, different action sequence)
-                        fprintf('[ESTIMATE] Mode 4: Using pre-planned path with navigation_only action sequence\n');
-
-                        % Prepare goal data
-                        goal_data = struct();
-                        goal_data.center = obj.initial_goal_position;
-
-                        % Create new action sequence (elevator_entry) but keep existing waypoints
-                        obj.phaseManager.planMission(obj.initial_position, 'elevator_entry', goal_data, obj.robot_params);
-
-                        % Waypoints already set in PhaseManager from constructor
-                        fprintf('[ESTIMATE] Mode 4: Action sequence updated (same waypoints as Mode 1)\n');
+                        % Mode 4: Plan A* path from current position to elevator (no LiDAR tracking)
+                        fprintf('[ESTIMATE] Mode 4 (navigation_only): Planning path from current position\n');
+                        obj.replanPathFromCurrentPosition(Plant);
+                        obj.resetAllTrackers();
+                        fprintf('[ESTIMATE] Mode 4: Path planning complete\n');
 
                     case 'door_detection'
                         % Mode 2: Door detection - single action
@@ -1560,13 +1480,6 @@ classdef Estimate < handle
             % Replan path using current wheelchair position as start
             % Uses PhaseManager.planMission() to generate action sequence with elevator as goal
 
-            fprintf('\n');
-            fprintf('[ESTIMATE] ═══════════════════════════════════════\n');
-            fprintf('[ESTIMATE] REPLANNING from current position\n');
-            fprintf('[ESTIMATE] Current: [%.2f, %.2f]\n', Plant.X, Plant.Y);
-            fprintf('[ESTIMATE] Goal: ELEVATOR\n');
-            fprintf('[ESTIMATE] ═══════════════════════════════════════\n');
-
             current_position = [Plant.X, Plant.Y];
 
             % Get elevator metadata
@@ -1597,10 +1510,33 @@ classdef Estimate < handle
             % Extract waypoints for PhaseManager
             waypoint_cell_array = obj.phaseManager.waypoint_segments;
             obj.phaseManager.setWaypoints(waypoint_cell_array);
+            
+            % Plot the replanned path for visualization
+            obj.plotPathVisualization('Replanned Path Visualization');
 
-            fprintf('[ESTIMATE] ═══════════════════════════════════════\n');
-            fprintf('[ESTIMATE] Replanning complete\n');
-            fprintf('[ESTIMATE] ═══════════════════════════════════════\n\n');
+            % Wait for user confirmation before continuing
+            fprintf('\n');
+            fprintf('═══════════════════════════════════════════════════\n');
+            fprintf('  REPLANNED PATH REVIEW\n');
+            fprintf('═══════════════════════════════════════════════════\n');
+            fprintf('Please review the replanned path in the figure window.\n');
+            fprintf('WARNING: Choosing "n" will abort the entire operation!\n');
+            user_response = input('Continue with this path? (y/n) [default: y]: ', 's');
+
+            if isempty(user_response)
+                user_response = 'y';
+            end
+
+            if ~strcmpi(user_response, 'y')
+                fprintf('\n╔═══════════════════════════════════════════════════╗\n');
+                fprintf('║  USER ABORTED OPERATION                                    ║\n');
+                fprintf('╚═══════════════════════════════════════════════════╝\n');
+                fprintf('Replanned path was rejected by user.\n');
+                fprintf('Stopping execution...\n\n');
+                error('Estimate:UserAbort', 'User rejected replanned path. Operation aborted.');
+            else
+                fprintf('\n[ESTIMATE] ✓ User confirmed - proceeding with replanned path\n\n');
+            end
         end
         
         function resetAllTrackers(obj)
@@ -1628,6 +1564,64 @@ classdef Estimate < handle
 
         end
 
+        function plotPathVisualization(obj, figure_title)
+            % Plot the generated path for visualization
+            % Input: figure_title - String for figure window title (optional)
+
+            if nargin < 2
+                figure_title = 'Generated Path Visualization';
+            end
+
+            try
+                % Get waypoint segments from PhaseManager
+                waypoint_cell_array = obj.phaseManager.waypoint_segments;
+
+                if isempty(waypoint_cell_array)
+                    fprintf('[ESTIMATE] No waypoints to plot\n');
+                    return;
+                end
+
+                % Use map from PhaseManager
+                map_obj = obj.phaseManager.occupancyMap;
+
+                figure('Name', figure_title, 'Position', [100, 100, 900, 600]);
+                hold on;
+
+                % Show occupancy grid in world coordinates
+                show(map_obj);
+
+                % Plot all segments with different colors
+                colors = {'red', 'blue', [0 0.5 0], [1 0.5 0], [0.5 0 0.5], [0 0.8 0.8]};
+                for seg_idx = 1:length(waypoint_cell_array)
+                    segment = waypoint_cell_array{seg_idx};
+                    color_idx = mod(seg_idx - 1, length(colors)) + 1;
+                    plot(segment(:,1), segment(:,2), 'o-', 'Color', colors{color_idx}, ...
+                         'LineWidth', 2, 'MarkerSize', 6, 'DisplayName', sprintf('Segment %d', seg_idx));
+                end
+
+                % Mark start and goal
+                first_segment = waypoint_cell_array{1};
+                last_segment = waypoint_cell_array{end};
+                plot(first_segment(1,1), first_segment(1,2), 'gs', 'MarkerSize', 15, 'LineWidth', 3, 'DisplayName', 'Start');
+                plot(last_segment(end,1), last_segment(end,2), 'rs', 'MarkerSize', 15, 'LineWidth', 3, 'DisplayName', 'Goal');
+
+                xlabel('X (m)');
+                ylabel('Y (m)');
+                if length(waypoint_cell_array) > 1
+                    title(sprintf('Multi-Room Path: %d Segments', length(waypoint_cell_array)));
+                else
+                    title('Single-Room Path');
+                end
+                legend('Location', 'best');
+                grid on;
+                axis equal;
+                hold off;
+
+                fprintf('[ESTIMATE] Path visualization plotted: %s\n', figure_title);
+            catch ME
+                fprintf('[ESTIMATE] Could not create path visualization: %s\n', ME.message);
+            end
+        end
 
     end
 end

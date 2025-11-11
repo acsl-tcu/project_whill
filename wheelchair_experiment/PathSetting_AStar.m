@@ -3,16 +3,14 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
     % This version automatically generates waypoints using A* pathfinding
     % instead of manual waypoint definition
 
-    fprintf('Using occupancy map from external source for A* pathfinding...\n');
     debug_on=false;
     try
         % Use provided occupancy map (loaded once in main_astar.m)
         if nargin >= 6 && ~isempty(occupancyMap)
             map_obj = occupancyMap;
-            fprintf('Using provided occupancy map from high-level planner\n');
         else
             % Fallback: Load the occupancy map
-            fprintf('No occupancy map provided, loading from map2.mat...\n');
+            fprintf('Loading occupancy map from map2.mat...\n');
             map_data = load('map2.mat');
             map_obj = map_data.map;
         end
@@ -21,12 +19,6 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
         occ_matrix = getOccupancy(map_obj);  % This method works with this MATLAB version
         resolution = map_obj.Resolution;  % cells per meter
         map_origin = map_obj.GridOriginInLocal;  % [x, y] origin
-        
-        fprintf('Map loaded - Size: %dx%d, Resolution: %.1f cells/m\n', ...
-                size(occ_matrix, 1), size(occ_matrix, 2), resolution);
-        fprintf('World limits - X: [%.1f, %.1f], Y: [%.1f, %.1f]\n', ...
-                map_obj.XWorldLimits(1), map_obj.XWorldLimits(2), ...
-                map_obj.YWorldLimits(1), map_obj.YWorldLimits(2));
         
     catch ME
         fprintf('Error loading map2.mat: %s\n', ME.message);
@@ -39,17 +31,13 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
     % Robot parameters (wheelchair dimensions) - passed as function arguments
     if nargin >= 4 && ~isempty(robot_width) && ~isempty(robot_length) && ~isempty(safety_margin)
         % Use provided vehicle dimensions
-        fprintf('Using provided vehicle dimensions:\n');
-        fprintf('  Width: %.2fm, Length: %.2fm, Safety margin: %.2fm\n', ...
-                robot_width, robot_length, safety_margin);
     else
         % Fallback to default values
         robot_width = 0.6;     % meters (fallback)
         robot_length = 1.0;    % meters (fallback)
         safety_margin = 0.1;   % meters (fallback)
-        fprintf('WARNING: Vehicle dimensions not provided, using defaults\n');
-        fprintf('  Width: %.2fm, Length: %.2fm, Safety margin: %.2fm\n', ...
-                robot_width, robot_length, safety_margin);
+        fprintf('WARNING: Vehicle dimensions not provided, using defaults: %.2fm x %.2fm\n', ...
+                robot_width, robot_length);
     end
     
     % Define start and goal positions
@@ -65,58 +53,32 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
     else
         goal_pos = [goal_position(1), goal_position(2)];   % Use provided goal position
     end
-    
-    fprintf('Planning path from [%.1f, %.1f] to [%.1f, %.1f]...\n', ...
-            start_pos(1), start_pos(2), goal_pos(1), goal_pos(2));
-    
+
     % Debug: Check start and goal positions in occupancy grid
-    fprintf('\n=== A* DEBUGGING ===\n');
     [rows, cols] = size(occ_matrix);
-    
+
     % Convert world coordinates to grid coordinates for debugging
-    % Use the same conversion as the occupancyMap's internal coordinate system
     start_grid = world2grid(map_obj, [start_pos(1), start_pos(2)]);
     start_r = start_grid(1);
     start_c = start_grid(2);
     goal_grid = world2grid(map_obj, [goal_pos(1), goal_pos(2)]);
     goal_r = goal_grid(1);
     goal_c = goal_grid(2);
-    fprintf('Grid size: %dx%d cells\n', rows, cols);
-    fprintf('Start world: [%.2f, %.2f] -> grid: [%d, %d]\n', start_pos(1), start_pos(2), start_r, start_c);
-    fprintf('Goal world:  [%.2f, %.2f] -> grid: [%d, %d]\n', goal_pos(1), goal_pos(2), goal_r, goal_c);
-    
-    % Check if start/goal are within bounds
-    fprintf('Valid grid bounds: rows [1-%d], cols [1-%d]\n', rows, cols);
-    
+
+    % Check for errors only (skip success confirmations)
     if start_r < 1 || start_r > rows || start_c < 1 || start_c > cols
+        fprintf('\n=== A* ERROR ===\n');
         fprintf('ERROR: Start position [%d, %d] is OUTSIDE grid bounds!\n', start_r, start_c);
         fprintf('  Calculated start_r=%d (valid: 1-%d), start_c=%d (valid: 1-%d)\n', start_r, rows, start_c, cols);
         fprintf('  World pos [%.2f, %.2f] -> Grid pos [%d, %d]\n', start_pos(1), start_pos(2), start_r, start_c);
-    else
-        fprintf('Start position [%d, %d] is WITHIN bounds - OK\n', start_r, start_c);
-        fprintf('Start occupancy value: %.3f\n', occ_matrix(start_r, start_c));
     end
-    
+
     if goal_r < 1 || goal_r > rows || goal_c < 1 || goal_c > cols
+        fprintf('\n=== A* ERROR ===\n');
         fprintf('ERROR: Goal position [%d, %d] is OUTSIDE grid bounds!\n', goal_r, goal_c);
         fprintf('  Calculated goal_r=%d (valid: 1-%d), goal_c=%d (valid: 1-%d)\n', goal_r, rows, goal_c, cols);
         fprintf('  World pos [%.2f, %.2f] -> Grid pos [%d, %d]\n', goal_pos(1), goal_pos(2), goal_r, goal_c);
-    else
-        fprintf('Goal position [%d, %d] is WITHIN bounds - OK\n', goal_r, goal_c);
-        fprintf('Goal occupancy value: %.3f\n', occ_matrix(goal_r, goal_c));
     end
-    
-    % Check occupancy thresholds
-    fprintf('Map occupancy range: %.3f to %.3f\n', min(occ_matrix(:)), max(occ_matrix(:)));
-    fprintf('Free space threshold: < 0.5, Occupied: >= 0.5\n');
-    
-    % Check robot clearance - use larger dimension plus safety margin
-    robot_clearance = robot_width/2 + safety_margin;
-    clearance_cells = ceil(robot_clearance * resolution) + 1;
-    fprintf('Robot clearance: %.1f cells (%.2fm total clearance)\n', clearance_cells, robot_clearance);
-    
-    % PLOT: Create two debug plots to show both coordinate systems
-    fprintf('\nCreating debug plots...\n');
     
     %% ===== FIGURE 1: WORLD COORDINATES =====
    if debug_on
@@ -221,22 +183,15 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
     if debug_on
         visualize_inflation_inline(occ_matrix, robot_width, robot_length, safety_margin, resolution, astar_path, map_obj);
     end
-    
-    fprintf('A* SUCCESS: Found path with %d points\n', size(astar_path, 1));
-    fprintf('==================\n');
-    
-    fprintf('A* found path with %d waypoints\n', size(astar_path, 1));
-    
-    % The A* path might have too many points, so subsample for smoother control
-    % Keep every Nth point, but always keep start and end
+
+    % Subsample A* path for smoother control
     subsample_factor = max(1, floor(size(astar_path, 1) / 50)); % Target ~30 waypoints
     indices = 1:subsample_factor:size(astar_path, 1);
     if indices(end) ~= size(astar_path, 1)
         indices = [indices, size(astar_path, 1)]; % Ensure goal is included
     end
-    
+
     waypoints = [astar_path(indices(1:end-1), :);goal_pos];
-    fprintf('Subsampled to %d waypoints for control\n', size(waypoints, 1));
     
     % Set up zones (simplified - use original zones as reference)
     % For now, create a simple single zone covering the corridor areas
@@ -325,57 +280,12 @@ function [waypoints, selectZone, NoEntryZone, ZoneNum, V_ref] = PathSetting_ASta
         axis equal;
     end
     
-    fprintf('A* pathfinding completed successfully!\n');
-    
-    % Print comparison between original and A* waypoints
-    fprintf('\n========================================\n');
-    fprintf('WAYPOINT COMPARISON\n');
-    fprintf('========================================\n');
-    
-    % Hardcoded original manual waypoints from PathSetting_original.m
-    waypoints_orig = [4.0000   -0.2000
-                      1.9100   -0.2000
-                     -0.1800   -0.2000
-                     -0.6800    0.3000
-                     -0.6800    2.1000
-                     -0.6800    3.9000
-                     -0.6800    5.7000
-                     -0.1800    6.2000
-                      1.8787    6.2000
-                      3.9373    6.2000
-                      5.9960    6.2000
-                      8.0547    6.2000
-                     10.1133    6.2000
-                     12.1720    6.2000
-                     14.2307    6.2000
-                     16.2893    6.2000
-                     18.3480    6.2000
-                     20.4067    6.2000
-                     22.4653    6.2000
-                     24.5240    6.2000
-                     26.5827    6.2000
-                     28.6413    6.2000
-                     30.7000    6.2000
-                     31.2000    6.7000
-                     31.2000    7.8500
-                     31.2000    9.0000
-                     31.7000    9.5000
-                     33.0000    9.5000
-                     34.0000    9.5000
-                     34.2000    9.5000
-                     38.0000    9.5000];
-    
-    fprintf('ORIGINAL MANUAL WAYPOINTS (%d points):\n', size(waypoints_orig, 1));
-    for i = 1:size(waypoints_orig, 1)
-        fprintf('%2d: [%7.2f, %7.2f]\n', i, waypoints_orig(i, 1), waypoints_orig(i, 2));
+    % Calculate total path distance (returned for HybridPathPlanner to print)
+    path_distance = 0;
+    for i = 1:size(waypoints,1)-1
+        path_distance = path_distance + norm(waypoints(i+1,:) - waypoints(i,:));
     end
-    
-    fprintf('\nA* GENERATED WAYPOINTS (%d points):\n', size(waypoints, 1));
-    for i = 1:size(waypoints, 1)
-        fprintf('%2d: [%7.2f, %7.2f]\n', i, waypoints(i, 1), waypoints(i, 2));
-    end
-    fprintf('========================================\n');
-  
+
 end
 % ===== A* UTILITY FUNCTIONS =====
 
@@ -400,13 +310,11 @@ function path = pathPlanningOccupancyGrid(start, goal, occ_matrix, resolution, m
     % Inflate obstacles for robot size (using same calculation as main function)
     robot_clearance = robot_width/2 + safety_margin;
     clearance_cells = ceil(robot_clearance * resolution) + 1;
-    fprintf('Path planning using clearance: %d cells (%.2fm total)\n', clearance_cells, robot_clearance);
     inflated_map = inflateMap(occ_matrix, clearance_cells);
 
     % Calculate distance transform for obstacle cost penalty
     % This creates a cost that's higher near obstacles, preventing wall-hugging
     distance_matrix = bwdist(inflated_map >= 0.5);
-    fprintf('Distance transform calculated for obstacle cost penalty\n');
 
     % A* pathfinding with obstacle cost
     path_indices = astar([start_r, start_c], [goal_r, goal_c], inflated_map, distance_matrix, debug_on);
@@ -537,50 +445,32 @@ function path = astar(start, goal, obstacle_map, distance_matrix, debug_on)
         ylabel('Row (Y)');
     end
     
-    fprintf('\n=== A* ALGORITHM DEBUG ===\n');
-    fprintf('Grid size: %dx%d\n', rows, cols);
-    fprintf('Start: [%d, %d], Goal: [%d, %d]\n', start(1), start(2), goal(1), goal(2));
-    
-    % Check start and goal positions
+    % Check start and goal positions (errors only)
     if obstacle_map(start(1), start(2)) >= 0.5
+        fprintf('\n=== A* ERROR ===\n');
         fprintf('ERROR: Start position [%d,%d] is OCCUPIED (value: %.3f)\n', start(1), start(2), obstacle_map(start(1), start(2)));
         path = [];
         return;
-    else
-        fprintf('Start position [%d,%d] is FREE (value: %.3f)\n', start(1), start(2), obstacle_map(start(1), start(2)));
     end
-    
+
     if obstacle_map(goal(1), goal(2)) >= 0.5
+        fprintf('\n=== A* ERROR ===\n');
         fprintf('ERROR: Goal position [%d,%d] is OCCUPIED (value: %.3f)\n', goal(1), goal(2), obstacle_map(goal(1), goal(2)));
         path = [];
         return;
-    else
-        fprintf('Goal position [%d,%d] is FREE (value: %.3f)\n', goal(1), goal(2), obstacle_map(goal(1), goal(2)));
     end
-    
-    % Count free vs occupied cells
-    free_cells = sum(obstacle_map(:) < 0.5);
-    occupied_cells = sum(obstacle_map(:) >= 0.5);
-    total_cells = rows * cols;
-    fprintf('Map statistics: %d free, %d occupied, %d total (%.1f%% free)\n', ...
-            free_cells, occupied_cells, total_cells, 100*free_cells/total_cells);
 
     % Normalize distance matrix for obstacle cost penalty
-    % Based on reference implementation from Astar v2
-    % Creates normalized cost: 0 (far from obstacles) to 1 (near obstacles)
     reso = 20;  % Resolution for normalization (cells)
     r_penalty = 2;  % Penalty radius (meters equivalent)
     normalized_obstacle_cost = max(r_penalty*reso - distance_matrix, 0) / (r_penalty*reso - 1);
-    fprintf('Obstacle cost normalization: penalty radius = %.1f meters\n', r_penalty);
 
-    % Initialize
+    % Initialize A* data structures
     open_set = [start, 0, heuristic(start, goal)]; % [r, c, g_score, f_score]
     closed_set = false(rows, cols);
     came_from = zeros(rows, cols, 2);
     g_score = inf(rows, cols);
     g_score(start(1), start(2)) = 0;
-
-    fprintf('A* initialization complete, starting search...\n');
     
     directions = [-1,0; 1,0; 0,-1; 0,1; -1,-1; -1,1; 1,-1; 1,1];
     costs = [1, 1, 1, 1, sqrt(2), sqrt(2), sqrt(2), sqrt(2)];
@@ -691,7 +581,6 @@ function path = astar(start, goal, obstacle_map, distance_matrix, debug_on)
         
         if current(1) == goal(1) && current(2) == goal(2)
             % Reconstruct path
-            fprintf('A* SUCCESS: Goal reached after %d iterations!\n', iterations);
             path = [];
             while ~(current(1) == start(1) && current(2) == start(2))
                 path = [current; path];
@@ -699,7 +588,6 @@ function path = astar(start, goal, obstacle_map, distance_matrix, debug_on)
                 current = parent;
             end
             path = [start; path];
-            fprintf('Path found with %d waypoints\n', size(path, 1));
             
             % Plot final waypoints on the visualization figure if enabled
             if ENABLE_VISUALIZATION
