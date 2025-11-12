@@ -20,6 +20,7 @@ classdef wheelchairObj < handle
         DataObj
         Datadir
         UserModeRequest  % Store user mode requests from menu
+        pauseRequested   % Flag for keyboard interrupt detection (increased responsiveness)
     end
     properties (Access = private)
         Mode
@@ -104,6 +105,7 @@ classdef wheelchairObj < handle
             obj.DeltaT		= varargin{obj.Ts};
             obj.Datadir     = '';
             obj.UserModeRequest = struct('requested', false); % Initialize user mode request
+            obj.pauseRequested = false; % Initialize pause flag for keyboard detection
             info.HostIP		= '';
             info.ROSHostIP  = varargin{obj.IPAddr}.ROSHostIP;
             if varargin{obj.appMode}

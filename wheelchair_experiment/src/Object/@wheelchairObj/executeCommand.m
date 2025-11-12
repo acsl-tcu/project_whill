@@ -1,24 +1,35 @@
 function ret = executeCommand(obj)
-% ƒf[ƒ^‚Ì“‡
-% „’èŠí‚ğ‰ñ‚·
-% §ŒäŠí‚ğ‰ñ‚·
-% ƒf[ƒ^‚ÌXV‚Æ•\¦
-% ã‹L4‚Â‚ğs‚Á‚Ä‚¢‚é
+% ï¿½fï¿½[ï¿½^ï¿½Ì“ï¿½ï¿½ï¿½
+% ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+% ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+% ï¿½fï¿½[ï¿½^ï¿½ÌXï¿½Vï¿½Æ•\ï¿½ï¿½
+% ï¿½ï¿½L4ï¿½Â‚ï¿½ï¿½sï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½
 % try ~~ catch 
 	try 
-        % ƒf[ƒ^‚ÌûW
+        % ï¿½fï¿½[ï¿½^ï¿½Ìï¿½ï¿½W
         %RawData = Plant
 		RawData   = integrateData(obj);
 		StopWatch = tic;
         T = RawData.T;
-        % „’èŠí
+        % ï¿½ï¿½ï¿½ï¿½ï¿½
 		EstimatedData = exeEstimate(obj, RawData);
         checkData(obj, EstimatedData, "estimate");
-        % §ŒäŠí
+
+        % Check for keyboard interrupt after Estimate (increase responsiveness)
+        if isletter(kbhit)
+            obj.pauseRequested = true;
+        end
+
+        % ï¿½ï¿½ï¿½ï¿½ï¿½
 		ControledData = exeControl(obj, EstimatedData);
 		ControledData.ComputationTime = toc(StopWatch);
+
+        % Check for keyboard interrupt after Control (increase responsiveness)
+        if isletter(kbhit)
+            obj.pauseRequested = true;
+        end
         checkData(obj, ControledData, "control");
-        % ƒf[ƒ^‚ÌXVC•\¦
+        % ï¿½fï¿½[ï¿½^ï¿½ÌXï¿½Vï¿½Cï¿½\ï¿½ï¿½
 		updateData(obj.DataObj, RawData, EstimatedData, ControledData);
 		displayData(obj, T, RawData, EstimatedData, ControledData);
         
@@ -26,11 +37,11 @@ function ret = executeCommand(obj)
 	catch ME
 		switch obj.Mode
 			case {'Expriment', 3}
-                % 0“ü—Í‚ğo‚·
+                % 0ï¿½ï¿½ï¿½Í‚ï¿½ï¿½oï¿½ï¿½
 				endExperiment(obj.DataObj);
                 warning('off', 'backtrace')
 				warning('Emergency stop! Modify the cause of failure in your algorithm.');
-                % ƒGƒ‰[‚ğ“f‚­
+                % ï¿½Gï¿½ï¿½ï¿½[ï¿½ï¿½fï¿½ï¿½
                 rethrow(ME);
 			otherwise
 				rethrow(ME);

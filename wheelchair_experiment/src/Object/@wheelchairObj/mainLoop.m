@@ -5,9 +5,12 @@ if obj.LoopMode
 else
     waitTime = 1.e-12;
     while 1
-        % Check for keyboard input and show menu before executing command
-        if obj.checkForModeMenu()
-            break; % Exit if user requested
+        % Check if pause was requested (keyboard detected in executeCommand)
+        if obj.pauseRequested
+            obj.pauseRequested = false; % Clear flag
+            if obj.checkForModeMenu()
+                break; % Exit if user requested
+            end
         end
 
         % executeCommand��1�ɂȂ�����E�o
