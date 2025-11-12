@@ -2,35 +2,13 @@
   "building": "10F Building",
   "floor": 4,
   "map_file": "../map2.mat",
-  "description": "Updated: 4th floor with tested door-to-door distances",
-  "last_updated": "2025-10-15",
+  "description": "Updated: 4th floor with tested door-to-door distances and room descriptions",
+  "last_updated": "2025-01-12",
   "rooms": [
     {
       "id": "A",
-      "name": "Elevator",
-      "type": "office",
-      "boundaries": {
-        "x_min": 28,
-        "x_max": 39,
-        "y_min": 6.9,
-        "y_max": 13.8
-      },
-      "connections": [
-        {
-          "target_room": "B",
-          "door_position": [
-            31.1,
-            6.9
-          ],
-          "door_width": 1.5,
-          "door_type": "manual",
-          "bidirectional": true
-        }
-      ]
-    },
-    {
-      "id": "B",
-      "name": "Main Corridor",
+      "name": "Hallway",
+      "description": "Main corridor/hallway connecting different areas (Y < 6.9)",
       "type": "corridor",
       "boundaries": {
         "x_min": -6.5,
@@ -40,14 +18,48 @@
       },
       "connections": [
         {
+          "target_room": "B",
+          "door_position": [
+            31.1,
+            6.9
+          ],
+          "astar_goal": [
+            31.2,
+            6.1
+          ],
+          "door_width": 1.5,
+          "door_type": "manual",
+          "bidirectional": true,
+          "description": "Door from Hallway to Elevator Room"
+        }
+      ]
+    },
+    {
+      "id": "B",
+      "name": "Elevator Room",
+      "description": "Room containing the elevator entrance at [27, 9.5] (Y > 6.9)",
+      "type": "office",
+      "boundaries": {
+        "x_min": 28,
+        "x_max": 39,
+        "y_min": 6.9,
+        "y_max": 13.8
+      },
+      "connections": [
+        {
           "target_room": "A",
           "door_position": [
             31.1,
             6.9
           ],
+          "astar_goal": [
+            31.1,
+            8.0
+          ],
           "door_width": 1.5,
           "door_type": "manual",
-          "bidirectional": true
+          "bidirectional": true,
+          "description": "Door from Elevator Room to Hallway"
         }
       ]
     }

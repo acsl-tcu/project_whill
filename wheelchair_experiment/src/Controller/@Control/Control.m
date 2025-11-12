@@ -95,7 +95,7 @@ classdef Control < handle
             'POSITION_ANGLE_TOLERANCE', 0.087, ...   % ±5 degrees acceptable heading error (radians)
             'CORRECTION_TURN_SPEED', 0.3, ...        % rad/s for correction turns
             'CORRECTION_MOVE_SPEED', 0.4, ...        % m/s for correction movement (slower than entry)
-            'TURN_TOLERANCE', 0.1, ...               % radians (~6 degrees) - when to stop turning
+            'TURN_TOLERANCE', deg2rad(1), ...        % radians (1 degree) - when to stop turning
             'TURN_SPEED', 0.1, ...                   % rad/s for Phase 2 turning
             'ANGLE_TOLERANCE', 30, ...               % ±30 degrees cone towards elevator (initial filtering)
             'NARROW_ROI_ANGLE', 4, ...               % ±4 degrees for wheelchair safe passage (critical ROI)
@@ -103,7 +103,7 @@ classdef Control < handle
             'DOOR_HEIGHT_MAX', 1.7, ...              % Maximum door height
             'MIN_POINTS_THRESHOLD', 5, ...           % Minimum points needed for analysis
             'DEPTH_THRESHOLD', 0.3, ...              % Points must be this much deeper than elevator center
-            'MOVE_DISTANCE', 2.3, ...                % meters to move into elevator
+            'MOVE_DISTANCE', 2.35, ...               % meters to move into/out of elevator
             'MOVE_SPEED', 0.2 ...                    % m/s for forward/reverse movement
         );
         %%

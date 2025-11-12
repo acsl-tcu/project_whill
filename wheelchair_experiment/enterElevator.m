@@ -384,9 +384,8 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
 
             fprintf('Phase 5: Reversing out of elevator\n');
             % Use moveDistance with 'reverse' direction
-            % Target: reverse the same distance we moved forward in Phase 3
-            % Start from 0 and accumulate to phase3_distance_traveled
-            move_result = moveDistance(phase3_distance_traveled, MOVE_SPEED, 'reverse', phase5_distance_traveled, last_update_time_reverse);
+            % Target: reverse the same fixed MOVE_DISTANCE (no accumulation errors)
+            move_result = moveDistance(MOVE_DISTANCE, MOVE_SPEED, 'reverse', phase5_distance_traveled, last_update_time_reverse);
 
             result.V = move_result.V;
             phase5_distance_traveled = move_result.distance_traveled;

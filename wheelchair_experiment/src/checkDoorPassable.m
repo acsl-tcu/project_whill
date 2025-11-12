@@ -147,7 +147,15 @@ function result = checkDoorPassable(lidar_scan_data, wheelchair_pose, door_cente
     DOOR_HEIGHT_MAX = door_params.DOOR_HEIGHT_MAX;
     MIN_POINTS = door_params.MIN_POINTS_THRESHOLD;
     DEPTH_THRESHOLD = door_params.DEPTH_THRESHOLD;
-    FIXED_DOOR_DISTANCE = door_params.FIXED_ELEVATOR_DISTANCE;
+
+    % FIXED_ELEVATOR_DISTANCE was removed - use MOVE_DISTANCE or default 2.5m
+    if isfield(door_params, 'MOVE_DISTANCE')
+        FIXED_DOOR_DISTANCE = door_params.MOVE_DISTANCE;
+    elseif isfield(door_params, 'FIXED_ELEVATOR_DISTANCE')
+        FIXED_DOOR_DISTANCE = door_params.FIXED_ELEVATOR_DISTANCE;
+    else
+        FIXED_DOOR_DISTANCE = 2.5; % Default: 2.5m fixed distance in odometry mode
+    end
 
     % Calculate target direction and distance to door
     wheelchair_pos = wheelchair_pose(1:2);
