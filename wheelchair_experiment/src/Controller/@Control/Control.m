@@ -103,8 +103,7 @@ classdef Control < handle
             'DOOR_HEIGHT_MAX', 1.7, ...              % Maximum door height
             'MIN_POINTS_THRESHOLD', 5, ...           % Minimum points needed for analysis
             'DEPTH_THRESHOLD', 0.3, ...              % Points must be this much deeper than elevator center
-            'FIXED_ELEVATOR_DISTANCE', 2.2, ...      % Fixed elevator center distance in odometry mode (meters)
-            'MOVE_DISTANCE', 2.4, ...                % meters to move into elevator (reduced by 10cm to avoid back wall)
+            'MOVE_DISTANCE', 2.3, ...                % meters to move into elevator
             'MOVE_SPEED', 0.2 ...                    % m/s for forward/reverse movement
         );
         %%

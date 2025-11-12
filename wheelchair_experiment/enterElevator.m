@@ -72,9 +72,8 @@ function result = enterElevator(current_position, current_yaw, elevator_center, 
         door_params.DOOR_HEIGHT_MAX = 1.7;      % Maximum door height
         door_params.MIN_POINTS_THRESHOLD = 5;   % Minimum points needed for analysis
         door_params.DEPTH_THRESHOLD = 0.3;     % Points must be this much deeper than elevator center
-        door_params.FIXED_ELEVATOR_DISTANCE = 2.2; % Fixed elevator center distance in odometry mode (meters)
         % Phase 3 & 5: Movement into/out of elevator
-        door_params.MOVE_DISTANCE = 2.4;                % meters to move into elevator
+        door_params.MOVE_DISTANCE = 2.3;                % meters to move into elevator
         door_params.MOVE_SPEED = 0.2;                   % m/s for forward/reverse movement
     end
     
