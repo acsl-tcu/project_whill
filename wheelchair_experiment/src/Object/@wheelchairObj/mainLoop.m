@@ -3,6 +3,14 @@ if obj.LoopMode
     setParallel(obj);
     Data = [];
 else
+    % Show menu at startup before main loop begins
+    fprintf('\n*** INITIAL SETUP ***\n');
+    fprintf('Please select a mode to start the wheelchair system.\n');
+    if obj.checkForModeMenu()
+        Data = [];
+        return; % Exit if user requested
+    end
+
     waitTime = 1.e-12;
     while 1
         % Check if pause was requested (keyboard detected in executeCommand)
