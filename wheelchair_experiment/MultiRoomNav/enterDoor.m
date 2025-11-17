@@ -33,6 +33,7 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
     persistent door_verified;     % Track if door has been verified open
     persistent distance_traveled; % Track odometry-based distance in Phase 3
     persistent last_update_time;  % For delta time calculation
+    persistent idle_phase_active; % Track if idle phase (2.5) is active (controls Phase 2 reentry + pause)
 
     % Initialize persistent variables
     if isempty(phase1_completed)
@@ -43,6 +44,9 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
     end
     if isempty(distance_traveled)
         distance_traveled = 0;
+    end
+    if isempty(idle_phase_active)
+        idle_phase_active = false;  % Not in idle phase initially
     end
 
     % Set default door_type
@@ -92,10 +96,22 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
             phase1_completed = true;
         end
 
-    % Phase 2: Turn towards exit position (target in next room)
-    elseif abs(heading_error) > TURN_TOLERANCE
+    % Phase 2: Turn towards exit position (with hysteresis when idle phase active)
+    elseif (~idle_phase_active && abs(heading_error) > TURN_TOLERANCE) || ...
+           (idle_phase_active && abs(heading_error) > TURN_TOLERANCE + 0.25)
+        % Enter Phase 2 if:
+        % - Idle phase NOT active AND error > tight tolerance (initial entry)
+        % - Idle phase active AND error > wider tolerance (prevent re-entry oscillation during idle motion)
+
         result.phase = 2;
         result.status = 'Turning towards exit position';
+
+        % Deactivate idle phase when re-entering Phase 2 (allows exit with tight tolerance again)
+        if idle_phase_active
+            fprintf('  Phase 2: Re-entering (error %.1f° > %.1f° reentry threshold)\n', ...
+                rad2deg(abs(heading_error)), rad2deg(TURN_TOLERANCE + 0.25));
+            idle_phase_active = false;
+        end
 
         turn_result = turnTowardsTarget(current_yaw, exit_position, current_position, TURN_SPEED, TURN_TOLERANCE);
         result.V = turn_result.V;
@@ -124,10 +140,18 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
             % Generate idle motion commands (alternates forward/backward each call)
             idle_params = struct();
             idle_params.IDLE_SPEED = 0.05;  % 5 cm/s
+            idle_params.should_pause = idle_phase_active;  % Only pause if idle phase already active
 
             idle_result = idleMotionForDoorSensor(idle_params);
             result.V = idle_result.V;
             result.status = sprintf('Phase 2.5: %s', idle_result.status);
+
+            % Activate idle phase AFTER idle motion command (prevents oscillation, but allows first turn to complete)
+            if ~idle_phase_active
+                idle_phase_active = true;
+                fprintf('  Phase 2.5: ACTIVATED idle phase (Phase 2 reentry requires %.1f° error, pause enabled)\n', ...
+                    rad2deg(TURN_TOLERANCE + 0.25));
+            end
         else
             door_verified = true; % Proceed anyway if unknown
             result.V = [0; 0];
@@ -163,6 +187,7 @@ function result = enterDoor(current_position, current_yaw, door_center, exit_pos
             door_verified = [];
             distance_traveled = [];
             last_update_time = [];
+            idle_phase_active = [];  % Reset idle phase flag for next door
         end
     end
 end

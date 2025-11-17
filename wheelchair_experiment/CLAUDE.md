@@ -198,8 +198,49 @@ git config credential.helper store
 - Current branch: `Elevator_Gazebo`
 - Main branch: `main`
 
+### ⚠️ IMPORTANT: Git Pull Policy for main_astar.m
+
+**BY DEFAULT: NEVER pull `main_astar.m` from remote when user says "pull latest changes"**
+
+**Reason:**
+- `main_astar.m` contains **local configuration** that varies between users/machines
+- Example: Initial position, mode settings (Gazebo vs Online), sensor configurations
+- Pulling from remote will overwrite your local setup with someone else's configuration
+
+**Default Workflow (when user says "pull latest"):**
+1. **Fetch and check** what files will be updated:
+   ```bash
+   git fetch origin Elevator_Gazebo
+   git diff HEAD..origin/Elevator_Gazebo --name-only
+   ```
+
+2. **If `main_astar.m` is in the list**:
+   - **AUTOMATICALLY EXCLUDE** it from the pull
+   - Pull all other files normally
+   - Restore local version after pull:
+     ```bash
+     git pull origin Elevator_Gazebo
+     git checkout HEAD@{1} -- main_astar.m  # Restore local version
+     ```
+   - Inform the user that main_astar.m was excluded
+
+3. **Only pull `main_astar.m` when user EXPLICITLY requests it**:
+   - User says "pull main_astar" or "update main_astar from remote"
+   - User says "pull everything including main_astar"
+   - User confirms they want to overwrite their local configuration
+
+**Git Ignore Recommendation:**
+- Consider adding `main_astar.m` to `.git/info/exclude` (local ignore, not in repo):
+  ```bash
+  echo "main_astar.m" >> .git/info/exclude
+  ```
+- This prevents accidental commits of local configuration changes
+
 ### Files to Ignore (DO NOT Commit/Push)
 The following files and folders should **NOT** be committed or pushed to GitHub:
+
+**Local Configuration Files:**
+- `main_astar.m` - Contains workspace-specific initial positions and settings (use with caution)
 
 **Large Data Files:**
 - `data/` - Experimental data folders (contains large video/result files)
@@ -211,6 +252,7 @@ The following files and folders should **NOT** be committed or pushed to GitHub:
 - GitHub has a 100MB file size limit
 - Experimental data is local and regeneratable
 - Temporary files are not needed in version control
+- Local configuration varies between users/machines
 
 These files are listed in `.gitignore` to prevent accidental commits.
 

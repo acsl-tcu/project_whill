@@ -273,6 +273,6 @@ function params = getDefaultElevatorParams()
     params.DOOR_HEIGHT_MAX = 1.7;
     params.MIN_POINTS_THRESHOLD = 5;
     params.DEPTH_THRESHOLD = 0.3;
-    params.MOVE_DISTANCE = 2.5;
+    params.MOVE_DISTANCE = 2.60;  % Increased by 10cm total for deeper elevator entry
     params.MOVE_SPEED = 0.2;
 end
