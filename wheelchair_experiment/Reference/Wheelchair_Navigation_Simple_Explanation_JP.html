@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>車椅子ナビゲーションシステム - 簡単な説明</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Yu Gothic', 'Meiryo', sans-serif;
+            line-height: 1.8;
+            color: #333;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 4px solid #3498db;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        h2 {
+            color: #2c3e50;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-left: 15px;
+            border-left: 5px solid #3498db;
+            font-size: 1.8em;
+        }
+
+        h3 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+
+        h4 {
+            color: #555;
+            margin-top: 25px;
+            margin-bottom: 12px;
+            font-size: 1.2em;
+        }
+
+        p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+
+        .overview {
+            background-color: #e8f4f8;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 5px solid #3498db;
+        }
+
+        .quick-nav {
+            background-color: #fff9e6;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 5px solid #f39c12;
+        }
+
+        .quick-nav ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+
+        .quick-nav li {
+            margin-bottom: 8px;
+        }
+
+        ul, ol {
+            margin-left: 30px;
+            margin-bottom: 20px;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .step-box {
+            background-color: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+
+        .step-box h4 {
+            margin-top: 0;
+            color: #3498db;
+        }
+
+        .phase-box {
+            background-color: #fff;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .phase-box h4 {
+            margin-top: 0;
+            color: #e74c3c;
+        }
+
+        .safety-feature {
+            background-color: #e8f8f5;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            border-left: 4px solid #27ae60;
+        }
+
+        .safety-feature h3 {
+            margin-top: 0;
+            color: #27ae60;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #3498db;
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        .example-box {
+            background-color: #fef5e7;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #f39c12;
+        }
+
+        .example-box h3 {
+            margin-top: 0;
+            color: #f39c12;
+        }
+
+        .mermaid-container {
+            background-color: white;
+            padding: 30px;
+            margin: 30px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+
+        .legend {
+            background-color: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+
+        .legend h2 {
+            margin-top: 0;
+        }
+
+        .legend-item {
+            display: inline-block;
+            margin: 10px 15px 10px 0;
+        }
+
+        .legend-color {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border: 1px solid #ccc;
+            vertical-align: middle;
+        }
+
+        .summary-box {
+            background-color: #e8f8f5;
+            padding: 25px;
+            margin: 30px 0;
+            border-radius: 8px;
+            border-left: 5px solid #27ae60;
+        }
+
+        .summary-box h2 {
+            margin-top: 0;
+            color: #27ae60;
+            border: none;
+            padding: 0;
+        }
+
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+            text-align: center;
+            color: #777;
+            font-size: 0.9em;
+        }
+
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        hr {
+            border: none;
+            border-top: 2px solid #e0e0e0;
+            margin: 40px 0;
+        }
+
+        @media print {
+            body {
+                background-color: white;
+            }
+            .container {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>車椅子ナビゲーションシステム - 簡単な説明</h1>
+
+        <div class="overview">
+            <h2>概要</h2>
+            <p>自律走行車椅子は、開始位置からエレベーターまで移動し、階間を移動して退出します。システムは車椅子を部屋、出入口、エレベーターを通じて自動的に誘導します。</p>
+        </div>
+
+        <div class="quick-nav">
+            <h2>クイックナビゲーション</h2>
+            <p>このドキュメントには以下の詳細なフローチャートが含まれています:</p>
+            <ul>
+                <li><strong><a href="#door-crossing-flowchart">ドア通過フェーズ</a></strong> - 4つのフェーズとビジュアル図</li>
+                <li><strong><a href="#elevator-entry-flowchart">エレベーター進入フェーズ</a></strong> - 6つのフェーズとビジュアル図</li>
+                <li><strong><a href="#main-flowchart">完全システムフローチャート</a></strong> - 全体的なナビゲーションプロセス</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <h2>ナビゲーションプロセス</h2>
+
+        <h3>1. システム起動</h3>
+
+        <div class="step-box">
+            <h4>マップ読み込み</h4>
+            <ul>
+                <li>車椅子が建物の事前作成されたマップを読み込む</li>
+                <li>マップには壁、部屋、ドア、エレベーターの位置が表示される</li>
+                <li>建物のレイアウトには、出入口で接続された複数の部屋が含まれる</li>
+            </ul>
+        </div>
+
+        <div class="step-box">
+            <h4>経路計画</h4>
+            <ul>
+                <li>システムが現在地からエレベーターまでの最適経路を計算する</li>
+                <li>移動を複数のセグメントに分割: 部屋A → ドア → 部屋B → ドア → 部屋C → エレベーター</li>
+                <li>各部屋で従うべき特定のポイント(ウェイポイント)を計画する</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <h3>2. メインナビゲーションサイクル</h3>
+
+        <p>車椅子は目的地に到達するまで、このサイクルを連続的に繰り返します:</p>
+
+        <div class="step-box">
+            <h4>ステップ1: センサー読み取り</h4>
+            <ul>
+                <li>レーザースキャナーが周囲の障害物と壁を検出</li>
+                <li>位置トラッカーがマップ上の現在位置を特定</li>
+                <li>カメラが近くの物体を識別</li>
+            </ul>
+        </div>
+
+        <div class="step-box">
+            <h4>ステップ2: 環境理解</h4>
+            <ul>
+                <li>物体(人、家具、壁)を識別</li>
+                <li>障害物までの距離を測定</li>
+                <li>マップ上の現在位置を確認</li>
+            </ul>
+        </div>
+
+        <div class="step-box">
+            <h4>ステップ3: 動作決定</h4>
+            <p>システムは現在の状況に基づいて何をすべきかを決定します:</p>
+            <ul>
+                <li><strong>経路追従:</strong> 計画された経路に沿って移動を継続</li>
+                <li><strong>ドア進入:</strong> 次の部屋へ出入口を通過</li>
+                <li><strong>エレベーター進入:</strong> エレベーターへの進入と退出の特別なシーケンス</li>
+            </ul>
+        </div>
+
+        <div class="step-box">
+            <h4>ステップ4: 移動計算</h4>
+            <ul>
+                <li>安全な移動方向を決定</li>
+                <li>センサーで検出された障害物を回避</li>
+                <li>物体との近接度に基づいて速度を調整</li>
+                <li>計画された経路との整合性を維持</li>
+            </ul>
+        </div>
+
+        <div class="step-box">
+            <h4>ステップ5: 移動実行</h4>
+            <ul>
+                <li>車椅子モーターに移動コマンドを送信</li>
+                <li>計算された速度で前進</li>
+                <li>経路に従うか障害物を回避するために旋回</li>
+            </ul>
+        </div>
+
+        <div class="step-box">
+            <h4>ステップ6: 進捗確認</h4>
+            <ul>
+                <li>現在のセグメントが完了したかを確認</li>
+                <li>準備ができたら次のナビゲーションセグメントに進む</li>
+                <li>現在の状態を表示する画面を更新</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <h2>ナビゲーションセグメント</h2>
+
+        <h3>セグメントタイプ1: 部屋内の経路追従</h3>
+
+        <div class="step-box">
+            <h4>動作内容:</h4>
+            <ul>
+                <li>車椅子が部屋内の一連のガイドポイントに従う</li>
+                <li>センサーを継続的にチェックして障害物を回避</li>
+                <li>物体が道を塞いでいる場合は経路を調整</li>
+                <li>部屋の出口(出入口)に向かって移動</li>
+            </ul>
+        </div>
+
+        <div class="step-box">
+            <h4>進捗追跡:</h4>
+            <ul>
+                <li>車椅子が通過すると各ガイドポイントを「到達済み」とマーク</li>
+                <li>自動的に次のガイドポイントに移動</li>
+                <li>部屋内のすべてのガイドポイントに到達すると完了</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <h3>セグメントタイプ2: 出入口の通過</h3>
+
+        <div class="phase-box">
+            <h4>フェーズ1: ドアへの接近</h4>
+            <ul>
+                <li>車椅子が出入口の1メートル手前に位置する</li>
+                <li>ドアにまっすぐ向くように整列</li>
+                <li>ドア通過の準備のために停止</li>
+            </ul>
+        </div>
+
+        <div class="phase-box">
+            <h4>フェーズ2: 出口方向を向く</h4>
+            <ul>
+                <li>次の部屋の経路に向かって回転</li>
+                <li>通過前に適切な方向を確保</li>
+                <li>通過後に向かう必要がある方向と整列</li>
+            </ul>
+        </div>
+
+        <div class="phase-box">
+            <h4>フェーズ3: ドアが開いているか確認</h4>
+            <ul>
+                <li>レーザースキャナーが出入口の障害物を探す</li>
+                <li><strong>ドアが開いている:</strong> 障害物がほとんどまたは全く検出されない → 進行</li>
+                <li><strong>ドアが閉じている:</strong> 固体表面を検出 → 自動ドアをトリガー
+                    <ul>
+                        <li>小さな前後動作を実行</li>
+                        <li>自動ドアのモーションセンサーを作動</li>
+                        <li>ドアが開くのを待つ</li>
+                    </ul>
+                </li>
+                <li>移動前にドアが通過可能であることを確認</li>
+            </ul>
+        </div>
+
+        <div class="phase-box">
+            <h4>フェーズ4: しきいを越える</h4>
+            <ul>
+                <li>一定速度で出入口をまっすぐ通過</li>
+                <li>ドアを完全にクリアするために2メートル前進</li>
+                <li>位置ではなく距離測定を使用(通過中により信頼性が高い)</li>
+            </ul>
+        </div>
+
+        <div class="phase-box">
+            <h4>フェーズ5: 次の部屋で継続</h4>
+            <ul>
+                <li>新しい部屋のガイドポイントを読み込む</li>
+                <li>次の部屋を通る経路に従い始める</li>
+            </ul>
+        </div>
+
+        <p><strong>所要時間:</strong> ドアあたり5〜15秒</p>
+
+        <h4 id="door-crossing-flowchart">ドア通過フローチャート</h4>
+
+        <div class="mermaid-container">
+            <div class="mermaid">
+flowchart TB
+    StartDoor([車椅子がドアに到着]) --> Phase1[フェーズ1: ドアへの接近<br/>1メートル手前で停止<br/>ドアにまっすぐ向く]
+
+    Phase1 --> Phase2[フェーズ2: 出口に向く<br/>次の部屋に向かって回転<br/>目的地と整列]
+
+    Phase2 --> Phase3{フェーズ3: ドア確認}
+
+    Phase3 -->|ドアが開いている| Wait[2秒待機<br/>ドアが完全に開くのを待つ]
+    Phase3 -->|ドアが閉じている| Trigger[自動ドアをトリガー<br/>前後に移動<br/>モーションセンサーを作動]
+
+    Trigger --> CheckAgain{ドアは<br/>開いたか?}
+    CheckAgain -->|いいえ| Trigger
+    CheckAgain -->|はい| Wait
+
+    Wait --> Phase4[フェーズ4: 出入口を通過<br/>2メートル前進<br/>一定速度で]
+
+    Phase4 --> Monitor{2メートル<br/>移動したか?}
+    Monitor -->|いいえ| Phase4
+    Monitor -->|はい| Complete([ドア通過完了<br/>次の部屋の経路を読み込む])
+
+    style StartDoor fill:#90EE90
+    style Complete fill:#90EE90
+    style Phase1 fill:#87CEEB
+    style Phase2 fill:#87CEEB
+    style Phase3 fill:#DDA0DD
+    style Phase4 fill:#87CEEB
+    style Trigger fill:#FFE4B5
+    style Wait fill:#FFE4B5
+            </div>
+        </div>
+
+        <hr>
+
+        <h3>セグメントタイプ3: エレベーターへの進入</h3>
+
+        <p>これは複数のサブステージを持つ最も複雑なセグメントです:</p>
+
+        <div class="phase-box">
+            <h4>ステージ1: 接近と整列(フェーズ1-2)</h4>
+            <ul>
+                <li>エレベーターのドアの1メートル手前に位置する</li>
+                <li>エレベーター入口にまっすぐ向くように回転</li>
+                <li>スムーズな進入のために完璧に整列</li>
+            </ul>
+        </div>
+
+        <div class="phase-box">
+            <h4>ステージ2: ドアの開放(フェーズ3)</h4>
+            <ul>
+                <li>レーザースキャナーがエレベーターのドアが開いているか確認</li>
+                <li><strong>ドアが閉じている:</strong> 固体表面を検出
+                    <ul>
+                        <li>モーションセンサーをトリガーするために小さな動きを実行</li>
+                        <li>自動ドアが開くのを待つ</li>
+                    </ul>
+                </li>
+                <li><strong>ドアが開いている:</strong> 内部への明確な経路を検出
+                    <ul>
+                        <li>ドアが完全に開くまで2秒待つ</li>
+                        <li>進入に進む</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <div class="phase-box">
+            <h4>ステージ3: エレベーターに進入(フェーズ3)</h4>
+            <ul>
+                <li>エレベーターキャビン内にまっすぐ移動</li>
+                <li>エレベーターの中心に到達するために2メートル移動</li>
+                <li>エレベーター内部で停止</li>
+            </ul>
+        </div>
+
+        <div class="phase-box">
+            <h4>ステージ4: 内部で待機(フェーズ4)</h4>
+
+            <p><strong>サブステージA: ドアが閉まる</strong></p>
+            <ul>
+                <li>エレベーターのドアが自動的に閉まる</li>
+                <li>車椅子は内部で静止したまま</li>
+            </ul>
+
+            <p><strong>サブステージB: 階の選択</strong></p>
+            <ul>
+                <li>システムが希望の階番号を登録</li>
+                <li>(実際のシステムでは: エレベーターパネルとインターフェース)</li>
+            </ul>
+
+            <p><strong>サブステージC: 階への移動</strong></p>
+            <ul>
+                <li>エレベーターが目的階まで上下に移動</li>
+                <li>車椅子は移動中静止したまま待機</li>
+            </ul>
+
+            <p><strong>サブステージD: ドアが開く</strong></p>
+            <ul>
+                <li>エレベーターが目的階に到着</li>
+                <li>ドアが自動的に開く</li>
+                <li>レーザースキャナーがドアが完全に開いたことを検出</li>
+            </ul>
+        </div>
+
+        <div class="phase-box">
+            <h4>ステージ5: エレベーターから退出(フェーズ5)</h4>
+            <ul>
+                <li>車椅子がエレベーターから後方に退出</li>
+                <li>進入時と同じ距離(2メートル)移動</li>
+                <li>進捗を追跡するために距離測定を使用</li>
+                <li>振り向くことなくスムーズに退出</li>
+            </ul>
+
+            <p><strong>なぜ後退するのか?</strong></p>
+            <ul>
+                <li>エレベーターキャビンは振り向くには小さすぎる</li>
+                <li>後退により安定性を維持</li>
+                <li>複雑な旋回操作よりも簡単</li>
+            </ul>
+        </div>
+
+        <div class="phase-box">
+            <h4>ステージ6: 完了(フェーズ6)</h4>
+            <ul>
+                <li>車椅子が新しい階のエレベーターの外に完全に出る</li>
+                <li>新しい階でナビゲーションを続ける準備ができた</li>
+            </ul>
+        </div>
+
+        <h4 id="elevator-entry-flowchart">エレベーター進入フローチャート</h4>
+
+        <div class="mermaid-container">
+            <div class="mermaid">
+flowchart TB
+    StartElev([車椅子がエレベーターに到着]) --> Phase1[フェーズ1-2: 接近と整列<br/>1メートル手前で停止<br/>エレベーターにまっすぐ向く]
+
+    Phase1 --> CheckDoor{フェーズ3: エレベーターの<br/>ドアは開いているか?}
+
+    CheckDoor -->|ドアが閉じている| TriggerElev[エレベーターのドアをトリガー<br/>前後に移動<br/>モーションセンサーを作動]
+    TriggerElev --> CheckDoor
+
+    CheckDoor -->|ドアが開いている| WaitOpen[2秒待機<br/>ドアが完全に開くことを確認]
+
+    WaitOpen --> Enter[フェーズ3: エレベーターに進入<br/>2メートル前進<br/>キャビン内で停止]
+
+    Enter --> InsideCheck{エレベーター<br/>内部にいるか?}
+    InsideCheck -->|いいえ| Enter
+    InsideCheck -->|はい| DoorClose[フェーズ4A: ドアが閉まる<br/>車椅子は静止したまま]
+
+    DoorClose --> SelectFloor[フェーズ4B: 階の選択<br/>システムが目標階を登録]
+
+    SelectFloor --> Travel[フェーズ4C: 階への移動<br/>エレベーターが上下に移動<br/>車椅子は静止したまま]
+
+    Travel --> ArriveFloor[フェーズ4D: 階に到着<br/>エレベーターが停止<br/>ドアが自動的に開く]
+
+    ArriveFloor --> DetectOpen{ドアが完全に<br/>開いたことを検出?}
+    DetectOpen -->|いいえ| ArriveFloor
+    DetectOpen -->|はい| Reverse[フェーズ5: 後退して退出<br/>2メートル後退<br/>エレベーターから退出]
+
+    Reverse --> ExitCheck{エレベーターから<br/>退出したか?}
+    ExitCheck -->|いいえ| Reverse
+    ExitCheck -->|はい| Complete([エレベーター退出完了<br/>新しい階にいる])
+
+    style StartElev fill:#90EE90
+    style Complete fill:#90EE90
+    style Phase1 fill:#FFB6B6
+    style CheckDoor fill:#DDA0DD
+    style Enter fill:#FFB6B6
+    style DoorClose fill:#FFE4B5
+    style SelectFloor fill:#FFE4B5
+    style Travel fill:#FFE4B5
+    style ArriveFloor fill:#FFE4B5
+    style Reverse fill:#FFB6B6
+    style TriggerElev fill:#FFE4B5
+            </div>
+        </div>
+
+        <h4>エレベーターフェーズの概要:</h4>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>フェーズ</th>
+                    <th>動作内容</th>
+                    <th>車椅子の動き</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>1-2</strong></td>
+                    <td>接近と整列</td>
+                    <td>前方で停止</td>
+                </tr>
+                <tr>
+                    <td><strong>3</strong></td>
+                    <td>ドアを確認、閉じている場合はトリガー、進入</td>
+                    <td>2メートル前進</td>
+                </tr>
+                <tr>
+                    <td><strong>4A</strong></td>
+                    <td>ドアが閉まる</td>
+                    <td>静止したまま</td>
+                </tr>
+                <tr>
+                    <td><strong>4B</strong></td>
+                    <td>階の選択</td>
+                    <td>静止したまま</td>
+                </tr>
+                <tr>
+                    <td><strong>4C</strong></td>
+                    <td>階間を移動</td>
+                    <td>静止したまま</td>
+                </tr>
+                <tr>
+                    <td><strong>4D</strong></td>
+                    <td>到着、ドアが開く</td>
+                    <td>静止したまま</td>
+                </tr>
+                <tr>
+                    <td><strong>5</strong></td>
+                    <td>エレベーターから後退</td>
+                    <td>2メートル後退</td>
+                </tr>
+                <tr>
+                    <td><strong>6</strong></td>
+                    <td>完了</td>
+                    <td>停止</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <hr>
+
+        <h2>完全な移動例</h2>
+
+        <div class="example-box">
+            <h3>経路詳細</h3>
+            <p><strong>出発地点:</strong> 部屋A(4階)</p>
+            <p><strong>目的地:</strong> エレベーター → 1階</p>
+
+            <h4>移動の内訳:</h4>
+
+            <ol>
+                <li><strong>部屋Aのナビゲーション</strong> (30秒)
+                    <ul>
+                        <li>部屋Aを通る15個のガイドポイントに従う</li>
+                        <li>家具と壁を回避</li>
+                        <li>部屋Bへのドアに到達</li>
+                    </ul>
+                </li>
+
+                <li><strong>ドアA→B通過</strong> (8秒)
+                    <ul>
+                        <li>ドアに接近</li>
+                        <li>部屋Bに向くように整列</li>
+                        <li>ドアが開いているか確認</li>
+                        <li>部屋Bに進入</li>
+                    </ul>
+                </li>
+
+                <li><strong>部屋Bのナビゲーション</strong> (25秒)
+                    <ul>
+                        <li>部屋Bを通る12個のガイドポイントに従う</li>
+                        <li>障害物を回避しながら移動</li>
+                        <li>部屋Cへのドアに到達</li>
+                    </ul>
+                </li>
+
+                <li><strong>ドアB→C通過</strong> (10秒)
+                    <ul>
+                        <li>ドアに接近</li>
+                        <li>自動ドアが開くのを待つ</li>
+                        <li>部屋Cに進入</li>
+                    </ul>
+                </li>
+
+                <li><strong>部屋Cのナビゲーション</strong> (20秒)
+                    <ul>
+                        <li>部屋Cを通る8個のガイドポイントに従う</li>
+                        <li>エレベーター入口に接近</li>
+                    </ul>
+                </li>
+
+                <li><strong>エレベーター進入</strong> (45秒)
+                    <ul>
+                        <li>エレベーターの前で整列 (5秒)</li>
+                        <li>エレベーターのドアが開くのを待つ (5秒)</li>
+                        <li>エレベーターキャビンに進入 (5秒)</li>
+                        <li>ドアが閉まる (5秒)</li>
+                        <li>4階から1階へ移動 (20秒)</li>
+                        <li>ドアが開く (3秒)</li>
+                        <li>エレベーターから後退して退出 (7秒)</li>
+                    </ul>
+                </li>
+            </ol>
+
+            <p><strong>合計時間:</strong> 約2分18秒</p>
+        </div>
+
+        <hr>
+
+        <h2>安全機能</h2>
+
+        <div class="safety-feature">
+            <h3>障害物回避</h3>
+            <ul>
+                <li>車椅子の周囲360°を継続的にスキャン</li>
+                <li>検出された物体の周囲の安全な経路を計算</li>
+                <li>障害物が近すぎる場合は減速または停止</li>
+                <li>元の経路が塞がれている場合は経路を再計画</li>
+            </ul>
+        </div>
+
+        <div class="safety-feature">
+            <h3>ドアの安全性</h3>
+            <ul>
+                <li>閉じたドアを通過しようとしない</li>
+                <li>モーショントリガーを使用して自動ドアを積極的に開く</li>
+                <li>ドアが通過可能であることの確認を待つ</li>
+                <li>ドアが予期せず閉まった場合は即座に停止</li>
+            </ul>
+        </div>
+
+        <div class="safety-feature">
+            <h3>エレベーターの安全性</h3>
+            <ul>
+                <li>進入前にドアが完全に開いていることを確認</li>
+                <li>階移動中は静止したまま</li>
+                <li>退出前にドアが開いていることを検出</li>
+                <li>キャビン内でゆっくりとした制御された動きを使用</li>
+            </ul>
+        </div>
+
+        <div class="safety-feature">
+            <h3>位置追跡</h3>
+            <ul>
+                <li>現在位置を常に監視</li>
+                <li>計画された経路に沿った進捗を確認</li>
+                <li>位置を確認するために複数の方法を使用</li>
+                <li>位置が不確実な場合は距離測定にフォールバック</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <h2>ユーザーインタラクション</h2>
+
+        <div class="step-box">
+            <h4>通常動作中:</h4>
+            <ul>
+                <li>システムは完全に自律的に動作</li>
+                <li>ユーザーはディスプレイで進捗を監視できる</li>
+                <li>現在の部屋、動作、進捗パーセンテージを表示</li>
+            </ul>
+        </div>
+
+        <div class="step-box">
+            <h4>オプションのユーザーコマンド:</h4>
+            <ul>
+                <li>現在位置から経路を再計画するように要求できる</li>
+                <li>特別なテストモードを有効にできる</li>
+                <li>いつでもナビゲーションを停止できる</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <h2>システムディスプレイ</h2>
+
+        <p><strong>リアルタイムステータス情報:</strong></p>
+
+        <div class="step-box">
+            <h4>セクション1: 位置</h4>
+            <ul>
+                <li>マップ上の現在のX、Y座標</li>
+                <li>現在の向き</li>
+                <li>経過時間</li>
+            </ul>
+        </div>
+
+        <div class="step-box">
+            <h4>セクション2: ナビゲーション進捗</h4>
+            <ul>
+                <li>現在のガイドポイント: 8/15</li>
+                <li>最終目的地までの距離</li>
+                <li>近くで検出された障害物</li>
+            </ul>
+        </div>
+
+        <div class="step-box">
+            <h4>セクション3: 現在の動作</h4>
+            <ul>
+                <li>「部屋Bで経路に従っています」</li>
+                <li>「部屋Cへの出入口に進入しています」</li>
+                <li>「エレベーターに進入しています - ドアを待っています」</li>
+            </ul>
+        </div>
+
+        <div class="step-box">
+            <h4>セクション4: 全体の進捗</h4>
+            <ul>
+                <li>動作3/6 (50%完了)</li>
+                <li>現在のセグメント: 「部屋Bで経路追従」</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <h2 id="main-flowchart">フローチャート</h2>
+
+        <div class="mermaid-container">
+            <div class="mermaid">
+flowchart TB
+    Start([車椅子の電源オン]) --> LoadMap[建物のマップを読み込み<br/>経路を計画]
+
+    LoadMap --> StartNav[開始位置から<br/>ナビゲーション開始]
+
+    StartNav --> MainLoop[メインサイクル開始]
+
+    MainLoop --> ReadSensors[センサーを読み取る<br/>- レーザースキャナー<br/>- 位置トラッカー<br/>- カメラ]
+
+    ReadSensors --> Understand[環境を理解<br/>- 障害物を検出<br/>- 位置を確認]
+
+    Understand --> DecideAction{どの動作が<br/>必要か?}
+
+    DecideAction -->|経路追従| PathAction[部屋を通る経路追従]
+    DecideAction -->|ドアの前| DoorAction[出入口を通過]
+    DecideAction -->|エレベーターの前| ElevatorAction[エレベーターに進入]
+    DecideAction -->|任務完了| MissionComplete[目的地に到着]
+
+    PathAction --> PathCalc[移動を計算<br/>- 障害物を回避<br/>- 経路に留まる<br/>- 速度を調整]
+    PathCalc --> PathMove[車椅子を移動<br/>前進/旋回]
+    PathMove --> PathCheck{部屋の<br/>終わりに到達?}
+    PathCheck -->|いいえ| MainLoop
+    PathCheck -->|はい| AdvanceAction[次のセグメントに移動]
+
+    DoorAction --> DoorPhase1[フェーズ1:<br/>ドアの前に位置する]
+    DoorPhase1 --> DoorPhase2[フェーズ2:<br/>正しい方向を向く]
+    DoorPhase2 --> DoorPhase3{フェーズ3:<br/>ドアは開いているか?}
+    DoorPhase3 -->|いいえ| OpenDoor[自動ドアをトリガー<br/>小さな動きで]
+    OpenDoor --> DoorPhase3
+    DoorPhase3 -->|はい| DoorPhase4[フェーズ4:<br/>出入口を通過<br/>2メートル移動]
+    DoorPhase4 --> DoorComplete{出入口を<br/>通過したか?}
+    DoorComplete -->|いいえ| DoorPhase4
+    DoorComplete -->|はい| AdvanceAction
+
+    ElevatorAction --> ElevP1[フェーズ1-2:<br/>接近と整列<br/>エレベーターの前で]
+    ElevP1 --> ElevP3{フェーズ3:<br/>エレベーターの<br/>ドアは開いているか?}
+    ElevP3 -->|いいえ| ElevOpenDoor[ドアをトリガー<br/>小さな動きで]
+    ElevOpenDoor --> ElevP3
+    ElevP3 -->|はい| ElevEnter[フェーズ3:<br/>エレベーターキャビンに進入<br/>2メートル前進]
+    ElevEnter --> ElevP4[フェーズ4:<br/>ドアが閉まる<br/>目標階に移動<br/>ドアが開く]
+    ElevP4 --> ElevP5[フェーズ5:<br/>エレベーターから後退<br/>2メートル後退]
+    ElevP5 --> ElevComplete{エレベーターから<br/>退出したか?}
+    ElevComplete -->|いいえ| ElevP5
+    ElevComplete -->|はい| AdvanceAction
+
+    AdvanceAction --> CheckMission{移動は<br/>完了したか?}
+    CheckMission -->|いいえ| MainLoop
+    CheckMission -->|はい| MissionComplete
+
+    MissionComplete --> SaveData[ナビゲーションデータを保存]
+    SaveData --> ShowResults[移動マップと<br/>統計を表示]
+    ShowResults --> End([ナビゲーション終了])
+
+    style Start fill:#90EE90
+    style End fill:#FFB6C1
+    style LoadMap fill:#FFE4B5
+    style DecideAction fill:#DDA0DD
+    style PathAction fill:#F0E68C
+    style DoorAction fill:#87CEEB
+    style ElevatorAction fill:#FFB6B6
+    style MissionComplete fill:#98FB98
+    style AdvanceAction fill:#98FB98
+            </div>
+        </div>
+
+        <div class="legend">
+            <h2>色の凡例</h2>
+
+            <h3>メインナビゲーションフローチャート:</h3>
+            <div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #90EE90;"></span>
+                    <span>緑: 開始と終了ポイント</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #FFE4B5;"></span>
+                    <span>薄いオレンジ: 初期セットアップと計画</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #DDA0DD;"></span>
+                    <span>紫: 決定ポイント</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #F0E68C;"></span>
+                    <span>黄色: 部屋を通る経路追従</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #87CEEB;"></span>
+                    <span>薄い青: ドア通過シーケンス</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #FFB6B6;"></span>
+                    <span>薄い赤: エレベーターシーケンス</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #98FB98;"></span>
+                    <span>薄い緑: 進捗の進行</span>
+                </div>
+            </div>
+
+            <h3>ドア通過フローチャート:</h3>
+            <div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #90EE90;"></span>
+                    <span>緑: 開始と完了</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #87CEEB;"></span>
+                    <span>薄い青: ドアフェーズ</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #DDA0DD;"></span>
+                    <span>紫: ドア確認の決定</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #FFE4B5;"></span>
+                    <span>薄いオレンジ: ドアトリガー動作</span>
+                </div>
+            </div>
+
+            <h3>エレベーターフローチャート:</h3>
+            <div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #90EE90;"></span>
+                    <span>緑: 開始と完了</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #FFB6B6;"></span>
+                    <span>薄い赤: エレベーター移動フェーズ</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #FFE4B5;"></span>
+                    <span>薄いオレンジ: 待機フェーズ</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background-color: #DDA0DD;"></span>
+                    <span>紫: ドア確認の決定</span>
+                </div>
+            </div>
+        </div>
+
+        <hr>
+
+        <div class="summary-box">
+            <h2>まとめ</h2>
+
+            <p>自律走行車椅子は:</p>
+
+            <ol>
+                <li>エレベーターに到達するために複数の部屋を通る経路を<strong>計画</strong></li>
+                <li>障害物を回避しながら各部屋を通るガイドポイントに<strong>従う</strong></li>
+                <li>4フェーズシーケンスを使用して出入口を<strong>通過</strong></li>
+                <li>6フェーズシーケンスを使用してエレベーターに<strong>進入</strong></li>
+                <li>エレベーター内で階間を<strong>移動</strong></li>
+                <li>新しい階に後退して<strong>退出</strong></li>
+                <li>目的地に到達するまで各部屋とドアに対してこのサイクルを<strong>繰り返す</strong></li>
+            </ol>
+
+            <p>全プロセスは自動で、ユーザーの介入を必要としません。車椅子はセンサーを継続的に監視し、障害物を回避するように経路を調整し、建物環境を安全にナビゲートします。</p>
+        </div>
+
+        <div class="footer">
+            <p><em>作成日: 2025-01-27</em></p>
+            <p><em>wheelchair_experimentプロジェクトのドキュメントの一部</em></p>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+</body>
+</html>

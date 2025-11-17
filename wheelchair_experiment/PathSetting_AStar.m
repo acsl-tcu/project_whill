@@ -362,7 +362,10 @@ function path = astar(start, goal, obstacle_map, distance_matrix, debug_on)
     % Enable/disable visualization and recording
     ENABLE_VISUALIZATION = debug_on;   % Set to false to disable
     RECORD_VIDEO = true && ENABLE_VISUALIZATION;           % Set to false to disable video recording
-    close all
+
+    % NOTE: Do NOT use 'close all' here - it will close the real-time wheelchair plotter!
+    % If you need to close A* debug figures, close them selectively by handle
+
     % Video recording settings
     VIDEO_FRAME_RATE = 10;        % Frames per second in output video
     VIDEO_QUALITY = 90;           % Video quality (0-100)

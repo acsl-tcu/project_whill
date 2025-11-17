@@ -749,12 +749,12 @@ classdef Control < handle
                     obj.target_n = ones(obj.K, obj.NP);
 
                     % Regenerate V_ref for new segment waypoints
-                    obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.5;  % 0.5 m/s default
+                    obj.V_ref = zeros(size(obj.waypoint,1), 1) + 0.3;  % 0.5 m/s default
                     if size(obj.waypoint,1) >= 2
-                        obj.V_ref(end-1) = 0.5;  % Slow down before goal
+                        obj.V_ref(end-1) = 0.1;  % Slow down before goal
                     end
                     if size(obj.waypoint,1) >= 1
-                        obj.V_ref(end) = 0.5;      % Stop at goal
+                        obj.V_ref(end) = 0.1;      % Stop at goal
                     end
 
                     % Regenerate target heading array

@@ -14,3 +14,6 @@ astar_visualization*.avi
 # Main test/development scripts
 main_astar.m
 main.m
+
+# BMAD-METHOD (symbolic link to external installation)
+.bmad/

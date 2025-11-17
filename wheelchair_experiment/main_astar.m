@@ -57,11 +57,11 @@ addr.HostIP	   = '192.168.1.6'; % Gazebo
 te             = 50;
 dt             = 0.2;
 rgtNum         = 1;
-mode           = 3;             % 2:Gazebo, 3:Online
-sensor(1)      = false;          %--> Prime (Gazebo)
+mode           = 2;             % 2:Gazebo, 3:Online
+sensor(1)      = true;          %--> Prime (Gazebo)
 sensor(2)      = true;          %--> LiDAR (Gazebo, online)
 sensor(3)      = false;         %--> realSence
-autoware(1)    = true;         %--> Autoware(Online)
+autoware(1)    = false;         %--> Autoware(Online)
 
 % Prime=true(1),autoware=true(1)
 %   ...Vehicle runs by Autoware(estimated) and get Autoware(estimated) and Prime(measured) position
