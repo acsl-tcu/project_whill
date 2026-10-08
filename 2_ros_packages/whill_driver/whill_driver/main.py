@@ -9,7 +9,7 @@ import traceback
 from time import sleep, time
 
 import rclpy
-from geometry_msgs.msg import Twist, Vector3
+from geometry_msgs.msg import Twist, Vector3, Vector3Stamped
 from rclpy.node import Node
 from std_msgs.msg import Bool, Float64, Int16
 from whill import ComWHILL
@@ -83,6 +83,7 @@ class whill_ope(ComWHILL):
         current = Float64()
         motor_angle = Vector3()
         motor_speed = Vector3()
+        motor_speed_ts = Vector3Stamped()
         speedmode = Int16()
         joy = Vector3()
 
@@ -95,11 +96,18 @@ class whill_ope(ComWHILL):
         joy.x = float(joy_x)
         joy.y = float(joy_y)
 
+        motor_speed_ts.header.stamp = self.ros.get_clock().now().to_msg()
+        motor_speed_ts.header.frame_id = 'base_link'
+        motor_speed_ts.vector.x = float(motor_speed.x)
+        motor_speed_ts.vector.y = float(motor_speed.y)
+        motor_speed_ts.vector.z = 0.0
+
         # ROS2へトピックの配信
         self.ros.puber_battery_level.publish(level)
         self.ros.puber_battery_current.publish(current)
         self.ros.puber_motor_angle.publish(motor_angle)
         self.ros.puber_motor_speed.publish(motor_speed)
+        self.ros.puber_motor_speed_ts.publish(motor_speed_ts)
         self.ros.puber_speedmode.publish(speedmode)
         self.ros.puber_joy.publish(joy)
         # マニュアル操作検知のため保存
@@ -174,6 +182,8 @@ class node(Node):
             Vector3, "~/motor_angle", 10)
         self.puber_motor_speed = self.create_publisher(
             Vector3, "~/motor_speed", 10)
+        self.puber_motor_speed_ts = self.create_publisher(
+            Vector3Stamped, "~/motor_speed_ts", 10)
         self.puber_speedmode = self.create_publisher(
             Int16, "~/speed_mode", 10)
         self.puber_joy = self.create_publisher(

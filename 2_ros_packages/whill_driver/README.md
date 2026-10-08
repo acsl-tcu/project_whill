@@ -37,6 +37,13 @@ WHILL model CR の電源制御指令
 * float64 x : 右ホイール速度 [km/h]
 * float64 y : 左ホイール速度 [km/h]
 * float64 z : None
+
+### `~/motor_speed_ts` ([geometry_msgs/Vector3Stamped.msg](https://docs.ros2.org/latest/api/geometry_msgs/msg/Vector3Stamped.html))
+* std_msgs/Header header : タイムスタンプ (`stamp`) およびフレームID (`frame_id: "base_link"`)
+* geometry_msgs/Vector3 vector :
+	* float64 x : 右ホイール速度 [km/h]
+	* float64 y : 左ホイール速度 [km/h]
+	* float64 z : None
 ### `~/speed_mode` ([std_msgs/Int16.msg](http://docs.ros.org/en/noetic/api/std_msgs/html/msg/Int16.html))
 *  int16 data : スピードモード
 	|data| Mode |
