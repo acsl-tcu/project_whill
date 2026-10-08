@@ -33,6 +33,14 @@ WHILL model CR の電源制御指令
 * float64 x : 右ホイール角度($ \pm\pi $) [rad]
 * float64 y : 左ホイール角度($ \pm\pi $) [rad]
 * float64 z : None
+
+### `~/motor_angle_ts` ([geometry_msgs/Vector3Stamped.msg](https://docs.ros2.org/latest/api/geometry_msgs/msg/Vector3Stamped.html))
+* std_msgs/Header header : タイムスタンプ (`stamp`) およびフレームID (`frame_id: "base_link"`)
+* geometry_msgs/Vector3 vector :
+	* float64 x : 右ホイール角度($ \pm\pi $) [rad]
+	* float64 y : 左ホイール角度($ \pm\pi $) [rad]
+	* float64 z : None
+
 ### `~/motor_speed` ([geometry_msgs/Vector3.msg](https://docs.ros2.org/latest/api/geometry_msgs/msg/Vector3.html))
 * float64 x : 右ホイール速度 [km/h]
 * float64 y : 左ホイール速度 [km/h]
@@ -59,6 +67,13 @@ WHILL model CR の電源制御指令
 * float64 x : 縦スティック信号 [$\pm$%]
 * float64 y : 横スティック信号 [$\pm$%]
 * float64 z : None
+
+### `~/joy_ts` ([geometry_msgs/Vector3Stamped.msg](https://docs.ros2.org/latest/api/geometry_msgs/msg/Vector3Stamped.html))
+* std_msgs/Header header : タイムスタンプ (`stamp`) およびフレームID (`frame_id: "base_link"`)
+* geometry_msgs/Vector3 vector :
+	* float64 x : 縦スティック信号 [$\pm$%]
+	* float64 y : 横スティック信号 [$\pm$%]
+	* float64 z : None
 
 ---
 ## 参考

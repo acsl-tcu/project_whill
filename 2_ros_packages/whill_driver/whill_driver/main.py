@@ -82,10 +82,12 @@ class whill_ope(ComWHILL):
         level = Int16()
         current = Float64()
         motor_angle = Vector3()
+        motor_angle_ts = Vector3Stamped()
         motor_speed = Vector3()
         motor_speed_ts = Vector3Stamped()
         speedmode = Int16()
         joy = Vector3()
+        joy_ts = Vector3Stamped()
 
         # データの格納
         level.data, current.data = self.battery.values()
@@ -96,20 +98,37 @@ class whill_ope(ComWHILL):
         joy.x = float(joy_x)
         joy.y = float(joy_y)
 
-        motor_speed_ts.header.stamp = self.ros.get_clock().now().to_msg()
+        # 共通タイムスタンプの取得
+        now = self.ros.get_clock().now().to_msg()
+
+        motor_angle_ts.header.stamp = now
+        motor_angle_ts.header.frame_id = 'base_link'
+        motor_angle_ts.vector.x = float(motor_angle.x)
+        motor_angle_ts.vector.y = float(motor_angle.y)
+        motor_angle_ts.vector.z = 0.0
+
+        motor_speed_ts.header.stamp = now
         motor_speed_ts.header.frame_id = 'base_link'
         motor_speed_ts.vector.x = float(motor_speed.x)
         motor_speed_ts.vector.y = float(motor_speed.y)
         motor_speed_ts.vector.z = 0.0
 
+        joy_ts.header.stamp = now
+        joy_ts.header.frame_id = 'base_link'
+        joy_ts.vector.x = float(joy.x)
+        joy_ts.vector.y = float(joy.y)
+        joy_ts.vector.z = 0.0
+
         # ROS2へトピックの配信
         self.ros.puber_battery_level.publish(level)
         self.ros.puber_battery_current.publish(current)
         self.ros.puber_motor_angle.publish(motor_angle)
+        self.ros.puber_motor_angle_ts.publish(motor_angle_ts)
         self.ros.puber_motor_speed.publish(motor_speed)
         self.ros.puber_motor_speed_ts.publish(motor_speed_ts)
         self.ros.puber_speedmode.publish(speedmode)
         self.ros.puber_joy.publish(joy)
+        self.ros.puber_joy_ts.publish(joy_ts)
         # マニュアル操作検知のため保存
         self.joy_x = float(joy_x)
         self.joy_y = float(joy_y)
@@ -180,6 +199,8 @@ class node(Node):
             Float64, "~/battery_current", 10)
         self.puber_motor_angle = self.create_publisher(
             Vector3, "~/motor_angle", 10)
+        self.puber_motor_angle_ts = self.create_publisher(
+            Vector3Stamped, "~/motor_angle_ts", 10)
         self.puber_motor_speed = self.create_publisher(
             Vector3, "~/motor_speed", 10)
         self.puber_motor_speed_ts = self.create_publisher(
@@ -188,6 +209,8 @@ class node(Node):
             Int16, "~/speed_mode", 10)
         self.puber_joy = self.create_publisher(
             Vector3, "~/joy", 10)
+        self.puber_joy_ts = self.create_publisher(
+            Vector3Stamped, "~/joy_ts", 10)
 
         # whillへの接続フェーズ
         self.whill = whill_ope(self)
