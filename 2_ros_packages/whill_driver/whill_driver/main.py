@@ -32,7 +32,7 @@ class whill_ope(ComWHILL):
 
         # 電源オン
         self.send_power_on_com(1)
-        self.start_data_stream(10)
+        self.start_data_stream(20)
         while 1:
             if self.power_status == 1:
                 break
@@ -151,7 +151,7 @@ class whill_ope(ComWHILL):
             self.start_data_stream(10, 0, i)
             while old_count == self.seq_data_set_0:
                 self.refresh()
-        self.start_data_stream(10)
+        self.start_data_stream(20)
 
     def velocity2joy(self, v, w):
         """速度・角速度入力をジョイスティック入力に変換する関数"""
@@ -215,7 +215,7 @@ class node(Node):
         # whillへの接続フェーズ
         self.whill = whill_ope(self)
 
-        dt = 0.01  # 制御・受信周期 (10ms = 100Hz)
+        dt = 0.02  # 制御・受信周期 (20ms = 50Hz)
         self.create_timer(dt, self.mainloop2)
 
     def sub_cmd_vel(self, topic):
